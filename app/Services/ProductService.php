@@ -19,7 +19,11 @@ class ProductService
 
     public function get(int $id): Product
     {
-        return Product::findOrFail($id);
+        return Product::with([
+            'supplyItems.supply.vendor',
+            'orderItems.order.customer',
+            'stockBalances.location',
+        ])->findOrFail($id);
     }
 
     public function create(array $data): Product
@@ -158,10 +162,35 @@ class ProductService
              --------------------------------------------------------------*/
             if ($txn->direction === 'outbound') {
                 $txn->fromLocation = $txn->location; // warehouse/retailer
-                $txn->toLocation   = null;           // will be shown as Customer/etc. in Blade fallback
+                $txn->toLocation   = null;
             } else {
-                $txn->fromLocation = null;           // Vendor/etc. handled by Blade
+                $txn->fromLocation = null;
                 $txn->toLocation   = $txn->location;
+
+                // Populate meaningful fromLocation for inbound scenarios
+                if ($txn->reference_type === \App\Models\Supply::class) {
+                    $supply = $txn->reference_id ? \App\Models\Supply::with(['vendor'])->find($txn->reference_id) : null;
+                    if ($supply && $supply->vendor) {
+                        $txn->fromLocation = (object) [
+                            'name'          => $supply->vendor->name,
+                            'location_type' => 'vendor',
+                        ];
+                    }
+                }
+
+                if ($txn->reference_type === \App\Models\StockTransfer::class) {
+                    $transfer = $txn->reference_id ? \App\Models\StockTransfer::find($txn->reference_id) : null;
+                    if ($transfer) {
+                        // Build a pseudo location object for the source
+                        $srcModel = app($transfer->from_location_type)::find($transfer->from_location_id);
+                        if ($srcModel) {
+                            $txn->fromLocation = (object) [
+                                'name'          => $srcModel->name ?? ('ID '.$srcModel->id),
+                                'location_type' => strtolower(class_basename($transfer->from_location_type)),
+                            ];
+                        }
+                    }
+                }
             }
 
             /* --------------------------------------------------------------

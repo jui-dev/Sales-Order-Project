@@ -56,7 +56,7 @@
                     </div>
                 </div>
                 
-                @if($order->status != 'confirmed' && $order->status != 'cancelled')
+                @if(! in_array($order->status, ['confirmed', 'completed', 'cancelled']))
                 <div class="d-flex justify-content-center mt-4">
                     @if($order->status == 'pending')
                     <form action="{{ route('orders.update-status', $order) }}" method="POST" class="mx-2">

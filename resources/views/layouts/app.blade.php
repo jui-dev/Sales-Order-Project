@@ -210,6 +210,10 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    {{-- Page-specific scripts pushed from child views --}}
+    @stack('scripts')
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const currentPath = window.location.pathname;
@@ -278,6 +282,5 @@
             });
         });
     </script>
-    @yield('scripts')
 </body>
 </html> 

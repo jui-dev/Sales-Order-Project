@@ -39,7 +39,7 @@ class SupplyController extends Controller
     public function completed(int $id): RedirectResponse
     {
         $this->service->complete($id);
-        return back()->with('success', 'Supply marked as completed and stock updated.');
+        return back()->with('success', 'Supply marked as completed and GRN generated.');
     }
 
     public function confirm(int $id): RedirectResponse

@@ -76,17 +76,10 @@
                                 </button>
                                 <ul class="dropdown-menu">
                                     <li>
-                                        <form action="{{ route('supplies.confirm', $supply) }}" method="POST">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="dropdown-item">Confirm Supply</button>
-                                        </form>
-                                    </li>
-                                    <li>
                                         <form action="{{ route('supplies.completed', $supply) }}" method="POST">
                                             @csrf
                                             @method('PATCH')
-                                            <button type="submit" class="dropdown-item">Mark Completed (Override)</button>
+                                            <button type="submit" class="dropdown-item">Mark Completed</button>
                                         </form>
                                     </li>
                                 </ul>

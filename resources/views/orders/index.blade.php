@@ -102,7 +102,7 @@
                             <a href="{{ route('orders.edit', $order) }}" class="btn btn-sm btn-primary" title="Edit Order">
                                 <i class="bi bi-pencil"></i>
                             </a>
-                            @if($order->status != 'confirmed')
+                            @if(! in_array($order->status, ['confirmed', 'completed', 'cancelled']))
                             <div class="dropdown d-inline">
                                 <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
                                     Update Status

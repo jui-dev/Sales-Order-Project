@@ -164,7 +164,9 @@
                             <td>
                                 @if($movement->fromLocation)
                                     <span class="badge bg-secondary">{{ $movement->fromLocation->name }}</span>
-                                    <br><small class="text-muted">{{ ucfirst($movement->fromLocation->location_type) }}</small>
+                                    @if(isset($movement->fromLocation->location_type))
+                                        <br><small class="text-muted">{{ ucfirst($movement->fromLocation->location_type) }}</small>
+                                    @endif
                                 @else
                                     <span class="text-muted">
                                         @if($movement->movement_type === 'supply_in')
@@ -178,7 +180,9 @@
                             <td>
                                 @if($movement->toLocation)
                                     <span class="badge bg-secondary">{{ $movement->toLocation->name }}</span>
-                                    <br><small class="text-muted">{{ ucfirst($movement->toLocation->location_type) }}</small>
+                                    @if(isset($movement->toLocation->location_type))
+                                        <br><small class="text-muted">{{ ucfirst($movement->toLocation->location_type) }}</small>
+                                    @endif
                                 @else
                                     <span class="text-muted">
                                         @if($movement->movement_type === 'sale')
@@ -190,8 +194,8 @@
                                 @endif
                             </td>
                             <td>
-                                <strong class="text-{{ $movement->movement_type === 'supply_in' ? 'success' : 'danger' }}">
-                                    {{ $movement->movement_type === 'supply_in' ? '+' : '-' }}{{ $movement->quantity }}
+                                <strong class="text-{{ $movement->direction === 'inbound' ? 'success' : 'danger' }}">
+                                    {{ $movement->direction === 'inbound' ? '+' : '-' }}{{ abs($movement->quantity) }}
                                 </strong>
                             </td>
                             <td>

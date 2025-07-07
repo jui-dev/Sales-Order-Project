@@ -78,23 +78,23 @@ Route::get('/orders/create', function () {
 
 Route::get('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'show'])->whereNumber('id')->name('orders.show');
 
-Route::get('/orders/{id}/edit', function () {
-    return view('orders.edit', [
-        'customers' => collect(),
-        'products' => collect(),
-        'warehouses' => collect(),
-        'retailers' => collect(),
-    ]);
-})->name('orders.edit');
+Route::get('/orders/{id}/edit', function ($id) {
+    $order = \App\Models\Order::with(['orderItems.product', 'customer'])->findOrFail($id);
+
+    // Dropdown data
+    $customers  = \App\Models\Customer::orderBy('name')->get();
+    $products   = \App\Models\Product::orderBy('name')->get();
+    $warehouses = \App\Models\Warehouse::all();
+    $retailers  = \App\Models\Retailer::all();
+
+    return view('orders.edit', compact('order', 'customers', 'products', 'warehouses', 'retailers'));
+})->whereNumber('id')->name('orders.edit');
 
 // Supplies Routes (Controller)
 Route::resource('supplies', SupplyController::class)->only(['index', 'create', 'store', 'show']);
 
 // Custom route to mark supply completed
 Route::patch('supplies/{supply}/completed', [SupplyController::class, 'completed'])->name('supplies.completed');
-
-// NEW: confirm supply (generates GRN)
-Route::patch('supplies/{supply}/confirm', [SupplyController::class, 'confirm'])->name('supplies.confirm');
 
 // GRN routes
 Route::get('/grns', [GrnController::class, 'index'])->name('grns.index');
@@ -976,3 +976,39 @@ Route::get('/api/retailer-to-customer-picking/statistics', function () {
         'total_items'  => $totalItems,
     ]);
 })->name('retailer-to-customer-picking.statistics');
+
+// Generic Picking List (show)
+Route::get('/picking/{id}', function ($id) {
+    /** @var \App\Models\PickingList|null $pickingList */
+    $pickingList = \App\Models\PickingList::with([
+        'items.product',
+        'fromLocation',
+        'toLocation',
+        'order',
+        'supply',
+    ])->findOrFail($id);
+
+    // Fallback values if relations missing so that Blade does not crash
+    $pickingList->picking_number ??= 'PL-' . str_pad($pickingList->id, 6, '0', STR_PAD_LEFT);
+
+    return view('picking.show', compact('pickingList'));
+})->whereNumber('id')->name('picking.show');
+
+// Update single picking item quantity (generic)
+Route::put('/picking/{pickingList}/item/{item}', function (\App\Models\PickingList $pickingList, \App\Models\PickingListItem $item) {
+    if ($item->picking_list_id !== $pickingList->id) {
+        abort(404);
+    }
+
+    request()->validate(['quantity_picked' => 'required|integer|min:0']);
+
+    $quantity = (int) request('quantity_picked');
+    $quantity = min($quantity, $item->quantity_requested); // cap
+
+    $item->update([
+        'quantity_picked' => $quantity,
+        'status'          => $quantity === $item->quantity_requested ? 'picked' : 'partial',
+    ]);
+
+    return back()->with('success', 'Item quantity updated.');
+})->whereNumber('pickingList')->whereNumber('item')->name('picking.update-item-quantity');

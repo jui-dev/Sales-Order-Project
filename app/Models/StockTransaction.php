@@ -65,7 +65,7 @@ class StockTransaction extends Model
     }
 
     protected $casts = [
-        'transaction_date' => 'date',
+        'transaction_date' => 'datetime',
     ];
 
     public function product(): BelongsTo
