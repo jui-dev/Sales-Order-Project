@@ -27,12 +27,14 @@ class ReportController extends Controller
         $startDate = Arr::get($validated, 'start_date', Carbon::now()->startOfMonth()->toDateString());
         $endDate   = Arr::get($validated, 'end_date', Carbon::now()->toDateString());
 
-        // Fetch all order items within the date range whose parent orders are completed/confirmed
+        // Fetch all order items within the date range whose parent orders are not cancelled
         $orderItems = OrderItem::with(['order', 'product', 'location'])
             ->whereHas('order', function ($q) use ($startDate, $endDate) {
                 $q->whereDate('order_date', '>=', $startDate)
                   ->whereDate('order_date', '<=', $endDate)
-                  ->whereIn('status', ['completed', 'confirmed']);
+                  // Include every status except explicitly cancelled so that in-flight
+                  // orders still appear in the profitability dashboard.
+                  ->where('status', '!=', 'cancelled');
             })
             ->get();
 
@@ -51,8 +53,16 @@ class ReportController extends Controller
         $dailyProfits = $orderItems->map(function (OrderItem $item) {
             $product        = $item->product;
             $locationModel  = $item->location;
-            $locationType   = $item->location_type === Warehouse::class ? 'warehouse' : ($item->location_type === Retailer::class ? 'retailer' : 'other');
-            $locationName   = $locationModel->name ?? 'Unknown';
+
+            // Normalise location type to friendly slug
+            $locationType = match ($item->location_type) {
+                \App\Models\Warehouse::class => 'warehouse',
+                \App\Models\Retailer::class  => 'retailer',
+                default                        => 'other',
+            };
+
+            // Guard against missing location records
+            $locationName = $locationModel?->name ?? 'Unknown';
 
             $revenue = (float) $item->unit_price * (int) $item->quantity;
             $cost    = (float) ($product->purchase_price ?? 0) * (int) $item->quantity;
