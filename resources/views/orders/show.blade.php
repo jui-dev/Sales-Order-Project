@@ -5,6 +5,9 @@
     <h1>Order #{{ $order->id }}</h1>
     <div>
         <a href="{{ route('orders.edit', $order) }}" class="btn btn-primary">Edit Order</a>
+        @if($order->status === 'completed' && $order->invoice)
+            <a href="{{ route('invoices.show', $order->invoice) }}" target="_blank" class="btn btn-success">View Invoice</a>
+        @endif
         <a href="{{ route('orders.index') }}" class="btn btn-secondary">Back to Orders</a>
     </div>
 </div>

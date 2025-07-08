@@ -17,7 +17,7 @@ class OrderController extends Controller
 
     public function index(): View
     {
-        $orders = \App\Models\Order::with(['customer', 'items'])->latest()->paginate(15);
+        $orders = \App\Models\Order::with(['customer', 'items', 'invoice'])->latest()->paginate(15);
         return view('orders.index', compact('orders'));
     }
 

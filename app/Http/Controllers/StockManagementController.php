@@ -19,8 +19,9 @@ class StockManagementController extends Controller
         // --------------------------------------------------------
         // Build base query
         // --------------------------------------------------------
+        // Order by newest record first based on primary key to ensure stable sorting
         $query = StockTransaction::with(['product', 'location'])
-            ->latest('transaction_date');
+            ->latest('id');
 
         // --------------------------------------------------------
         // Apply dynamic filters (if provided)
@@ -148,7 +149,7 @@ class StockManagementController extends Controller
     {
         $query = StockTransaction::with(['location'])
             ->where('product_id', $product->id)
-            ->latest('transaction_date');
+            ->latest('id');
 
         // Optional date filters to narrow down results
         if ($request->filled('date_from')) {

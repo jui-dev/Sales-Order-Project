@@ -18,6 +18,7 @@ use App\Http\Controllers\StockManagementController;
 use Illuminate\Support\Str;
 use App\Http\Controllers\ReportController;
 use App\Services\ProductService;
+use App\Http\Controllers\InvoiceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1012,3 +1013,9 @@ Route::put('/picking/{pickingList}/item/{item}', function (\App\Models\PickingLi
 
     return back()->with('success', 'Item quantity updated.');
 })->whereNumber('pickingList')->whereNumber('item')->name('picking.update-item-quantity');
+
+/**
+ * Invoice Routes
+ */
+Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
+Route::get('invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');

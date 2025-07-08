@@ -9,12 +9,12 @@ class OrderService
 {
     public function list(): Collection
     {
-        return Order::with(['customer', 'items'])->latest()->get();
+        return Order::with(['customer', 'items', 'invoice'])->latest()->get();
     }
 
     public function get(int $id): Order
     {
-        return Order::with(['customer', 'items'])->findOrFail($id);
+        return Order::with(['customer', 'items', 'invoice'])->findOrFail($id);
     }
 
     public function create(array $data): Order

@@ -6,7 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\Traits\HasFormattedId;
+use App\Models\Invoice;
 
 class Order extends Model
 {
@@ -46,5 +48,10 @@ class Order extends Model
     public function fulfillmentLocation(): MorphTo
     {
         return $this->morphTo('fulfillment_location');
+    }
+
+    public function invoice(): HasOne
+    {
+        return $this->hasOne(Invoice::class);
     }
 } 

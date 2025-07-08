@@ -118,6 +118,13 @@ class PickingListObserver
                 $order = \App\Models\Order::find($list->reference_id);
                 if ($order && $order->status !== 'completed') {
                     $order->updateQuietly(['status' => 'completed']);
+
+                    // Auto-generate invoice upon completion
+                    try {
+                        app(\App\Services\InvoiceService::class)->generateFromOrder($order);
+                    } catch (\Throwable $e) {
+                        \Log::error('Failed to auto-generate invoice for Order '.$order->id.' after picking completion: '.$e->getMessage());
+                    }
                 }
             }
         });
