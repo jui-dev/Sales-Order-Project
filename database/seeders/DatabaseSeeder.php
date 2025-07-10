@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             VendorSeeder::class,
             WarehouseSeeder::class,
             RetailerSeeder::class,
+            ChartOfAccountsSeeder::class,
         ]);
     }
 } 

@@ -19,6 +19,8 @@ use Illuminate\Support\Str;
 use App\Http\Controllers\ReportController;
 use App\Services\ProductService;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\AuditLogController;
 
 /*
 |--------------------------------------------------------------------------
@@ -460,6 +462,12 @@ Route::prefix('warehouse/receiving')->name('warehouse.receiving.')->group(functi
 
 // Reports Routes
 Route::get('/reports/daily-profit', [ReportController::class, 'dailyProfit'])->name('reports.daily-profit');
+Route::get('/reports/trial-balance', [ReportController::class, 'trialBalance'])->name('reports.trial-balance');
+
+// NEW: Income Statement report
+Route::get('/reports/income-statement', [ReportController::class, 'incomeStatement'])->name('reports.income-statement');
+Route::get('/reports/balance-sheet', [ReportController::class, 'balanceSheet'])->name('reports.balance-sheet');
+Route::get('/reports/cash-flow', [ReportController::class, 'cashFlowStatement'])->name('reports.cash-flow');
 
 // Picking Lists UI Routes
 Route::get('/picking-lists', [PickingListController::class, 'index'])->name('picking-lists.index');
@@ -1019,3 +1027,6 @@ Route::put('/picking/{pickingList}/item/{item}', function (\App\Models\PickingLi
  */
 Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
 Route::get('invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');
+
+Route::get('/journal-entries', [\App\Http\Controllers\JournalEntryController::class, 'index'])->name('journal-entries.index');
+Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');

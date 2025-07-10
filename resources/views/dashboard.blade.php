@@ -1,5 +1,19 @@
 @extends('layouts.app')
 
+@php
+    use Carbon\Carbon;
+    // Aggregate last 7 days of invoice totals
+    $salesData = \App\Models\Invoice::selectRaw('DATE(created_at) as date, SUM(total) as total')
+        ->groupBy('date')
+        ->orderBy('date', 'desc')
+        ->limit(7)
+        ->get()
+        ->reverse();
+
+    $chartLabels = $salesData->pluck('date')->map(fn($d) => Carbon::parse($d)->format('M d'))->values();
+    $chartTotals = $salesData->pluck('total')->values();
+@endphp
+
 @section('content')
 <div class="row">
     <div class="col-12 mb-4 page-heading">
@@ -208,4 +222,50 @@
         </div>
     </div>
 </div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center">
+                <i class="bi bi-graph-up me-2"></i>
+                <span>Recent Sales (Last 7 Days)</span>
+            </div>
+            <div class="card-body">
+                <canvas id="salesChart" height="120"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection 
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: @json($chartLabels),
+                datasets: [{
+                    label: 'Sales',
+                    data: @json($chartTotals),
+                    fill: true,
+                    tension: 0.3,
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    pointRadius: 4,
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    });
+</script>
+@endpush 

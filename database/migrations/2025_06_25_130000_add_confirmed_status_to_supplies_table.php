@@ -6,13 +6,17 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration {
     public function up(): void
     {
-        // Assuming MySQL, adjust the ENUM set to include 'confirmed'.
+        if (DB::getDriverName() !== 'mysql') {
+            return; // Skip for SQLite or other drivers unsupported by ALTER ENUM
+        }
         DB::statement("ALTER TABLE supplies MODIFY COLUMN status ENUM('pending','confirmed','completed','cancelled') DEFAULT 'pending'");
     }
 
     public function down(): void
     {
-        // Revert to original enum values.
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
         DB::statement("ALTER TABLE supplies MODIFY COLUMN status ENUM('pending','completed','cancelled') DEFAULT 'pending'");
     }
 }; 

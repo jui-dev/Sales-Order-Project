@@ -469,6 +469,15 @@ body {
     }
 }
 
+@media (min-width: 992px) {
+    /* Offset navbar to the right of the permanent sidebar on larger screens */
+    .navbar.fixed-top {
+        left: 250px;
+        right: 0;
+        width: auto; /* Let it fill remaining space */
+    }
+}
+
 /* Grid System Enhancements */
 .row {
     margin-right: -15px;

@@ -4,11 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Traits\HasFormattedId;
 
 class Warehouse extends Model
 {
-    use HasFormattedId;
+    use HasFactory, HasFormattedId;
 
     protected static string $idPrefix = 'WHS';
 

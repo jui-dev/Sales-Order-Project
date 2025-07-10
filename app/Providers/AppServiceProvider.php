@@ -58,6 +58,22 @@ class AppServiceProvider extends ServiceProvider
         }
         // Disabled: WarehouseStock::observe(WarehouseStockObserver::class);
 
+        if (class_exists(\App\Models\Grn::class) && class_exists(\App\Observers\GrnObserver::class)) {
+            \App\Models\Grn::observe(\App\Observers\GrnObserver::class);
+        }
+
+        if (class_exists(\App\Models\Invoice::class) && class_exists(\App\Observers\InvoiceObserver::class)) {
+            \App\Models\Invoice::observe(\App\Observers\InvoiceObserver::class);
+        }
+
+        if (class_exists(\App\Models\ReturnRecord::class) && class_exists(\App\Observers\ReturnRecordObserver::class)) {
+            \App\Models\ReturnRecord::observe(\App\Observers\ReturnRecordObserver::class);
+        }
+
+        if (class_exists(\App\Models\StockTransfer::class) && class_exists(\App\Observers\StockTransferObserver::class)) {
+            \App\Models\StockTransfer::observe(\App\Observers\StockTransferObserver::class);
+        }
+
         // Observe picking lists completion to finalise stock deduction
         if (class_exists(\App\Models\PickingList::class) && class_exists(\App\Observers\PickingListObserver::class)) {
             \App\Models\PickingList::observe(\App\Observers\PickingListObserver::class);

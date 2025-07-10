@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportController extends Controller
 {
@@ -98,6 +99,425 @@ class ReportController extends Controller
         $summary = $this->buildSummary($dailyProfits);
 
         return view('reports.daily-profit', compact('startDate', 'endDate', 'dailyProfits', 'dailyTotals', 'summary'));
+    }
+
+    /**
+     * Display the Trial Balance report.
+     */
+    public function trialBalance(Request $request)
+    {
+        $validated = $request->validate([
+            'end_date' => ['nullable', 'date'],
+        ]);
+
+        $endDate = $validated['end_date'] ?? null;
+
+        /** @var \App\Services\AccountingService $acct */
+        $acct = app(\App\Services\AccountingService::class);
+
+        $balances = $acct->trialBalance($endDate ? \Illuminate\Support\Carbon::parse($endDate) : null)
+            ->sortBy(fn($row) => $row['account']->code);
+
+        $totalDebit  = $balances->sum('debit');
+        $totalCredit = $balances->sum('credit');
+
+        $export = $request->query('export');
+        if ($export === 'csv') {
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="trial-balance-'.($endDate ?? date('Y-m-d')).'.csv"',
+            ];
+            $callback = function() use ($balances) {
+                $out = fopen('php://output', 'w');
+                fputcsv($out, ['Account Code', 'Account Name', 'Debit', 'Credit']);
+                foreach ($balances as $row) {
+                    fputcsv($out, [
+                        $row['account']->code,
+                        $row['account']->name,
+                        number_format($row['debit'], 2, '.', ''),
+                        number_format($row['credit'], 2, '.', ''),
+                    ]);
+                }
+                fclose($out);
+            };
+            return response()->stream($callback, 200, $headers);
+        } elseif ($export === 'pdf') {
+            $pdf = Pdf::loadView('reports.trial-balance-pdf', [
+                'balances'    => $balances,
+                'endDate'     => $endDate,
+                'totalDebit'  => $totalDebit,
+                'totalCredit' => $totalCredit,
+            ]);
+            return $pdf->download('trial-balance-'.($endDate ?? date('Y-m-d')).'.pdf');
+        }
+
+        return view('reports.trial-balance', [
+            'balances'    => $balances,
+            'endDate'     => $endDate,
+            'totalDebit'  => $totalDebit,
+            'totalCredit' => $totalCredit,
+        ]);
+    }
+
+    /**
+     * Display the Income Statement report.
+     */
+    public function incomeStatement(Request $request)
+    {
+        $validated = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date'   => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $startDate = $validated['start_date'] ?? null;
+        $endDate   = $validated['end_date']   ?? null;
+
+        // Build aggregated journal lines for the period scoped to Revenue & Expense accounts only
+        $query = \App\Models\JournalEntryLine::query()
+            ->select('account_id', \Illuminate\Support\Facades\DB::raw('SUM(debit) as debit'), \Illuminate\Support\Facades\DB::raw('SUM(credit) as credit'))
+            ->groupBy('account_id')
+            ->with(['account.accountType'])
+            ->whereHas('account.accountType', function ($q) {
+                $q->whereIn('name', ['Revenue', 'Expense']);
+            });
+
+        if ($startDate) {
+            $query->whereHas('journalEntry', fn($q) => $q->whereDate('entry_date', '>=', $startDate));
+        }
+
+        if ($endDate) {
+            $query->whereHas('journalEntry', fn($q) => $q->whereDate('entry_date', '<=', $endDate));
+        }
+
+        $rows = $query->get();
+
+        $revenues = collect();
+        $expenses = collect();
+
+        // Separate rows into revenues and expenses with proper sign handling
+        foreach ($rows as $row) {
+            $account = $row->account;
+            $type    = $account->accountType?->name ?? '';
+
+            // Calculate net amount for the account (positive values only for presentation)
+            if ($type === 'Revenue') {
+                $amount = ($row->credit - $row->debit);
+                // Adjust for contra accounts (e.g., Sales Returns) which reduce revenue
+                if ($account->is_contra) {
+                    $amount *= -1;
+                }
+                $revenues->push([
+                    'account' => $account,
+                    'amount'  => round($amount, 2),
+                ]);
+            } elseif ($type === 'Expense') {
+                $amount = ($row->debit - $row->credit);
+                $expenses->push([
+                    'account' => $account,
+                    'amount'  => round($amount, 2),
+                ]);
+            }
+        }
+
+        // Totals
+        $totalRevenue = $revenues->sum('amount');
+        $totalExpense = $expenses->sum('amount');
+        $netIncome    = $totalRevenue - $totalExpense;
+
+        $export = $request->query('export');
+        if ($export === 'csv') {
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="income-statement-'.($endDate ?? date('Y-m-d')).'.csv"',
+            ];
+            $callback = function() use ($revenues, $expenses) {
+                $out = fopen('php://output', 'w');
+                fputcsv($out, ['Section', 'Account Code', 'Account Name', 'Amount']);
+                foreach ($revenues as $row) {
+                    fputcsv($out, ['Revenue', $row['account']->code, $row['account']->name, number_format($row['amount'], 2, '.', '')]);
+                }
+                foreach ($expenses as $row) {
+                    fputcsv($out, ['Expense', $row['account']->code, $row['account']->name, number_format($row['amount'], 2, '.', '')]);
+                }
+                fclose($out);
+            };
+            return response()->stream($callback, 200, $headers);
+        } elseif ($export === 'pdf') {
+            $pdf = Pdf::loadView('reports.income-statement-pdf', [
+                'startDate'     => $startDate,
+                'endDate'       => $endDate,
+                'revenues'      => $revenues,
+                'expenses'      => $expenses,
+                'totalRevenue'  => $totalRevenue,
+                'totalExpense'  => $totalExpense,
+                'netIncome'     => $netIncome,
+            ]);
+            return $pdf->download('income-statement-'.($endDate ?? date('Y-m-d')).'.pdf');
+        }
+
+        return view('reports.income-statement', [
+            'startDate'     => $startDate,
+            'endDate'       => $endDate,
+            'revenues'      => $revenues,
+            'expenses'      => $expenses,
+            'totalRevenue'  => $totalRevenue,
+            'totalExpense'  => $totalExpense,
+            'netIncome'     => $netIncome,
+        ]);
+    }
+
+    /**
+     * Display the Balance Sheet report (Statement of Financial Position).
+     */
+    public function balanceSheet(Request $request)
+    {
+        $validated = $request->validate([
+            'end_date' => ['nullable', 'date'],
+        ]);
+
+        $endDate = $validated['end_date'] ?? null;
+
+        // Aggregate journal lines up to end date, grouped by account
+        $query = \App\Models\JournalEntryLine::query()
+            ->select('account_id', \Illuminate\Support\Facades\DB::raw('SUM(debit) as debit'), \Illuminate\Support\Facades\DB::raw('SUM(credit) as credit'))
+            ->groupBy('account_id')
+            ->with(['account.accountType']);
+
+        if ($endDate) {
+            $query->whereHas('journalEntry', fn($q) => $q->whereDate('entry_date', '<=', $endDate));
+        }
+
+        // Map rows keyed by account id for quick lookup
+        $journalTotals = $query->get()->keyBy('account_id');
+
+        // Pull all relevant accounts (Assets, Liabilities, Equity)
+        $accounts = \App\Models\Account::with('accountType')->whereHas('accountType', function ($q) {
+            $q->whereIn('name', ['Asset', 'Liability', 'Equity']);
+        })->get();
+
+        $assets      = collect();
+        $liabilities = collect();
+        $equity      = collect();
+
+        foreach ($accounts as $account) {
+            $typeName = $account->accountType?->name ?? '';
+
+            $totals = $journalTotals->get($account->id);
+            $debit  = $totals?->debit  ?? 0;
+            $credit = $totals?->credit ?? 0;
+
+            $opening = $account->opening_balance ?? 0;
+
+            // Determine balance sign based on account type (Assets normally debit, Liability/Equity credit)
+            $balance = 0;
+            if ($typeName === 'Asset') {
+                $balance = $opening + ($debit - $credit);
+            } else { // Liability or Equity
+                $balance = $opening + ($credit - $debit);
+            }
+
+            // Adjust for contra accounts (invert)
+            if ($account->is_contra) {
+                $balance *= -1;
+            }
+
+            $row = [
+                'account' => $account,
+                'balance' => round($balance, 2),
+            ];
+
+            match ($typeName) {
+                'Asset'     => $assets->push($row),
+                'Liability' => $liabilities->push($row),
+                'Equity'    => $equity->push($row),
+                default     => null,
+            };
+        }
+
+        $totalAssets      = $assets->sum('balance');
+        $totalLiabilities = $liabilities->sum('balance');
+        $totalEquity      = $equity->sum('balance');
+        $liabEqTotal      = $totalLiabilities + $totalEquity;
+
+        $export = $request->query('export');
+        if ($export === 'csv') {
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="balance-sheet-'.($endDate ?? date('Y-m-d')).'.csv"',
+            ];
+            $callback = function() use ($assets, $liabilities, $equity) {
+                $out = fopen('php://output', 'w');
+                fputcsv($out, ['Section', 'Account Code', 'Account Name', 'Balance']);
+                foreach ($assets as $row) {
+                    fputcsv($out, ['Asset', $row['account']->code, $row['account']->name, number_format($row['balance'], 2, '.', '')]);
+                }
+                foreach ($liabilities as $row) {
+                    fputcsv($out, ['Liability', $row['account']->code, $row['account']->name, number_format($row['balance'], 2, '.', '')]);
+                }
+                foreach ($equity as $row) {
+                    fputcsv($out, ['Equity', $row['account']->code, $row['account']->name, number_format($row['balance'], 2, '.', '')]);
+                }
+                fclose($out);
+            };
+            return response()->stream($callback, 200, $headers);
+        } elseif ($export === 'pdf') {
+            $pdf = Pdf::loadView('reports.balance-sheet-pdf', [
+                'endDate'          => $endDate,
+                'assets'           => $assets,
+                'liabilities'      => $liabilities,
+                'equity'           => $equity,
+                'totalAssets'      => $totalAssets,
+                'totalLiabilities' => $totalLiabilities,
+                'totalEquity'      => $totalEquity,
+                'liabEqTotal'      => $liabEqTotal,
+            ]);
+            return $pdf->download('balance-sheet-'.($endDate ?? date('Y-m-d')).'.pdf');
+        }
+
+        return view('reports.balance-sheet', [
+            'endDate'          => $endDate,
+            'assets'           => $assets,
+            'liabilities'      => $liabilities,
+            'equity'           => $equity,
+            'totalAssets'      => $totalAssets,
+            'totalLiabilities' => $totalLiabilities,
+            'totalEquity'      => $totalEquity,
+            'liabEqTotal'      => $liabEqTotal,
+        ]);
+    }
+
+    /**
+     * Display the Cash Flow Statement report.
+     */
+    public function cashFlowStatement(Request $request)
+    {
+        $validated = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date'   => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $startDate = $validated['start_date'] ?? null;
+        $endDate   = $validated['end_date']   ?? null;
+
+        // Codes
+        $CASH_CODE       = '1000';
+        $AR_CODE         = '1100';
+        $INV_CODE        = '1200';
+        $AP_CODE         = '2000';
+
+        // Fetch journal entries involving cash account within period
+        $entries = \App\Models\JournalEntry::with(['lines.account.accountType'])
+            ->when($startDate, fn($q) => $q->whereDate('entry_date', '>=', $startDate))
+            ->when($endDate,   fn($q) => $q->whereDate('entry_date', '<=', $endDate))
+            ->whereHas('lines.account', fn($q) => $q->where('code', $CASH_CODE))
+            ->get();
+
+        $operatingTotal = 0.0;
+        $investingTotal = 0.0;
+        $financingTotal = 0.0;
+
+        $operating = collect();
+        $investing = collect();
+        $financing = collect();
+
+        foreach ($entries as $entry) {
+            // Determine net cash change for this entry
+            $cashChange = $entry->lines->where('account.code', $CASH_CODE)
+                ->sum(fn($l) => ($l->debit - $l->credit));
+
+            if (abs($cashChange) < 0.01) {
+                continue; // no net cash movement
+            }
+
+            // Analyse non-cash lines to categorise the entry
+            $category = 'operating';
+            foreach ($entry->lines as $line) {
+                if ($line->account->code === $CASH_CODE) {
+                    continue;
+                }
+
+                $typeName = $line->account->accountType?->name ?? '';
+                $code     = $line->account->code;
+
+                if (in_array($typeName, ['Revenue', 'Expense'])) {
+                    $category = 'operating';
+                } elseif ($typeName === 'Asset') {
+                    $category = in_array($code, [$AR_CODE, $INV_CODE]) ? 'operating' : 'investing';
+                } elseif ($typeName === 'Liability') {
+                    $category = ($code === $AP_CODE) ? 'operating' : 'financing';
+                } elseif ($typeName === 'Equity') {
+                    $category = 'financing';
+                }
+
+                // Once we pick a non-operating category, break
+                if ($category !== 'operating') {
+                    break;
+                }
+            }
+
+            $row = [
+                'entry'       => $entry,
+                'description' => $entry->description,
+                'date'        => $entry->entry_date,
+                'amount'      => round($cashChange, 2),
+            ];
+
+            match ($category) {
+                'operating'  => $operating->push($row)  && ($operatingTotal  += $cashChange),
+                'investing'  => $investing->push($row)  && ($investingTotal  += $cashChange),
+                'financing'  => $financing->push($row)  && ($financingTotal  += $cashChange),
+            };
+        }
+
+        $netChange = $operatingTotal + $investingTotal + $financingTotal;
+
+        $export = $request->query('export');
+        if ($export === 'csv') {
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="cash-flow-'.($endDate ?? date('Y-m-d')).'.csv"',
+            ];
+            $callback = function() use ($operating, $investing, $financing) {
+                $out = fopen('php://output', 'w');
+                fputcsv($out, ['Category', 'Description', 'Amount']);
+                foreach ($operating as $row) {
+                    fputcsv($out, ['Operating', $row['description'] ?? 'Entry #'.$row['entry']->id, number_format($row['amount'], 2, '.', '')]);
+                }
+                foreach ($investing as $row) {
+                    fputcsv($out, ['Investing', $row['description'] ?? 'Entry #'.$row['entry']->id, number_format($row['amount'], 2, '.', '')]);
+                }
+                foreach ($financing as $row) {
+                    fputcsv($out, ['Financing', $row['description'] ?? 'Entry #'.$row['entry']->id, number_format($row['amount'], 2, '.', '')]);
+                }
+                fclose($out);
+            };
+            return response()->stream($callback, 200, $headers);
+        } elseif ($export === 'pdf') {
+            $pdf = Pdf::loadView('reports.cash-flow-pdf', [
+                'startDate'       => $startDate,
+                'endDate'         => $endDate,
+                'operating'       => $operating,
+                'investing'       => $investing,
+                'financing'       => $financing,
+                'operatingTotal'  => $operatingTotal,
+                'investingTotal'  => $investingTotal,
+                'financingTotal'  => $financingTotal,
+                'netChange'       => $netChange,
+            ]);
+            return $pdf->download('cash-flow-'.($endDate ?? date('Y-m-d')).'.pdf');
+        }
+
+        return view('reports.cash-flow', [
+            'startDate'       => $startDate,
+            'endDate'         => $endDate,
+            'operating'       => $operating,
+            'investing'       => $investing,
+            'financing'       => $financing,
+            'operatingTotal'  => $operatingTotal,
+            'investingTotal'  => $investingTotal,
+            'financingTotal'  => $financingTotal,
+            'netChange'       => $netChange,
+        ]);
     }
 
     private function blankSummary(): array
