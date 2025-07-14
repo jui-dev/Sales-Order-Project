@@ -3,6 +3,23 @@
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Invoices</h1>
+    <form method="GET" class="d-flex gap-2">
+        <select name="status" class="form-select form-select-sm" style="width:auto;">
+            <option value="">All Statuses</option>
+            @foreach(['unpaid','partially_paid','paid'] as $status)
+                <option value="{{ $status }}" @selected(request('status')===$status)>{{ ucfirst(str_replace('_',' ', $status)) }}</option>
+            @endforeach
+        </select>
+        <select name="customer_id" class="form-select form-select-sm" style="width:auto;">
+            <option value="">All Customers</option>
+            @foreach($customers as $customer)
+                <option value="{{ $customer->id }}" @selected(request('customer_id')==$customer->id)>{{ $customer->name }}</option>
+            @endforeach
+        </select>
+        <input type="date" name="from" value="{{ request('from') }}" class="form-control form-control-sm" />
+        <input type="date" name="to" value="{{ request('to') }}" class="form-control form-control-sm" />
+        <button class="btn btn-sm btn-outline-secondary" type="submit">Filter</button>
+    </form>
 </div>
 
 <div class="card">
@@ -31,6 +48,23 @@
                     <td class="text-end">
                         <a href="{{ route('invoices.show', $invoice) }}" class="btn btn-sm btn-primary">View</a>
                         <a href="{{ route('invoices.download', $invoice) }}" class="btn btn-sm btn-outline-secondary">PDF</a>
+                        @if($invoice->payment_status === 'unpaid')
+                            <div class="dropdown d-inline">
+                                <button class="btn btn-sm btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Record Payment
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li>
+                                        <form action="{{ route('invoices.pay', $invoice) }}" method="POST">
+                                            @csrf
+                                            <input type="hidden" name="amount" value="{{ $invoice->total }}">
+                                            <input type="hidden" name="method" value="cash">
+                                            <button type="submit" class="dropdown-item">Mark as Paid</button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        @endif
                     </td>
                 </tr>
             @empty

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Traits\HasFormattedId;
+use App\Models\Payment;
 
 class Invoice extends Model
 {
@@ -23,10 +24,12 @@ class Invoice extends Model
         'discount',
         'total',
         'payment_status',
+        'paid_at',
     ];
 
     protected $casts = [
         'invoice_date' => 'date',
+        'paid_at' => 'datetime',
     ];
 
     public function order(): BelongsTo
@@ -42,5 +45,10 @@ class Invoice extends Model
     public function items(): HasMany
     {
         return $this->hasMany(InvoiceItem::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
     }
 } 

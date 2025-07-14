@@ -189,6 +189,9 @@ class ReportController extends Controller
             $query->whereHas('journalEntry', fn($q) => $q->whereDate('entry_date', '<=', $endDate));
         }
 
+        // Only approved entries
+        $query->whereHas('journalEntry', fn($q) => $q->whereIn('status', ['posted','approved']));
+
         $rows = $query->get();
 
         $revenues = collect();
@@ -287,6 +290,9 @@ class ReportController extends Controller
             $query->whereHas('journalEntry', fn($q) => $q->whereDate('entry_date', '<=', $endDate));
         }
 
+        // Only posted or approved
+        $query->whereHas('journalEntry', fn($q) => $q->whereIn('status', ['posted','approved']));
+
         // Map rows keyed by account id for quick lookup
         $journalTotals = $query->get()->keyBy('account_id');
 
@@ -332,6 +338,72 @@ class ReportController extends Controller
                 'Equity'    => $equity->push($row),
                 default     => null,
             };
+        }
+
+        /* ------------------------------------------------------------------
+         | Retained Earnings (Net Income/Loss)
+         |------------------------------------------------------------------*/
+        // Compute net income for the period up to the selected end date (or all time)
+        $revExpQuery = \App\Models\JournalEntryLine::query()
+            ->select('account_id', \Illuminate\Support\Facades\DB::raw('SUM(debit) as debit'), \Illuminate\Support\Facades\DB::raw('SUM(credit) as credit'))
+            ->groupBy('account_id')
+            ->with(['account.accountType'])
+            ->whereHas('account.accountType', function ($q) {
+                $q->whereIn('name', ['Revenue', 'Expense']);
+            });
+
+        if ($endDate) {
+            $revExpQuery->whereHas('journalEntry', fn($q) => $q->whereDate('entry_date', '<=', $endDate));
+        }
+
+        $revExpQuery->whereHas('journalEntry', fn($q) => $q->whereIn('status', ['posted','approved']));
+
+        $revExpRows = $revExpQuery->get();
+
+        $totalRevenue = 0.0;
+        $totalExpense = 0.0;
+
+        foreach ($revExpRows as $row) {
+            $acct = $row->account;
+            $typeName = $acct->accountType?->name ?? '';
+
+            if ($typeName === 'Revenue') {
+                $amount = ($row->credit - $row->debit);
+                if ($acct->is_contra) {
+                    $amount *= -1; // contra revenue reduces revenue
+                }
+                $totalRevenue += $amount;
+            } elseif ($typeName === 'Expense') {
+                $amount = ($row->debit - $row->credit);
+                $totalExpense += $amount;
+            }
+        }
+
+        $netIncome = round($totalRevenue - $totalExpense, 2); // could be negative (loss)
+
+        // If there's any net income (or loss), add/accumulate it under Retained Earnings
+        if (abs($netIncome) > 0.01) {
+            $existingKey = $equity->search(function ($row) {
+                return isset($row['account']->name) && strcasecmp($row['account']->name, 'Retained Earnings') === 0;
+            });
+
+            if ($existingKey !== false) {
+                // Accumulate with existing retained earnings balance (collections are immutable by reference)
+                $existingRow = $equity->get($existingKey);
+                $existingRow['balance'] = round(($existingRow['balance'] ?? 0) + $netIncome, 2);
+                $equity->put($existingKey, $existingRow);
+            } else {
+                // Create a lightweight stub account object for presentation only
+                $stubAccount = (object) [
+                    'code' => 'RE',
+                    'name' => 'Retained Earnings',
+                ];
+
+                $equity->push([
+                    'account' => $stubAccount,
+                    'balance' => $netIncome,
+                ]);
+            }
         }
 
         $totalAssets      = $assets->sum('balance');
@@ -410,6 +482,7 @@ class ReportController extends Controller
             ->when($startDate, fn($q) => $q->whereDate('entry_date', '>=', $startDate))
             ->when($endDate,   fn($q) => $q->whereDate('entry_date', '<=', $endDate))
             ->whereHas('lines.account', fn($q) => $q->where('code', $CASH_CODE))
+            ->whereIn('status', ['posted','approved'])
             ->get();
 
         $operatingTotal = 0.0;

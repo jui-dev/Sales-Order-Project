@@ -28,20 +28,21 @@ class ChartOfAccountsSeeder extends Seeder
             $typeIds[$typeName] = $type->id;
         }
 
-        // Define basic accounts (code => [name, type])
+        // Define basic accounts (code => [name, type, description])
         $accounts = [
-            '1000' => ['Cash', 'Asset'],
-            '1100' => ['Accounts Receivable', 'Asset'],
-            '1200' => ['Inventory', 'Asset'],
-            '2000' => ['Accounts Payable', 'Liability'],
-            '3000' => ["Owner's Equity", 'Equity'],
-            '4000' => ['Sales Revenue', 'Revenue'],
-            '5000' => ['Cost of Goods Sold', 'Expense'],
-            '5100' => ['Purchase Expense', 'Expense'],
-            '5200' => ['Sales Returns & Allowances', 'Contra Revenue'], // treat as Revenue type but contra flag
+            '1000' => ['Cash', 'Asset', 'Physical cash on hand available for immediate use.'],
+            '1100' => ['Accounts Receivable', 'Asset', 'Money owed by customers for goods or services delivered on credit.'],
+            '1200' => ['Inventory', 'Asset', 'Value of products or raw materials held for sale or production.'],
+            '2000' => ['Accounts Payable', 'Liability', 'Amounts the business owes to suppliers for goods or services received.'],
+            '3000' => ["Owner's Equity", 'Equity', 'Owner’s initial and additional investment in the business.'],
+            '3010' => ['Retained Earnings', 'Equity', 'Accumulated net income not distributed as dividends'],
+            '4000' => ['Sales Revenue', 'Revenue', 'Income earned from selling goods or services to customers.'],
+            '5000' => ['Cost of Goods Sold', 'Expense', 'Direct costs attributable to the production or purchase of goods sold.'],
+            '5100' => ['Purchase Expense', 'Expense', 'Cost incurred for buying raw materials or goods for resale.'],
+            '5200' => ['Sales Returns & Allowances', 'Contra Revenue', 'Reductions in revenue due to product returns or sales discounts granted.'], // Revenue type but contra flag
         ];
 
-        foreach ($accounts as $code => [$name, $typeName]) {
+        foreach ($accounts as $code => [$name, $typeName, $description]) {
             $isContra = false;
             $baseTypeName = $typeName;
             if (str_contains($typeName, 'Contra')) {
@@ -53,6 +54,7 @@ class ChartOfAccountsSeeder extends Seeder
                 'code' => $code,
             ], [
                 'name' => $name,
+                'description' => $description,
                 'account_type_id' => $typeIds[$baseTypeName] ?? null,
                 'opening_balance' => 0,
                 'is_contra' => $isContra,

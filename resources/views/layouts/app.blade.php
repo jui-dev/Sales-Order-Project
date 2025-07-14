@@ -218,6 +218,7 @@
                             <i class="bi bi-journal-bookmark me-1"></i>Accounting
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="accountingTop">
+                            <li><a class="dropdown-item" href="{{ route('accounting.chart-of-accounts') }}"><i class="bi bi-journal me-1"></i> Chart of Accounts</a></li>
                             <li><a class="dropdown-item" href="{{ route('reports.trial-balance') }}"><i class="bi bi-calculator me-1"></i> Trial Balance</a></li>
                             <li><a class="dropdown-item" href="{{ route('reports.income-statement') }}"><i class="bi bi-clipboard-data me-1"></i> Income Statement</a></li>
                             <li><a class="dropdown-item" href="{{ route('reports.balance-sheet') }}"><i class="bi bi-columns-gap me-1"></i> Balance Sheet</a></li>
@@ -326,6 +327,7 @@
                         </a>
                         <div class="collapse" id="accountingMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
+                                <li><a class="nav-link px-3" href="{{ route('accounting.chart-of-accounts') }}"><i class="bi bi-journal me-2"></i>Chart of Accounts</a></li>
                                 <li><a class="nav-link px-3" href="{{ route('reports.trial-balance') }}"><i class="bi bi-calculator me-2"></i>Trial Balance</a></li>
                                 <li><a class="nav-link px-3" href="{{ route('reports.income-statement') }}"><i class="bi bi-clipboard-data me-2"></i>Income Statement</a></li>
                                 <li><a class="nav-link px-3" href="{{ route('reports.balance-sheet') }}"><i class="bi bi-columns-gap me-2"></i>Balance Sheet</a></li>
@@ -348,17 +350,30 @@
     <!-- END: Sidebar Navigation Layout -->
 
     <div class="container main-content">
-        @if(session('success'))
-            <div class="alert alert-success">
-                <i class="bi bi-check-circle me-2"></i>{{ session('success') }}
-            </div>
-        @endif
+        <!-- Toast notifications -->
+        <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+            @if(session('success'))
+                <div class="toast align-items-center text-white bg-success border-0" role="alert" data-bs-delay="3000">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            @endif
 
-        @if(session('error'))
-            <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle me-2"></i>{{ session('error') }}
-            </div>
-        @endif
+            @if(session('error'))
+                <div class="toast align-items-center text-white bg-danger border-0" role="alert" data-bs-delay="4000">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ session('error') }}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            @endif
+        </div>
 
         @if($errors->any())
             <div class="alert alert-danger">
@@ -402,6 +417,13 @@
                     }
                 }
             });
+        // Automatically show bootstrap toasts if present
+        const toastElList = [].slice.call(document.querySelectorAll('.toast'));
+        toastElList.forEach(function (toastEl) {
+            const toast = new bootstrap.Toast(toastEl);
+            toast.show();
+        });
+
         });
     </script>
 </body>

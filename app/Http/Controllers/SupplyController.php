@@ -38,8 +38,16 @@ class SupplyController extends Controller
 
     public function completed(int $id): RedirectResponse
     {
-        $this->service->complete($id);
-        return back()->with('success', 'Supply marked as completed and GRN generated.');
+        $supply = $this->service->complete($id);
+
+        // If GRN was (or already) generated, redirect directly to it
+        if ($supply->grn) {
+            return redirect()->route('grns.show', $supply->grn)
+                ->with('success', 'Supply marked as completed. GRN generated.');
+        }
+
+        // Fallback – should not normally happen
+        return back()->with('success', 'Supply marked as completed.');
     }
 
     public function confirm(int $id): RedirectResponse

@@ -21,6 +21,7 @@ use App\Services\ProductService;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\ChartOfAccountsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1027,6 +1028,15 @@ Route::put('/picking/{pickingList}/item/{item}', function (\App\Models\PickingLi
  */
 Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
 Route::get('invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');
+Route::post('invoices/{invoice}/payments', [\App\Http\Controllers\PaymentController::class, 'store'])->name('invoices.pay');
 
-Route::get('/journal-entries', [\App\Http\Controllers\JournalEntryController::class, 'index'])->name('journal-entries.index');
+Route::get('/journal-entries', [JournalEntryController::class, 'index'])->name('journal-entries.index');
+// Manual Journal Entry creation
+Route::get('/journal-entries/create', [JournalEntryController::class, 'create'])->name('journal-entries.create');
+Route::post('/journal-entries', [JournalEntryController::class, 'store'])->name('journal-entries.store');
+Route::patch('/journal-entries/{journalEntry}/approve', [JournalEntryController::class, 'approve'])->name('journal-entries.approve');
+Route::patch('/journal-entries/{journalEntry}/reject', [JournalEntryController::class, 'reject'])->name('journal-entries.reject');
+Route::patch('/journal-entries/{journalEntry}/post', [JournalEntryController::class, 'post'])->name('journal-entries.post');
 Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
+Route::get('/accounting/chart-of-accounts', [\App\Http\Controllers\ChartOfAccountsController::class, 'index'])->name('accounting.chart-of-accounts');
+Route::post('/accounting/chart-of-accounts', [\App\Http\Controllers\ChartOfAccountsController::class, 'store'])->name('accounting.chart-of-accounts.store');

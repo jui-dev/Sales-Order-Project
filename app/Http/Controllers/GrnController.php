@@ -25,11 +25,7 @@ class GrnController extends Controller
         if ($grn->status === 'posted') {
             return back()->with('info', "GRN #{$grn->id} is already posted.");
         }
-        $next  = match($grn->status) {
-            'draft'    => 'verified',
-            'verified' => 'posted',
-            default    => 'posted',
-        };
+        $next  = $grn->status === 'draft' ? 'posted' : 'posted';
 
         // Delegate heavy lifting to the service so that when we hit
         // "posted" the stock gets updated automatically.

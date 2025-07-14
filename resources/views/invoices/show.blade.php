@@ -75,4 +75,37 @@
         <p class="mt-3"><strong>Payment Status:</strong> {{ ucfirst($invoice->payment_status) }}</p>
     </div>
 </div>
+
+<!-- Payment History -->
+<div class="card">
+    <div class="card-header">
+        Payment History
+    </div>
+    <div class="card-body table-responsive">
+        @if($invoice->payments->isEmpty())
+            <p class="text-muted mb-0">No payments recorded.</p>
+        @else
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Amount</th>
+                        <th>Method</th>
+                        <th>Paid At</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($invoice->payments as $payment)
+                    <tr>
+                        <td>{{ $payment->id }}</td>
+                        <td>${{ number_format($payment->amount, 2) }}</td>
+                        <td>{{ ucfirst(str_replace('_',' ', $payment->method)) }}</td>
+                        <td>{{ optional($payment->paid_at)->format('M d, Y h:i A') }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    </div>
+</div>
 @endsection 

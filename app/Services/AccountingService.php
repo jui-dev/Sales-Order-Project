@@ -20,7 +20,7 @@ class AccountingService
      *
      * @param array<int,array{account_code?:string,account_id?:int,debit:float,credit:float,description?:string}> $lines
      */
-    public function post(array $lines, Carbon $date = null, ?string $description = null, ?Model $source = null): JournalEntry
+    public function post(array $lines, Carbon $date = null, ?string $description = null, ?Model $source = null, string $status = 'approved'): JournalEntry
     {
         $date = $date ?: Carbon::now();
 
@@ -40,13 +40,16 @@ class AccountingService
             throw new InvalidArgumentException('Journal entry totals must be greater than zero.');
         }
 
-        return DB::transaction(function () use ($lines, $date, $description, $source) {
+        return DB::transaction(function () use ($lines, $date, $description, $source, $status) {
             $entry = JournalEntry::create([
-                'entry_date' => $date,
+                'entry_date'  => $date,
                 'description' => $description,
+                'status'      => $status,
+                // If no external model supplied, we will temporarily set blank values and later
+                // patch them to a self-reference so the morph columns are never left empty.
                 'source_type' => $source ? $source->getMorphClass() : '',
-                'source_id' => $source ? $source->getKey() : 0,
-                'formatted_id' => (string) Str::uuid(),
+                'source_id'   => $source ? $source->getKey() : 0,
+                'formatted_id'=> (string) Str::uuid(),
             ]);
 
             // Generate formatted_id (e.g., JE-000001) and save once
@@ -75,6 +78,17 @@ class AccountingService
                 ]);
             }
 
+            // ------------------------------------------------------------------
+            // Guarantee valid morph columns to avoid queries with empty column names
+            // ------------------------------------------------------------------
+            if (! $source) {
+                // Update quietly to point to itself when the entry has no external source
+                $entry->updateQuietly([
+                    'source_type' => $entry->getMorphClass(),
+                    'source_id'   => $entry->getKey(),
+                ]);
+            }
+
             // Record audit log
             AuditLog::create([
                 'user_id'      => auth()->id(),
@@ -96,6 +110,7 @@ class AccountingService
         $account = $account instanceof Account ? $account : Account::findOrFail($account);
 
         return $account->journalEntryLines()
+            ->whereHas('journalEntry', fn($j) => $j->whereIn('status', ['posted','approved']))
             ->when($from, fn($q) => $q->whereHas('journalEntry', fn($j) => $j->whereDate('entry_date', '>=', $from)))
             ->when($to, fn($q) => $q->whereHas('journalEntry', fn($j) => $j->whereDate('entry_date', '<=', $to)))
             ->with('journalEntry')
@@ -118,6 +133,9 @@ class AccountingService
             $query->whereHas('journalEntry', fn($q) => $q->whereDate('entry_date', '<=', $to));
         }
 
+        // Only approved journal entries
+        $query->whereHas('journalEntry', fn($q) => $q->whereIn('status', ['posted','approved']));
+
         return $query->get()->mapWithKeys(function ($row) {
             return [$row->account->code => [
                 'account' => $row->account,
@@ -125,5 +143,19 @@ class AccountingService
                 'credit' => (float) $row->credit,
             ]];
         });
+    }
+
+    public function approveEntry(JournalEntry $entry): void
+    {
+        $entry->approve();
+
+        // Optional: dispatch events, audit log
+        AuditLog::create([
+            'user_id'      => auth()->id(),
+            'action'       => 'journal_approved',
+            'description'  => 'Journal Entry ' . ($entry->formatted_id ?? $entry->id) . ' approved.',
+            'subject_type' => $entry->getMorphClass(),
+            'subject_id'   => $entry->getKey(),
+        ]);
     }
 } 

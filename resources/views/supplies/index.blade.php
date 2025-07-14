@@ -69,21 +69,24 @@
                     <td>
                         <div class="btn-group" role="group">
                             <a href="{{ route('supplies.show', $supply) }}" class="btn btn-sm btn-info">View</a>
-                            @if($supply->status != 'completed')
-                            <div class="dropdown d-inline">
-                                <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                    Update Status
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li>
-                                        <form action="{{ route('supplies.completed', $supply) }}" method="POST">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="dropdown-item">Mark Completed</button>
-                                        </form>
-                                    </li>
-                                </ul>
-                            </div>
+
+                            @if($supply->status === 'completed' && $supply->grn)
+                                <a href="{{ route('grns.show', $supply->grn) }}" class="btn btn-sm btn-success">View GRN</a>
+                            @else
+                                <div class="dropdown d-inline">
+                                    <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        Update Status
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <form action="{{ route('supplies.completed', $supply) }}" method="POST">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="dropdown-item">Mark Completed</button>
+                                            </form>
+                                        </li>
+                                    </ul>
+                                </div>
                             @endif
                         </div>
                     </td>

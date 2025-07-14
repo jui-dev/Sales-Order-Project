@@ -8,12 +8,12 @@
             <a href="{{ route('grns.index') }}" class="btn btn-secondary">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
             </a>
-            @if($grn->status !== 'posted')
+            @if($grn->status === 'draft')
                 <form action="{{ route('grns.update-status', $grn) }}" method="POST" class="d-inline">
                     @csrf
                     @method('PATCH')
                     <button type="submit" class="btn btn-primary">
-                        Mark {{ $grn->status === 'draft' ? 'Verified' : 'Posted' }}
+                        Post GRN
                     </button>
                 </form>
             @endif
@@ -44,13 +44,14 @@
             <div class="card h-100">
                 <div class="card-header bg-light"><strong>Details</strong></div>
                 <div class="card-body">
+                    @php
+                        $badge = [
+                            'draft'  => 'secondary',
+                            'posted' => 'success',
+                        ][$grn->status] ?? 'secondary';
+                    @endphp
                     <p class="mb-1">Status: 
-                        <span class="badge bg-{{ match($grn->status){
-                            'draft'    => 'secondary',
-                            'verified' => 'warning',
-                            'posted'   => 'success',
-                            default    => 'secondary'
-                        }}}">{{ ucfirst($grn->status) }}</span>
+                        <span class="badge bg-{{ $badge }}">{{ ucfirst($grn->status) }}</span>
                     </p>
                     <p class="mb-1">Received Date: {{ optional($grn->received_date)->format('M d, Y') ?? '-' }}</p>
                     <p class="mb-1">Supply: <a href="{{ route('supplies.show', $grn->supply_id) }}">#{{ $grn->supply_id }}</a></p>

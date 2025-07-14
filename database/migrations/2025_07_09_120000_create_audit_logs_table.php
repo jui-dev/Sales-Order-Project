@@ -8,6 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('audit_logs')) {
+            // Table already exists (perhaps created manually or by a previous migration).
+            // Skip creation to avoid duplicate table error but still register this migration.
+            return;
+        }
+
         Schema::create('audit_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();

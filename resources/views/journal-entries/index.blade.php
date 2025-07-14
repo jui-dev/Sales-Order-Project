@@ -4,7 +4,13 @@
 <div class="container">
     <h1 class="mb-4">Journal Entries</h1>
 
-    <form method="GET" class="row g-3 mb-4">
+    <div class="mb-3 text-end">
+        <a href="{{ route('journal-entries.create') }}" class="btn btn-success">
+            <i class="bi bi-plus-circle me-1"></i> New Journal Entry
+        </a>
+    </div>
+
+    <form method="GET" class="row g-3 mb-4" id="filterForm">
         <div class="col-md-2">
             <label class="form-label">Start Date</label>
             <input type="date" name="start_date" class="form-control" value="{{ request('start_date') }}">
@@ -13,11 +19,11 @@
             <label class="form-label">End Date</label>
             <input type="date" name="end_date" class="form-control" value="{{ request('end_date') }}">
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <label class="form-label">Reference</label>
             <input type="text" name="reference" class="form-control" placeholder="Description or ID" value="{{ request('reference') }}">
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
             <label class="form-label">Account</label>
             <select name="account_id" class="form-select">
                 <option value="">-- Any --</option>
@@ -28,55 +34,154 @@
                 @endforeach
             </select>
         </div>
-        <div class="col-md-2 align-self-end text-end">
+        <div class="col-md-2">
+            <label class="form-label">Journal Type</label>
+            <select name="journal_type" class="form-select">
+                <option value="">-- Any --</option>
+                @php $types = ['manual'=>'Manual','sales'=>'Sales','purchase'=>'Purchase','stock'=>'Stock','payment'=>'Payment']; @endphp
+                @foreach($types as $key=>$label)
+                    <option value="{{ $key }}" @selected(request('journal_type')==$key)>{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Status</label>
+            <select name="status" class="form-select">
+                <option value="">-- Any --</option>
+                @foreach(['draft'=>'Draft','posted'=>'Posted','approved'=>'Approved','rejected'=>'Rejected'] as $val=>$label)
+                    <option value="{{ $val }}" @selected(request('status')==$val)>{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+
+        <div class="col-md-2 align-self-end text-end mt-auto">
             <button type="submit" class="btn btn-primary">Filter</button>
             <a href="{{ route('journal-entries.index') }}" class="btn btn-secondary">Reset</a>
         </div>
     </form>
 
-    <div class="table-responsive">
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>ID</th>
-                    <th>Description</th>
-                    <th class="text-end">Debit</th>
-                    <th class="text-end">Credit</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($journalEntries as $entry)
-                    <tr>
-                        <td>{{ $entry->entry_date->format('Y-m-d') }}</td>
-                        <td>{{ $entry->formatted_id }}</td>
-                        <td>{{ $entry->description }}</td>
-                        <td class="text-end">{{ number_format($entry->totalDebit(), 2) }}</td>
-                        <td class="text-end">{{ number_format($entry->totalCredit(), 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td colspan="5" class="p-0">
-                            <table class="table mb-0 small">
+    <div class="row" id="spinnerRow" style="display:none;">
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+        </div>
+    </div>
+
+    <div class="accordion" id="journalAccordion">
+        @forelse($journalEntries as $entry)
+            @php
+                $isManual = $entry->source_type === app(\App\Models\JournalEntry::class)->getMorphClass();
+                $bgClass  = $isManual ? 'bg-light' : '';
+                $entryId  = 'entry'.$entry->id;
+                $typeMap = [
+                    \App\Models\Invoice::class        => 'Sales',
+                    \App\Models\Grn::class            => 'Purchase',
+                    \App\Models\StockTransfer::class  => 'Stock',
+                    \App\Models\Payment::class        => 'Payment',
+                ];
+                $typeLabel = $typeMap[$entry->source_type] ?? 'Manual';
+                $statusLabel = ucfirst($entry->status);
+            @endphp
+            <div class="accordion-item {{ $bgClass }} mb-2">
+                <h2 class="accordion-header" id="h{{ $entryId }}">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c{{ $entryId }}" aria-expanded="false" aria-controls="c{{ $entryId }}">
+                        <div class="d-flex flex-wrap w-100 justify-content-between">
+                            <span>{{ $entry->entry_date->format('Y-m-d') }}</span>
+                            <span class="ms-3 fw-bold">{{ $entry->formatted_id }}</span>
+                            <span class="ms-3 badge bg-secondary">{{ $typeLabel }}</span>
+                            <span class="ms-3 badge bg-info">{{ $statusLabel }}</span>
+                            <span class="ms-3 flex-grow-1">{{ $entry->description }}</span>
+                            <span class="ms-auto text-success">{{ number_format($entry->totalDebit(),2) }}</span>
+                            <span class="ms-2 text-danger">{{ number_format($entry->totalCredit(),2) }}</span>
+                        </div>
+                    </button>
+                </h2>
+                <div id="c{{ $entryId }}" class="accordion-collapse collapse" aria-labelledby="h{{ $entryId }}" data-bs-parent="#journalAccordion">
+                    <div class="accordion-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Account</th>
+                                    <th class="text-end">Debit</th>
+                                    <th class="text-end">Credit</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
                                 @foreach($entry->lines as $line)
                                     <tr>
-                                        <td>{{ $line->account->code }} - {{ $line->account->name }}</td>
-                                        <td class="text-end">{{ number_format($line->debit, 2) }}</td>
-                                        <td class="text-end">{{ number_format($line->credit, 2) }}</td>
+                                        <td>{{ $line->account->code }} – {{ $line->account->name }}</td>
+                                        <td class="text-end text-success">{{ $line->debit > 0 ? number_format($line->debit,2) : '' }}</td>
+                                        <td class="text-end text-danger">{{ $line->credit > 0 ? number_format($line->credit,2) : '' }}</td>
                                         <td>{{ $line->description }}</td>
                                     </tr>
                                 @endforeach
-                            </table>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="5" class="text-center">No entries found.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
+                            </tbody>
+                        </table>
+                        <div class="p-3 border-top d-flex justify-content-between align-items-center">
+                            <div>
+                                @if($entry->source)
+                                    @php
+                                        $cls = get_class($entry->source);
+                                        $srcLabelMap = [
+                                            \App\Models\Invoice::class       => 'Invoice',
+                                            \App\Models\Grn::class          => 'GRN',
+                                            \App\Models\StockTransfer::class=> 'Stock Transfer',
+                                            \App\Models\Payment::class      => 'Payment',
+                                        ];
+                                        $srcLabel = $srcLabelMap[$cls] ?? '';
+                                        $routeMap = [
+                                            \App\Models\Invoice::class       => route('invoices.show',$entry->source_id),
+                                            \App\Models\Grn::class          => route('grns.show',$entry->source_id),
+                                        ];
+                                        $route = $routeMap[$cls] ?? null;
+                                    @endphp
+                                    @if($route)
+                                        <a href="{{ $route }}" class="btn btn-link p-0">View {{ $srcLabel }} {{ $entry->source->invoice_number ?? $entry->source->id }}</a>
+                                    @endif
+                                @endif
+                            </div>
+
+                            @if($entry->status === 'draft')
+                                <div>
+                                    <form method="POST" action="{{ route('journal-entries.post',$entry) }}" class="d-inline">
+                                        @csrf @method('PATCH')
+                                        <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Post this journal entry?')"><i class="bi bi-upload me-1"></i>Post</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('journal-entries.reject',$entry) }}" class="d-inline">
+                                        @csrf @method('PATCH')
+                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Reject this journal entry?')"><i class="bi bi-x me-1"></i>Reject</button>
+                                    </form>
+                                </div>
+                            @elseif($entry->status === 'posted')
+                                <div>
+                                    <form method="POST" action="{{ route('journal-entries.approve',$entry) }}" class="d-inline">
+                                        @csrf @method('PATCH')
+                                        <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Approve this journal entry?')"><i class="bi bi-check me-1"></i>Approve</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('journal-entries.reject',$entry) }}" class="d-inline">
+                                        @csrf @method('PATCH')
+                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Reject this journal entry?')"><i class="bi bi-x me-1"></i>Reject</button>
+                                    </form>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @empty
+            <div class="alert alert-info">No entries found.</div>
+        @endforelse
     </div>
 
     {{ $journalEntries->links() }}
 </div>
+
+@push('scripts')
+<script>
+    // show spinner on filter submit
+    document.getElementById('filterForm').addEventListener('submit', function(){
+        document.getElementById('spinnerRow').style.display='block';
+    });
+</script>
+@endpush
 @endsection 

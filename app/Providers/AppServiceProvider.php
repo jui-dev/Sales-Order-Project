@@ -33,6 +33,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // ------------------------------------------------------------------
+        // Ensure Chart of Accounts exists
+        // ------------------------------------------------------------------
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('accounts')) {
+                // Run seeder unconditionally – it uses firstOrCreate / updateOrInsert so
+                // existing rows remain untouched while missing ones are added.
+                app(\Database\Seeders\ChartOfAccountsSeeder::class)->run();
+            }
+        } catch (\Throwable $e) {
+            // During migrations or when database is inaccessible we silently skip.
+            // Seeding will be attempted again on next boot.
+        }
+
         // Register model observers only if classes exist (prevents migration issues during scaffolding)
         if (class_exists(Supply::class) && class_exists(SupplyObserver::class)) {
             Supply::observe(SupplyObserver::class);
