@@ -172,6 +172,18 @@
                         </ul>
                     </li>
 
+                    <!-- Purchases Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="purchasesTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-cart-check me-1"></i>Purchases
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="purchasesTop">
+                            <li><a class="dropdown-item" href="{{ route('grns.index') }}"><i class="bi bi-receipt me-1"></i> Good Receipt Notes (GRNs)</a></li>
+                            <li><a class="dropdown-item" href="{{ route('supplier-bills.index') }}"><i class="bi bi-file-earmark-text me-1"></i> Supplier Bills</a></li>
+                            <li><a class="dropdown-item" href="{{ route('supplier-bill-payments.index') }}"><i class="bi bi-credit-card me-1"></i> Supplier Bills Payment</a></li>
+                        </ul>
+                    </li>
+
                     <!-- Picking & Transfers Dropdown -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="pickingTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -273,6 +285,21 @@
                                 <li><a class="nav-link px-3" href="{{ route('supplies.index') }}"><i class="bi bi-truck me-2"></i>Supplies</a></li>
                                 <li><a class="nav-link px-3" href="{{ route('vendors.index') }}"><i class="bi bi-building me-2"></i>Vendors</a></li>
                                 <li><a class="nav-link px-3" href="{{ route('customers.index') }}"><i class="bi bi-people me-2"></i>Customers</a></li>
+                            </ul>
+                        </div>
+                    </li>
+
+                    <!-- Purchases -->
+                    <li class="nav-item">
+                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#purchasesMenu" role="button" aria-expanded="false" aria-controls="purchasesMenu">
+                            <span><i class="bi bi-cart-check me-2"></i>Purchases</span>
+                            <i class="bi bi-chevron-down small"></i>
+                        </a>
+                        <div class="collapse" id="purchasesMenu" data-bs-parent="#sidebarAccordion">
+                            <ul class="navbar-nav ps-3">
+                                <li><a class="nav-link px-3" href="{{ route('grns.index') }}"><i class="bi bi-receipt me-2"></i>Good Receipt Notes (GRNs)</a></li>
+                                <li><a class="nav-link px-3" href="{{ route('supplier-bills.index') }}"><i class="bi bi-file-earmark-text me-2"></i>Supplier Bills</a></li>
+                                <li><a class="nav-link px-3" href="{{ route('supplier-bill-payments.index') }}"><i class="bi bi-credit-card me-2"></i>Supplier Bills Payment</a></li>
                             </ul>
                         </div>
                     </li>
@@ -396,6 +423,7 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ asset('js/unified-search.js') }}"></script>
 
     {{-- Page-specific scripts declared via @section('scripts') in child views --}}
     @yield('scripts')

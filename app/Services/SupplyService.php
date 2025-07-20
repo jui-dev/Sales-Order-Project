@@ -128,6 +128,43 @@ class SupplyService
         return $model;
     }
 
+    /**
+     * Update a supply together with its nested items array (same structure as validated request)
+     * while automatically calculating and persisting the total_cost.
+     */
+    public function updateWithItems(int $id, array $data): Supply
+    {
+        return \DB::transaction(function () use ($id, $data) {
+            $items = $data['products'] ?? [];
+
+            unset($data['products']);
+
+            // calculate total cost
+            $total = collect($items)->sum(function ($itm) {
+                return ($itm['quantity'] ?? 0) * ($itm['unit_cost'] ?? 0);
+            });
+            $data['total_cost'] = $total;
+
+            /** @var Supply $supply */
+            $supply = Supply::findOrFail($id);
+            $supply->update($data);
+
+            // Delete existing items and recreate them
+            $supply->items()->delete();
+
+            foreach ($items as $item) {
+                $supply->items()->create([
+                    'product_id' => $item['product_id'],
+                    'quantity'   => $item['quantity'],
+                    'unit_cost'  => $item['unit_cost'],
+                    'subtotal'   => $item['quantity'] * $item['unit_cost'],
+                ]);
+            }
+
+            return $supply->load(['vendor', 'warehouse', 'items']);
+        });
+    }
+
     public function delete(int $id): void
     {
         $model = Supply::findOrFail($id);

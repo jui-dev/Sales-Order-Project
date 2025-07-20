@@ -28,4 +28,9 @@ class Grn extends Model
     {
         return $this->belongsTo(Supply::class);
     }
+
+    public function supplierBill(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(\App\Models\SupplierBill::class, 'grn_id');
+    }
 } 

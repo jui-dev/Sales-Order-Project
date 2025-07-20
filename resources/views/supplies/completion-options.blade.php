@@ -25,7 +25,7 @@
                             </ul>
                         </div>
                         <div class="col-md-6">
-                            <h6>Items ({{ $supply->supplyItems->count() }})</h6>
+                            <h6>Items ({{ $supply->items->count() }})</h6>
                             <div class="table-responsive">
                                 <table class="table table-sm">
                                     <thead>
@@ -36,7 +36,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($supply->supplyItems as $item)
+                                        @foreach($supply->items as $item)
                                         <tr>
                                             <td>{{ $item->product->name }}</td>
                                             <td>{{ $item->quantity }}</td>

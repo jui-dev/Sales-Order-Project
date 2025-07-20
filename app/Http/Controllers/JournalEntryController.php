@@ -22,7 +22,7 @@ class JournalEntryController extends Controller
                     // Manual entries self-reference their model class
                     'manual'   => JournalEntry::class,
                     'sales'    => \App\Models\Invoice::class,
-                    'purchase' => \App\Models\Grn::class,
+                    'purchase' => \App\Models\SupplierBill::class,
                     'stock'    => \App\Models\StockTransfer::class,
                     'payment'  => \App\Models\Payment::class,
                 ];
@@ -40,8 +40,32 @@ class JournalEntryController extends Controller
                 });
             })
             ->when($request->filled('account_id'), fn($q) => $q->whereHas('lines', fn($l) => $l->where('account_id', $request->account_id)))
-            ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
-            ->orderByDesc('entry_date');
+            ->when($request->filled('status'), fn($q) => $q->where('status', $request->status));
+
+        // --------------------------------------------------------------
+        // Sorting
+        // --------------------------------------------------------------
+        $sort = $request->input('sort', 'id');
+        $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        switch ($sort) {
+            case 'date':
+                $query->orderBy('entry_date', $direction);
+                break;
+            case 'status':
+                $query->orderBy('status', $direction);
+                break;
+            case 'amount':
+                // Sort by total debit (same as credit)
+                $query->withSum('lines as total_debit', 'debit')->orderBy('total_debit', $direction);
+                break;
+            case 'account_type':
+                // Fallback to ID sorting for now
+                $query->orderBy('id', $direction);
+                break;
+            default:
+                $query->orderBy('id', $direction);
+        }
 
         $journalEntries = $query->paginate(20)->withQueryString();
         $accounts = Account::orderBy('code')->get();
@@ -67,7 +91,6 @@ class JournalEntryController extends Controller
             'entry_date'                 => ['required', 'date'],
             'reference'                  => ['nullable', 'string', 'max:255', 'unique:journal_entries,formatted_id'],
             'description'                => ['nullable', 'string', 'max:1000'],
-            'status'                     => ['required', 'in:draft,posted,approved'],
             'lines'                      => ['required', 'array', 'min:2'],
             'lines.*.account_id'         => ['required', 'exists:accounts,id'],
             'lines.*.debit'              => ['required_without:lines.*.credit', 'nullable'],
@@ -142,17 +165,33 @@ class JournalEntryController extends Controller
             return back()->withInput()->with('error', 'Debits and credits do not balance.');
         }
 
-        DB::transaction(function() use ($request, $nonEmptyLines) {
+        // ------------------------------------------------------------------
+        // Auto‐generate memo/description if none provided by user
+        // ------------------------------------------------------------------
+        $autoDescription = null;
+        if (! $request->filled('description')) {
+            $parts = [];
+            foreach ($nonEmptyLines as $line) {
+                $account = Account::find($line['account_id']);
+                if (! $account) {
+                    continue;
+                }
+                $side  = $line['debit'] > 0 ? 'Dr' : 'Cr';
+                $value = $line['debit'] > 0 ? $line['debit'] : $line['credit'];
+                $parts[] = $account->code . ' ' . $side . ' ' . number_format($value, 2);
+            }
+            $autoDescription = implode(', ', $parts);
+        }
+
+        $createdEntryId = null;
+        DB::transaction(function() use ($request, $nonEmptyLines, $autoDescription, &$createdEntryId) {
             /** @var JournalEntry $entry */
             $entry = JournalEntry::create([
                 'entry_date'   => $request->entry_date,
-                'description'  => $request->description,
+                'description'  => $request->description ?: $autoDescription,
                 // Use provided reference, otherwise a temporary UUID placeholder to satisfy NOT NULL
                 'formatted_id' => $request->reference ?: ('TMP-'.Str::uuid()),
-                'status'       => $request->status,
-                'posted_at'    => $request->status === JournalEntry::STATUS_POSTED ? now() : null,
-                'approved_at'  => $request->status === JournalEntry::STATUS_APPROVED ? now() : null,
-                // Manual entries have no external source
+                'status'       => JournalEntry::STATUS_DRAFT, // Default to draft
                 'source_type'  => '',
                 'source_id'    => 0,
             ]);
@@ -189,9 +228,102 @@ class JournalEntryController extends Controller
                     'subject_id'   => $entry->getKey(),
                 ]);
             }
+
+            $createdEntryId = $entry->id;
         });
 
-        return redirect()->route('journal-entries.index')->with('success', 'Journal entry created successfully.');
+        return redirect()->route('journal-entries.index')
+            ->with('success', 'Journal entry created successfully.')
+            ->with('newEntryId', $createdEntryId);
+    }
+
+    /**
+     * Edit an existing journal entry.
+     */
+    public function edit(JournalEntry $journalEntry)
+    {
+        $accounts = Account::orderBy('code')->get();
+        return view('journal-entries.edit', compact('journalEntry', 'accounts'));
+    }
+
+    /**
+     * Update an existing journal entry.
+     */
+    public function update(Request $request, JournalEntry $journalEntry)
+    {
+        // Allow same validation as store but without formatted_id uniqueness rule clash for same entry
+        $request->validate([
+            'entry_date'                 => ['required', 'date'],
+            'description'                => ['nullable', 'string', 'max:1000'],
+            'lines'                      => ['required', 'array', 'min:2'],
+            'lines.*.account_id'         => ['required', 'exists:accounts,id'],
+            'lines.*.debit'              => ['required_without:lines.*.credit', 'nullable'],
+            'lines.*.credit'             => ['required_without:lines.*.debit', 'nullable'],
+            'lines.*.description'        => ['nullable', 'string', 'max:255'],
+        ]);
+
+        // Same nonEmptyLines build logic as store();
+        $nonEmptyLines = [];
+        foreach ($request->lines as $idx => $line) {
+            // replicate validation from store
+            $accountId  = $line['account_id'] ?? null;
+            $debitRaw   = $line['debit']  ?? '';
+            $creditRaw  = $line['credit'] ?? '';
+            $hasDebit   = ($debitRaw !== '' && $debitRaw !== null);
+            $hasCredit  = ($creditRaw !== '' && $creditRaw !== null);
+
+            if (! $hasDebit && ! $hasCredit && empty($accountId)) {
+                continue;
+            }
+            if (($hasDebit || $hasCredit) && ! $accountId) {
+                return back()->withInput()->withErrors(["lines.$idx.account_id" => 'Please select an account for this line.']);
+            }
+            if ($accountId && ! $hasDebit && ! $hasCredit) {
+                return back()->withInput()->withErrors(["lines.$idx.debit" => 'Please enter a debit or credit amount.']);
+            }
+            if ($hasDebit && ! is_numeric($debitRaw)) {
+                return back()->withInput()->withErrors(["lines.$idx.debit" => 'Debit amount must be numeric.']);
+            }
+            if ($hasCredit && ! is_numeric($creditRaw)) {
+                return back()->withInput()->withErrors(["lines.$idx.credit" => 'Credit amount must be numeric.']);
+            }
+            $debit  = $hasDebit  ? floatval($debitRaw)  : 0.0;
+            $credit = $hasCredit ? floatval($creditRaw) : 0.0;
+            if (($debit > 0 && $credit > 0) || ($debit === 0 && $credit === 0)) {
+                return back()->withInput()->withErrors(["lines.$idx.debit" => 'Each line must contain either a debit or a credit amount, not both.']);
+            }
+            $nonEmptyLines[] = [
+                'account_id'  => $accountId,
+                'debit'       => $debit,
+                'credit'      => $credit,
+                'description' => $line['description'] ?? null,
+            ];
+        }
+
+        if (count($nonEmptyLines) < 2) {
+            return back()->withInput()->with('error', 'At least two line items with amounts are required.');
+        }
+
+        $totalDebit  = array_sum(array_column($nonEmptyLines, 'debit'));
+        $totalCredit = array_sum(array_column($nonEmptyLines, 'credit'));
+        if (round($totalDebit,2) !== round($totalCredit,2)) {
+            return back()->withInput()->with('error', 'Debits and credits do not balance.');
+        }
+
+        DB::transaction(function() use($journalEntry, $request, $nonEmptyLines) {
+            $journalEntry->update([
+                'entry_date'  => $request->entry_date,
+                'description' => $request->description,
+            ]);
+
+            // Sync lines: simple approach – delete & recreate
+            $journalEntry->lines()->delete();
+            foreach ($nonEmptyLines as $line) {
+                $journalEntry->lines()->create($line);
+            }
+        });
+
+        return redirect()->route('journal-entries.index')->with('success', 'Journal entry updated.');
     }
 
     /**

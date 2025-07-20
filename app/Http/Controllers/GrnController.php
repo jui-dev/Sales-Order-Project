@@ -31,6 +31,12 @@ class GrnController extends Controller
         // "posted" the stock gets updated automatically.
         $this->service->transitionStatus($grn->id, $next);
 
+        // If GRN was posted, redirect to the supplier bill page
+        if ($next === 'posted' && $grn->supplierBill) {
+            return redirect()->route('supplier-bills.show', $grn->supplierBill)
+                ->with('success', "GRN #{$grn->id} marked as {$next}. Supplier Bill generated.");
+        }
+
         return back()->with('success', "GRN #{$grn->id} marked as {$next}.");
     }
 

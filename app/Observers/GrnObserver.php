@@ -3,10 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Grn;
-use App\Models\JournalEntry;
 use App\Models\AuditLog;
-use App\Services\AccountingService;
-use Illuminate\Support\Facades\App;
 
 class GrnObserver
 {
@@ -20,50 +17,64 @@ class GrnObserver
             return;
         }
 
-        // Guard against duplicate postings (idempotent)
-        $exists = JournalEntry::where('source_type', $grn->getMorphClass())
-            ->where('source_id', $grn->getKey())
-            ->exists();
-        if ($exists) {
-            return; // Already posted
+        // ------------------------------------------------------------------
+        // Auto-create Supplier Bill (draft) instead of posting journal entry
+        // ------------------------------------------------------------------
+
+        // Prevent duplicate bill generation
+        if ($grn->supplierBill()->exists()) {
+            return;
         }
 
-        // Calculate total cost of goods received
-        $supply     = $grn->supply()->with('items')->first();
-        $totalCost  = $supply?->total_cost;
-        if ($totalCost === null) {
-            $totalCost = $supply?->items->sum(fn ($i) => ($i->unit_cost ?? 0) * ($i->quantity ?? 0));
-        }
-        $totalCost = round($totalCost, 2);
-        if ($totalCost <= 0) {
-            return; // Nothing to post
+        $supply = $grn->supply()->with('items')->first();
+        $vendorId = $supply?->vendor_id;
+        if (! $supply || ! $vendorId) {
+            return; // Cannot create bill without vendor info
         }
 
-        // Post journal entry (Inventory Dr / Accounts Payable Cr)
-        /** @var AccountingService $acct */
-        $acct = App::make(AccountingService::class);
-        $acct->post([
-            [
-                'account_code' => '1200', // Inventory
-                'debit'        => $totalCost,
-                'credit'       => 0,
-                'description'  => 'Inventory received – GRN #'.$grn->id,
-            ],
-            [
-                'account_code' => '2000', // Accounts Payable
-                'debit'        => 0,
-                'credit'       => $totalCost,
-                'description'  => 'Liability to vendor – GRN #'.$grn->id,
-            ],
-        ], $grn->received_date ?? now(), 'Goods Receipt Note #'.$grn->id, $grn);
+        // Build bill items from supply items
+        $billItemsData = [];
+        $totalAmount   = 0;
+        foreach ($supply->items as $item) {
+            $qty    = $item->quantity;
+            $unit   = $item->unit_cost;
+            $subtot = round($qty * $unit, 2);
+            $totalAmount += $subtot;
+            $billItemsData[] = [
+                'product_id' => $item->product_id,
+                'quantity'   => $qty,
+                'unit_cost'  => $unit,
+                'subtotal'   => $subtot,
+            ];
+        }
 
-        // Audit trail
+        $bill = \App\Models\SupplierBill::create([
+            // Temporary placeholder; will update after ID generated
+            'formatted_id' => 'TMP-'.uniqid(),
+            'grn_id'       => $grn->id,
+            'vendor_id'    => $vendorId,
+            'bill_date'    => now()->toDateString(),
+            'description'  => 'Supplier Bill for GRN '.$grn->id,
+            'total_amount' => round($totalAmount, 2),
+            'status'       => 'draft',
+        ]);
+
+        // Update formatted_id to proper code
+        $bill->formatted_id = 'SB-' . str_pad((string) $bill->id, 6, '0', STR_PAD_LEFT);
+        $bill->saveQuietly();
+
+        // Attach items
+        foreach ($billItemsData as $data) {
+            $bill->items()->create($data);
+        }
+
+        // Audit trail for bill creation (draft)
         AuditLog::create([
             'user_id'      => auth()->id(),
-            'action'       => 'grn_posted',
-            'description'  => 'GRN #' . $grn->id . ' posted.',
-            'subject_type' => $grn->getMorphClass(),
-            'subject_id'   => $grn->getKey(),
+            'action'       => 'supplier_bill_created',
+            'description'  => 'Supplier Bill '.$bill->formatted_id.' created from GRN '.$grn->id.'.',
+            'subject_type' => $bill->getMorphClass(),
+            'subject_id'   => $bill->getKey(),
         ]);
     }
 } 

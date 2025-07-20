@@ -88,6 +88,80 @@ body {
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
 }
 
+/* Table styling */
+.table thead th {
+  background-color: #e8f5e8 !important;
+  border-bottom: 2px solid var(--border-color);
+  font-weight: 600;
+  color: var(--dark-text);
+  padding: 0.75rem;
+  vertical-align: middle;
+}
+
+.table tbody td {
+  padding: 0.75rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--subtle-border);
+}
+
+.table tbody tr:hover {
+  background-color: rgba(232, 245, 232, 0.1);
+}
+
+/* Breadcrumb styling */
+.breadcrumb {
+  background: transparent;
+  padding: 0.5rem 0;
+  margin-bottom: 0;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+  content: ">";
+  color: var(--medium-text);
+}
+
+.breadcrumb-item a {
+  color: var(--primary);
+  transition: color 0.2s ease;
+}
+
+.breadcrumb-item a:hover {
+  color: var(--primary-dark);
+}
+
+.breadcrumb-item.active {
+  color: var(--medium-text);
+}
+
+/* Pagination styling */
+.pagination {
+  margin-bottom: 0;
+}
+
+.pagination .page-link {
+  color: var(--primary);
+  border-color: var(--border-color);
+  padding: 0.375rem 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.pagination .page-link:hover {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.pagination .page-item.active .page-link {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.pagination .page-item.disabled .page-link {
+  color: var(--medium-text);
+  background-color: transparent;
+  border-color: var(--border-color);
+}
+
 .card-header {
   background-color: var(--light-panel);
   border-bottom: 1px solid var(--border-color);
@@ -165,17 +239,18 @@ body {
 }
 
 .table thead {
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: #e8f5e8 !important;
 }
 
 .table thead th {
   border-top: none;
-  border-bottom: 1px solid var(--border-color);
-  color: var(--medium-text);
+  border-bottom: 2px solid #c3d9c3 !important;
+  border-color: #c3d9c3 !important;
+  color: #1e3a0e !important;
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 0.8rem;
-  letter-spacing: 0.5px;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
 }
 
 .table-striped tbody tr:nth-of-type(odd) {

@@ -1,18 +1,25 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="warehouse-customer-picking">
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-house-arrow-right me-2"></i>Warehouse to Customer Picking</h1>
-    <div>
-        <a href="{{ route('orders.index') }}" class="btn btn-outline-primary me-2">
-            <i class="bi bi-cart me-1"></i> View Orders
-        </a>
-        <button class="btn btn-info" onclick="loadStatistics()">
-            <i class="bi bi-graph-up me-1"></i> Statistics
-        </button>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Picking & Transfers', 'url' => '#'],
+        ['label' => 'Warehouse to Customer', 'url' => '#']
+    ]" />
+    
+    <div class="warehouse-customer-picking">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-house-arrow-right me-2"></i>Warehouse to Customer Picking</h1>
+        <div>
+            <a href="{{ route('orders.index') }}" class="btn btn-outline-primary me-2">
+                <i class="bi bi-cart me-1"></i> View Orders
+            </a>
+            <button class="btn btn-info" onclick="loadStatistics()">
+                <i class="bi bi-graph-up me-1"></i> Statistics
+            </button>
+        </div>
     </div>
-</div>
 
 @if(session('success'))
 <div class="alert alert-success alert-dismissible fade show" role="alert">

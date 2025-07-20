@@ -1,10 +1,19 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Customers</h1>
-    <a href="{{ route('customers.create') }}" class="btn btn-success">Add New Customer</a>
-</div>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Inventory', 'url' => '#'],
+        ['label' => 'Customers', 'url' => '#']
+    ]" />
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Customers</h1>
+        <a href="{{ route('customers.create') }}" class="btn btn-success">
+            <i class="bi bi-plus-circle me-1"></i>Add New Customer
+        </a>
+    </div>
 
 <div class="card">
     <div class="card-body">
@@ -40,15 +49,28 @@
                         <td data-label="Email">{{ $customer->email ?? 'N/A' }}</td>
                         <td data-label="Phone">{{ $customer->phone ?? 'N/A' }}</td>
                         <td data-label="Actions">
-                            <div class="btn-group" role="group">
-                                <a href="{{ route('customers.show', $customer) }}" class="btn btn-sm btn-info">View</a>
-                                <a href="{{ route('customers.edit', $customer) }}" class="btn btn-sm btn-primary">Edit</a>
-                                <form action="{{ route('customers.destroy', $customer) }}" method="POST" class="d-inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this customer?')">Delete</button>
-                                </form>
+                            <div class="d-flex flex-wrap gap-1">
+                                <a href="{{ route('customers.show', $customer) }}" class="btn btn-sm btn-info d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ route('customers.edit', $customer) }}" class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="Edit Customer">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1"
+                                    data-bs-toggle="tooltip" title="Delete Customer"
+                                    onclick="if(confirm('Are you sure you want to delete this customer?')) { 
+                                        document.getElementById('delete-customer-{{ $customer->id }}').submit(); 
+                                    }">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </div>
+                            <form id="delete-customer-{{ $customer->id }}" 
+                                action="{{ route('customers.destroy', $customer) }}" 
+                                method="POST" 
+                                style="display: none;">
+                                @csrf
+                                @method('DELETE')
+                            </form>
                         </td>
                     </tr>
                     @empty

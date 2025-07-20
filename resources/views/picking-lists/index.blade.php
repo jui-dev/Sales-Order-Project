@@ -1,9 +1,16 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-list-ul me-2"></i>All Picking Lists</h1>
-</div>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Picking & Transfers', 'url' => '#'],
+        ['label' => 'All Picking Lists', 'url' => '#']
+    ]" />
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-list-ul me-2"></i>All Picking Lists</h1>
+    </div>
 
 <div class="card">
     <div class="card-body table-responsive">
@@ -33,7 +40,7 @@
                 @endforelse
             </tbody>
         </table>
-        {{ $lists->links() }}
+        <x-pagination :paginator="$lists" />
     </div>
 </div>
 @endsection 

@@ -1,14 +1,21 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="row">
-    <div class="col-12 mb-4">
-        <div class="d-flex justify-content-between align-items-center">
-            <h1 class="h3">Daily Profit Report</h1>
-            <button class="btn btn-primary" onclick="window.print()">
-                <i class="bi bi-printer me-1"></i> Print Report
-            </button>
-        </div>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Reports', 'url' => '#'],
+        ['label' => 'Daily Profit', 'url' => '#']
+    ]" />
+    
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="h3">Daily Profit Report</h1>
+                <button class="btn btn-primary" onclick="window.print()">
+                    <i class="bi bi-printer me-1"></i> Print Report
+                </button>
+            </div>
         <p class="text-muted">
             Showing profit data from {{ date('M d, Y', strtotime($startDate)) }} 
             to {{ date('M d, Y', strtotime($endDate)) }}

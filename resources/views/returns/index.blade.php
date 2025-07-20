@@ -1,17 +1,24 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-arrow-return-left me-2"></i>Product Returns</h1>
-    <div>
-        <a href="{{ route('picking.transaction-flow') }}" class="btn btn-outline-info">
-            <i class="bi bi-diagram-3 me-1"></i> Transaction Flow
-        </a>
-        <a href="{{ route('returns.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle me-1"></i> Create Return
-        </a>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Stock Management', 'url' => '#'],
+        ['label' => 'Product Returns', 'url' => '#']
+    ]" />
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-arrow-return-left me-2"></i>Product Returns</h1>
+        <div>
+            <a href="{{ route('picking.transaction-flow') }}" class="btn btn-outline-info">
+                <i class="bi bi-diagram-3 me-1"></i> Transaction Flow
+            </a>
+            <a href="{{ route('returns.create') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-1"></i> Create Return
+            </a>
+        </div>
     </div>
-</div>
 
 @if($returns->count() > 0)
     <div class="card">
@@ -107,9 +114,7 @@
         </div>
     </div>
 
-    <!-- Pagination -->
-    <div class="d-flex justify-content-center mt-4">
-        {{ $returns->links() }}
+        <x-pagination :paginator="$returns" />
     </div>
 
     <!-- Status Update Modals -->

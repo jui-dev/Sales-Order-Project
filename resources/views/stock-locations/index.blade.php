@@ -1,7 +1,14 @@
 @extends('layouts.app')
 
 @section('content')
-<style>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Stock Management', 'url' => '#'],
+        ['label' => 'Stock Locations', 'url' => '#']
+    ]" />
+    
+    <style>
     .page-container {
         padding: 1.5rem;
         max-width: 1400px;

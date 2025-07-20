@@ -15,15 +15,7 @@
                 <label class="form-label">Reference Number</label>
                 <input type="text" name="reference" class="form-control" placeholder="Auto-generated if blank" value="{{ old('reference') }}">
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Status</label>
-                <select name="status" id="statusSelect" class="form-select" required>
-                    @foreach(['draft'=>'Draft','posted'=>'Posted','approved'=>'Approved'] as $val=>$label)
-                        <option value="{{ $val }}" @selected(old('status',$val)===$val)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-md-12">
+            <div class="col-md-6">
                 <label class="form-label">Description / Memo</label>
                 <textarea name="description" class="form-control" rows="2">{{ old('description') }}</textarea>
             </div>

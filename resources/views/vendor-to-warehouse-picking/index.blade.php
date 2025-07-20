@@ -1,23 +1,30 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-truck-arrow-right me-2"></i>Vendors to Warehouse Picking</h1>
-    <div>
-        <a href="{{ route('supplies.index') }}" class="btn btn-outline-primary me-2">
-            <i class="bi bi-truck me-1"></i> View Supplies
-        </a>
-        <form method="POST" action="{{ route('supplies.generate-missing-picking-lists') }}" class="d-inline">
-            @csrf
-            <button type="submit" class="btn btn-warning me-2" onclick="return confirm('This will generate picking lists for all supplies that don\'t have them. Continue?')">
-                <i class="bi bi-plus-square me-1"></i> Generate Missing Picking Lists
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Picking & Transfers', 'url' => '#'],
+        ['label' => 'Vendors to Warehouse', 'url' => '#']
+    ]" />
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-truck-arrow-right me-2"></i>Vendors to Warehouse Picking</h1>
+        <div>
+            <a href="{{ route('supplies.index') }}" class="btn btn-outline-primary me-2">
+                <i class="bi bi-truck me-1"></i> View Supplies
+            </a>
+            <form method="POST" action="{{ route('supplies.generate-missing-picking-lists') }}" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-warning me-2" onclick="return confirm('This will generate picking lists for all supplies that don\'t have them. Continue?')">
+                    <i class="bi bi-plus-square me-1"></i> Generate Missing Picking Lists
+                </button>
+            </form>
+            <button class="btn btn-info" onclick="loadStatistics()">
+                <i class="bi bi-graph-up me-1"></i> Statistics
             </button>
-        </form>
-        <button class="btn btn-info" onclick="loadStatistics()">
-            <i class="bi bi-graph-up me-1"></i> Statistics
-        </button>
+        </div>
     </div>
-</div>
 
 @if(session('success'))
 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -611,7 +618,7 @@
                             <i class="bi bi-truck me-2 text-warning"></i>
                             <div class="flex-grow-1">
                                 <strong>{{ $supply->vendor->name }}</strong>
-                                <br><small class="text-muted">{{ $supply->supplyItems->count() }} items - ${{ number_format($supply->total_cost, 2) }}</small>
+                                <br><small class="text-muted">{{ $supply->items->count() }} items - ${{ number_format($supply->total_cost, 2) }}</small>
                             </div>
                             <div class="text-end">
                                 <a href="{{ route('supplies.show', $supply) }}" class="btn btn-sm btn-outline-primary">

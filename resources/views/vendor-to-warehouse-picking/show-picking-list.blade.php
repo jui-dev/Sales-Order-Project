@@ -382,7 +382,7 @@
                 </div>
 
                 <!-- Supply Items Summary -->
-                @if($pickingList->supply->supplyItems && $pickingList->supply->supplyItems->count() > 0)
+                                        @if($pickingList->supply->items && $pickingList->supply->items->count() > 0)
                     <div class="card">
                         <div class="card-header">
                             <h6 class="mb-0">
@@ -400,7 +400,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($pickingList->supply->supplyItems->take(5) as $supplyItem)
+                                        @foreach($pickingList->supply->items->take(5) as $supplyItem)
                                             <tr>
                                                 <td>
                                                     <small>{{ $supplyItem->product->name ?? 'Unknown' }}</small>
@@ -413,11 +413,11 @@
                                                 </td>
                                             </tr>
                                         @endforeach
-                                        @if($pickingList->supply->supplyItems->count() > 5)
+                                        @if($pickingList->supply->items->count() > 5)
                                             <tr>
                                                 <td colspan="3" class="text-center">
                                                     <small class="text-muted">
-                                                        ... and {{ $pickingList->supply->supplyItems->count() - 5 }} more items
+                                                        ... and {{ $pickingList->supply->items->count() - 5 }} more items
                                                     </small>
                                                 </td>
                                             </tr>

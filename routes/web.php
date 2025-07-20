@@ -94,16 +94,31 @@ Route::get('/orders/{id}/edit', function ($id) {
     return view('orders.edit', compact('order', 'customers', 'products', 'warehouses', 'retailers'));
 })->whereNumber('id')->name('orders.edit');
 
+// Additional orders routes for update, destroy, update-status
+Route::put('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'update'])->whereNumber('id')->name('orders.update');
+Route::delete('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'destroy'])->whereNumber('id')->name('orders.destroy');
+Route::patch('/orders/{id}/status', [\App\Http\Controllers\OrderController::class, 'updateStatus'])->whereNumber('id')->name('orders.update-status');
+
 // Supplies Routes (Controller)
 Route::resource('supplies', SupplyController::class)->only(['index', 'create', 'store', 'show']);
 
 // Custom route to mark supply completed
 Route::patch('supplies/{supply}/completed', [SupplyController::class, 'completed'])->name('supplies.completed');
 
+// Additional supplies routes for edit, update, destroy
+Route::get('supplies/{supply}/edit', [SupplyController::class, 'edit'])->name('supplies.edit');
+Route::put('supplies/{supply}', [SupplyController::class, 'update'])->name('supplies.update');
+Route::delete('supplies/{supply}', [SupplyController::class, 'destroy'])->name('supplies.destroy');
+
 // GRN routes
 Route::get('/grns', [GrnController::class, 'index'])->name('grns.index');
 Route::get('/grns/{grn}', [GrnController::class, 'show'])->whereNumber('grn')->name('grns.show');
 Route::patch('/grns/{grn}/status', [GrnController::class, 'updateStatus'])->name('grns.update-status');
+
+// Additional GRN routes for edit, update, destroy
+Route::get('/grns/{grn}/edit', [GrnController::class, 'edit'])->whereNumber('grn')->name('grns.edit');
+Route::put('/grns/{grn}', [GrnController::class, 'update'])->whereNumber('grn')->name('grns.update');
+Route::delete('/grns/{grn}', [GrnController::class, 'destroy'])->whereNumber('grn')->name('grns.destroy');
 
 // Stock Locations UI Routes
 Route::get('/stock-locations', function () {
@@ -1030,6 +1045,11 @@ Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
 Route::get('invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');
 Route::post('invoices/{invoice}/payments', [\App\Http\Controllers\PaymentController::class, 'store'])->name('invoices.pay');
 
+// Additional invoice routes for edit, update, destroy
+Route::get('invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
+Route::put('invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
+Route::delete('invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
+
 Route::get('/journal-entries', [JournalEntryController::class, 'index'])->name('journal-entries.index');
 // Manual Journal Entry creation
 Route::get('/journal-entries/create', [JournalEntryController::class, 'create'])->name('journal-entries.create');
@@ -1037,6 +1057,28 @@ Route::post('/journal-entries', [JournalEntryController::class, 'store'])->name(
 Route::patch('/journal-entries/{journalEntry}/approve', [JournalEntryController::class, 'approve'])->name('journal-entries.approve');
 Route::patch('/journal-entries/{journalEntry}/reject', [JournalEntryController::class, 'reject'])->name('journal-entries.reject');
 Route::patch('/journal-entries/{journalEntry}/post', [JournalEntryController::class, 'post'])->name('journal-entries.post');
+Route::get('/journal-entries/{journalEntry}/edit', [JournalEntryController::class, 'edit'])->name('journal-entries.edit');
+Route::patch('/journal-entries/{journalEntry}', [JournalEntryController::class, 'update'])->name('journal-entries.update');
 Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
 Route::get('/accounting/chart-of-accounts', [\App\Http\Controllers\ChartOfAccountsController::class, 'index'])->name('accounting.chart-of-accounts');
 Route::post('/accounting/chart-of-accounts', [\App\Http\Controllers\ChartOfAccountsController::class, 'store'])->name('accounting.chart-of-accounts.store');
+
+/**
+ * Supplier Bills Routes
+ */
+Route::get('/supplier-bills', [\App\Http\Controllers\SupplierBillController::class, 'index'])->name('supplier-bills.index');
+Route::get('/supplier-bills/{supplierBill}', [\App\Http\Controllers\SupplierBillController::class, 'show'])->name('supplier-bills.show');
+Route::post('/supplier-bills/{supplierBill}/post', [\App\Http\Controllers\SupplierBillController::class, 'post'])->name('supplier-bills.post');
+Route::post('/supplier-bills/{supplierBill}/pay', [\App\Http\Controllers\SupplierBillController::class, 'pay'])->name('supplier-bills.pay');
+Route::get('/supplier-bills/{supplierBill}/payment-info', [\App\Http\Controllers\SupplierBillController::class, 'paymentInfo'])->name('supplier-bills.payment-info');
+
+// Additional supplier bills routes for edit, update, destroy
+Route::get('/supplier-bills/{supplierBill}/edit', [\App\Http\Controllers\SupplierBillController::class, 'edit'])->name('supplier-bills.edit');
+Route::put('/supplier-bills/{supplierBill}', [\App\Http\Controllers\SupplierBillController::class, 'update'])->name('supplier-bills.update');
+Route::delete('/supplier-bills/{supplierBill}', [\App\Http\Controllers\SupplierBillController::class, 'destroy'])->name('supplier-bills.destroy');
+
+/**
+ * Supplier Bill Payments Routes
+ */
+Route::get('/supplier-bill-payments', [\App\Http\Controllers\SupplierBillPaymentController::class, 'index'])->name('supplier-bill-payments.index');
+Route::get('/supplier-bill-payments/{supplierBillPayment}', [\App\Http\Controllers\SupplierBillPaymentController::class, 'show'])->name('supplier-bill-payments.show');

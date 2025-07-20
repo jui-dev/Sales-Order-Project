@@ -2,9 +2,16 @@
 @php use Illuminate\Support\Str; @endphp
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-diagram-3 me-2"></i>Transaction Flow Overview</h1>
-</div>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Stock Management', 'url' => '#'],
+        ['label' => 'Transaction Flow', 'url' => '#']
+    ]" />
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-diagram-3 me-2"></i>Transaction Flow Overview</h1>
+    </div>
 
 <!-- Stock Summary Cards -->
 <div class="row mb-4">

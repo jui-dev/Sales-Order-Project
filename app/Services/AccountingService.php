@@ -20,7 +20,7 @@ class AccountingService
      *
      * @param array<int,array{account_code?:string,account_id?:int,debit:float,credit:float,description?:string}> $lines
      */
-    public function post(array $lines, Carbon $date = null, ?string $description = null, ?Model $source = null, string $status = 'approved'): JournalEntry
+    public function post(array $lines, Carbon $date = null, ?string $description = null, ?Model $source = null, string $status = 'draft'): JournalEntry
     {
         $date = $date ?: Carbon::now();
 
@@ -89,11 +89,15 @@ class AccountingService
                 ]);
             }
 
-            // Record audit log
+            // Record audit log depending on initial status
+            $logAction = ($status === JournalEntry::STATUS_POSTED || $status === JournalEntry::STATUS_APPROVED)
+                ? 'journal_posted'
+                : 'journal_created';
+
             AuditLog::create([
                 'user_id'      => auth()->id(),
-                'action'       => 'journal_posted',
-                'description'  => 'Journal Entry ' . ($entry->formatted_id ?? $entry->id) . ' posted.',
+                'action'       => $logAction,
+                'description'  => 'Journal Entry ' . ($entry->formatted_id ?? $entry->id) . ' created with status '.ucfirst($status).'.',
                 'subject_type' => $entry->getMorphClass(),
                 'subject_id'   => $entry->getKey(),
             ]);

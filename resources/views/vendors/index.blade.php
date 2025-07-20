@@ -1,10 +1,19 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Vendors</h1>
-    <a href="{{ route('vendors.create') }}" class="btn btn-success">Add New Vendor</a>
-</div>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Inventory', 'url' => '#'],
+        ['label' => 'Vendors', 'url' => '#']
+    ]" />
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Vendors</h1>
+        <a href="{{ route('vendors.create') }}" class="btn btn-success">
+            <i class="bi bi-plus-circle me-1"></i>Add New Vendor
+        </a>
+    </div>
 
 <div class="card">
     <div class="card-body">
@@ -42,15 +51,28 @@
                         <td data-label="Email">{{ $vendor->email }}</td>
                         <td data-label="Phone">{{ $vendor->phone }}</td>
                         <td data-label="Actions">
-                            <div class="btn-group" role="group">
-                                <a href="{{ route('vendors.show', $vendor) }}" class="btn btn-sm btn-info">View</a>
-                                <a href="{{ route('vendors.edit', $vendor) }}" class="btn btn-sm btn-primary">Edit</a>
-                                <form action="{{ route('vendors.destroy', $vendor) }}" method="POST" class="d-inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this vendor?')">Delete</button>
-                                </form>
+                            <div class="d-flex flex-wrap gap-1">
+                                <a href="{{ route('vendors.show', $vendor) }}" class="btn btn-sm btn-info d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ route('vendors.edit', $vendor) }}" class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="Edit Vendor">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1"
+                                    data-bs-toggle="tooltip" title="Delete Vendor"
+                                    onclick="if(confirm('Are you sure you want to delete this vendor?')) { 
+                                        document.getElementById('delete-vendor-{{ $vendor->id }}').submit(); 
+                                    }">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </div>
+                            <form id="delete-vendor-{{ $vendor->id }}" 
+                                action="{{ route('vendors.destroy', $vendor) }}" 
+                                method="POST" 
+                                style="display: none;">
+                                @csrf
+                                @method('DELETE')
+                            </form>
                         </td>
                     </tr>
                     @empty

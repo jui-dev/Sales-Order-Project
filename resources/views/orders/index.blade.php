@@ -1,15 +1,22 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h1 class="mb-1">Orders</h1>
-        <p class="text-muted mb-0">Manage and track all customer orders</p>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Sales', 'url' => '#'],
+        ['label' => 'Orders', 'url' => '#']
+    ]" />
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="mb-1">Orders</h1>
+            <p class="text-muted mb-0">Manage and track all customer orders</p>
+        </div>
+        <a href="{{ route('orders.create') }}" class="btn btn-success">
+            <i class="bi bi-plus-circle me-1"></i>Create New Order
+        </a>
     </div>
-    <a href="{{ route('orders.create') }}" class="btn btn-success">
-        <i class="bi bi-plus-circle me-1"></i>Create New Order
-    </a>
-</div>
 
 @if(session('success'))
     <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -95,23 +102,23 @@
                         </span>
                     </td>
                     <td>
-                        <div class="btn-group" role="group">
-                            <a href="{{ route('orders.show', $order) }}" class="btn btn-sm btn-info" title="View Details">
+                        <div class="d-flex flex-wrap gap-1">
+                            <a href="{{ route('orders.show', $order) }}" class="btn btn-sm btn-info d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Details">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            <a href="{{ route('orders.edit', $order) }}" class="btn btn-sm btn-primary" title="Edit Order">
+                            <a href="{{ route('orders.edit', $order) }}" class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="Edit Order">
                                 <i class="bi bi-pencil"></i>
                             </a>
 
                             @if($order->status === 'completed' && $order->invoice)
-                                <a href="{{ route('invoices.show', $order->invoice) }}" target="_blank" class="btn btn-sm btn-success" title="View Invoice">
+                                <a href="{{ route('invoices.show', $order->invoice) }}" target="_blank" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Invoice">
                                     <i class="bi bi-receipt"></i>
                                 </a>
                             @endif
                             @if(! in_array($order->status, ['confirmed', 'completed', 'cancelled']))
                             <div class="dropdown d-inline">
-                                <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                    Update Status
+                                <button class="btn btn-sm btn-secondary dropdown-toggle d-inline-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" data-bs-toggle="tooltip" title="Update Status">
+                                    <i class="bi bi-gear"></i>
                                 </button>
                                 <ul class="dropdown-menu">
                                     @if($order->status == 'pending')
@@ -135,16 +142,21 @@
                                 </ul>
                             </div>
                             @endif
-                            <form action="{{ route('orders.destroy', $order) }}" method="POST" class="d-inline">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-danger" 
-                                        onclick="return confirm('Are you sure you want to delete this order?')"
-                                        title="Delete Order">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
+                            <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1"
+                                data-bs-toggle="tooltip" title="Delete Order"
+                                onclick="if(confirm('Are you sure you want to delete this order?')) { 
+                                    document.getElementById('delete-order-{{ $order->id }}').submit(); 
+                                }">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </div>
+                        <form id="delete-order-{{ $order->id }}" 
+                            action="{{ route('orders.destroy', $order) }}" 
+                            method="POST" 
+                            style="display: none;">
+                            @csrf
+                            @method('DELETE')
+                        </form>
                     </td>
                 </tr>
                 @empty
@@ -155,13 +167,8 @@
             </tbody>
         </table>
     </div>
-    @if($orders->hasPages())
-    <div class="card-footer bg-white border-0 py-3">
-        <div class="d-flex justify-content-center">
-            {{ $orders->links() }}
-        </div>
+        <x-pagination :paginator="$orders" />
     </div>
-    @endif
 </div>
 @endsection
 

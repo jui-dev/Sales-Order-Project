@@ -2,6 +2,12 @@
 
 @section('content')
 <div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Inventory', 'url' => '#'],
+        ['label' => 'Products', 'url' => '#']
+    ]" />
+    
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Products</h1>
         <a href="{{ route('products.create') }}" class="btn btn-primary">
@@ -9,42 +15,33 @@
         </a>
     </div>
 
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i>
+        <strong>Product Management:</strong> Products are managed through supplies and orders. Stock levels are automatically updated based on supply and order transactions.
+    </div>
+
+    <!-- Unified Search Component -->
+    <x-unified-search 
+        :searchPlaceholder="'Search products by name, SKU, or description...'"
+        :filterOptions="$filterOptions"
+        :sortOptions="$sortOptions"
+        :defaultSort="'id'"
+        :defaultDirection="'desc'"
+    />
+
     <div class="card">
         <div class="card-body">
-            <div class="alert alert-info mb-4">
-                <i class="bi bi-info-circle"></i>
-                <strong>Product Management:</strong> Products are managed through supplies and orders. Stock levels are automatically updated based on supply and order transactions.
-            </div>
-
-            <!-- Sorting Controls -->
-            <div class="d-flex justify-content-end mb-3">
-                <div class="input-group input-group-sm" style="max-width: 320px;">
-                    <label class="input-group-text bg-light" for="sort-by">Sort&nbsp;By</label>
-                    <select id="sort-by" class="form-select">
-                        <option value="0">ID</option>
-                        <option value="1">Name</option>
-                        <option value="2">Selling Price</option>
-                        <option value="3">Available Stocks</option>
-                        <option value="4">Purchase Price</option>
-                        <option value="5">GP %</option>
-                    </select>
-                    <button class="btn btn-outline-secondary" id="sort-direction" data-dir="asc" title="Toggle Direction">
-                        <i class="bi bi-sort-alpha-down"></i>
-                    </button>
-                </div>
-            </div>
-
             <div class="table-responsive">
-                <table id="data-table" class="table table-striped table-hover align-middle">
+                <table class="table table-striped table-hover align-middle">
                     <thead>
                         <tr>
-                            <th style="width: 60px;">ID</th>
-                            <th style="width: 200px;">Name</th>
-                            <th style="width: 100px;">Selling Price</th>
-                            <th style="width: 120px;">Available Stocks</th>
-                            <th style="width: 80px;">Purchase Price</th>
-                            <th style="width: 70px;">GP%</th>
-                            <th style="min-width: 320px;">Actions</th>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Selling Price</th>
+                            <th>Available Stocks</th>
+                            <th>Purchase Price</th>
+                            <th>GP%</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -53,6 +50,9 @@
                                 <td>{{ $product->id }}</td>
                                 <td>
                                     <strong>{{ $product->name }}</strong>
+                                    @if($product->sku)
+                                        <br><small class="text-muted">SKU: {{ $product->sku }}</small>
+                                    @endif
                                 </td>
                                 <td>
                                     <strong class="text-success">${{ number_format($product->selling_price, 2) }}</strong>
@@ -104,62 +104,39 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center">No products found.</td>
+                                <td colspan="7" class="text-center py-4">
+                                    <div class="text-muted">
+                                        <i class="bi bi-inbox display-1 d-block mb-3"></i>
+                                        <h5>No Products Found</h5>
+                                        <p class="mb-0">No products match your current search criteria.</p>
+                                                                @if(request()->hasAny(['search', 'price_min', 'price_max', 'stock_min', 'stock_max']))
+                            <a href="{{ route('products.index') }}" class="btn btn-outline-primary mt-2">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Clear Filters
+                            </a>
+                        @endif
+                                    </div>
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
+            
+            <x-pagination :paginator="$products" />
+        </div>
+    </div>
         </div>
     </div>
 </div>
 @endsection
 
 @section('scripts')
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
-
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize Bootstrap tooltips
         const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-
-        // Setup DataTable for sortable columns & search
-        const table = $('#data-table').DataTable({
-            paging: true,
-            ordering: true,
-            info: true,
-            lengthMenu: [10, 25, 50, 100],
-            language: {
-                search: "Filter records:",
-                lengthMenu: "Show _MENU_ entries per page",
-                info: "Showing _START_ to _END_ of _TOTAL_ entries",
-                paginate: {
-                    previous: "Prev",
-                    next: "Next"
-                }
-            }
-        });
-
-        // Apply custom sort controls
-        $('#sort-by').on('change', function() {
-            const colIdx = parseInt(this.value, 10);
-            const dir = $('#sort-direction').data('dir');
-            table.order([colIdx, dir]).draw();
-        });
-
-        $('#sort-direction').on('click', function() {
-            const current = $(this).data('dir');
-            const newDir = current === 'asc' ? 'desc' : 'asc';
-            $(this).data('dir', newDir);
-            $(this).find('i').toggleClass('bi-sort-alpha-down bi-sort-alpha-up');
-            // Trigger change to apply new order
-            $('#sort-by').trigger('change');
         });
     });
 </script>

@@ -1,17 +1,24 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-building-arrow-right me-2"></i>Warehouse to Retailer Picking</h1>
-    <div>
-        <a href="{{ route('stock-transfers.warehouse-to-retailer.pending') }}" class="btn btn-warning me-2">
-            <i class="bi bi-clock me-1"></i> Pending Transfers
-        </a>
-        <a href="{{ route('stock-transfers.warehouse-to-retailer.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle me-1"></i> Create Stock Transfer
-        </a>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Picking & Transfers', 'url' => '#'],
+        ['label' => 'Warehouse to Retailer', 'url' => '#']
+    ]" />
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-building-arrow-right me-2"></i>Warehouse to Retailer Picking</h1>
+        <div>
+            <a href="{{ route('stock-transfers.warehouse-to-retailer.pending') }}" class="btn btn-warning me-2">
+                <i class="bi bi-clock me-1"></i> Pending Transfers
+            </a>
+            <a href="{{ route('stock-transfers.warehouse-to-retailer.create') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-1"></i> Create Stock Transfer
+            </a>
+        </div>
     </div>
-</div>
 
 @if(session('success'))
 <div class="alert alert-success alert-dismissible fade show" role="alert">

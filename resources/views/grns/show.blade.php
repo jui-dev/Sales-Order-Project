@@ -3,7 +3,7 @@
 @section('content')
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>GRN #{{ $grn->id }}</h1>
+        <h1>Goods Received Note #{{ $grn->formatted_id ?? $grn->id }}</h1>
         <div>
             <a href="{{ route('grns.index') }}" class="btn btn-secondary">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
@@ -13,36 +13,51 @@
                     @csrf
                     @method('PATCH')
                     <button type="submit" class="btn btn-primary">
-                        Post GRN
+                        <i class="bi bi-check-circle me-1"></i> Post GRN
                     </button>
                 </form>
             @endif
         </div>
     </div>
 
-    <!-- GRN Meta -->
+    <!-- GRN Meta Information -->
     <div class="row mb-4">
         <div class="col-md-4">
             <div class="card h-100">
-                <div class="card-header bg-light"><strong>Vendor</strong></div>
+                <div class="card-header bg-light">
+                    <strong><i class="bi bi-truck me-1"></i> Vendor Information</strong>
+                </div>
                 <div class="card-body">
-                    <p class="mb-1">{{ $grn->supply->vendor->name }}</p>
+                    <p class="mb-1"><strong>{{ $grn->supply->vendor->name }}</strong></p>
                     <small class="text-muted">{{ $grn->supply->vendor->address }}</small>
+                    @if($grn->supply->vendor->contact_person)
+                        <br><small class="text-muted">Contact: {{ $grn->supply->vendor->contact_person }}</small>
+                    @endif
+                    @if($grn->supply->vendor->phone)
+                        <br><small class="text-muted">Phone: {{ $grn->supply->vendor->phone }}</small>
+                    @endif
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card h-100">
-                <div class="card-header bg-light"><strong>Warehouse</strong></div>
+                <div class="card-header bg-light">
+                    <strong><i class="bi bi-building me-1"></i> Receiving Location</strong>
+                </div>
                 <div class="card-body">
-                    <p class="mb-1">{{ $grn->supply->warehouse->name }}</p>
+                    <p class="mb-1"><strong>{{ $grn->supply->warehouse->name }}</strong></p>
                     <small class="text-muted">{{ $grn->supply->warehouse->address }}</small>
+                    @if($grn->supply->warehouse->contact_person)
+                        <br><small class="text-muted">Contact: {{ $grn->supply->warehouse->contact_person }}</small>
+                    @endif
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card h-100">
-                <div class="card-header bg-light"><strong>Details</strong></div>
+                <div class="card-header bg-light">
+                    <strong><i class="bi bi-info-circle me-1"></i> GRN Details</strong>
+                </div>
                 <div class="card-body">
                     @php
                         $badge = [
@@ -53,46 +68,95 @@
                     <p class="mb-1">Status: 
                         <span class="badge bg-{{ $badge }}">{{ ucfirst($grn->status) }}</span>
                     </p>
-                    <p class="mb-1">Received Date: {{ optional($grn->received_date)->format('M d, Y') ?? '-' }}</p>
-                    <p class="mb-1">Supply: <a href="{{ route('supplies.show', $grn->supply_id) }}">#{{ $grn->supply_id }}</a></p>
+                    <p class="mb-1">Received Date: {{ optional($grn->received_date)->format('M d, Y') }}</p>
+                    <p class="mb-1">Supply Reference: <a href="{{ route('supplies.show', $grn->supply_id) }}">#{{ $grn->supply_id }}</a></p>
+                    <p class="mb-1">Total Items: {{ $grn->supply->items->sum('quantity') }}</p>
+                    <p class="mb-1">Total Products: {{ $grn->supply->items->count() }}</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- GRN Items -->
+    <!-- GRN Items Received -->
     <div class="card">
-        <div class="card-header"><strong>Items</strong></div>
+        <div class="card-header">
+            <strong><i class="bi bi-box me-1"></i> Items Received</strong>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-striped align-middle">
+                <table class="table table-striped table-hover">
                     <thead>
                         <tr>
+                            <th>#</th>
                             <th>Product</th>
-                            <th class="text-end">Quantity</th>
-                            <th class="text-end">Unit Cost</th>
-                            <th class="text-end">Subtotal</th>
+                            <th>SKU</th>
+                            <th class="text-center">Quantity Received</th>
+                            <th>Description</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($grn->supply->items as $item)
+                        @forelse($grn->supply->items as $index => $item)
                             <tr>
-                                <td>{{ $item->product->name }}</td>
-                                <td class="text-end">{{ number_format($item->quantity) }}</td>
-                                <td class="text-end">${{ number_format($item->unit_cost, 2) }}</td>
-                                <td class="text-end">${{ number_format($item->unit_cost * $item->quantity, 2) }}</td>
+                                <td>{{ $index + 1 }}</td>
+                                <td>
+                                    <strong>{{ $item->product->name }}</strong>
+                                    @if($item->product->description)
+                                        <br><small class="text-muted">{{ $item->product->description }}</small>
+                                    @endif
+                                </td>
+                                <td>{{ $item->product->sku ?? 'N/A' }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-primary">{{ number_format($item->quantity) }}</span>
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        Received on {{ $grn->received_date->format('M d, Y') }}
+                                    </small>
+                                </td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="5" class="text-center">No items found.</td>
+                            </tr>
+                        @endforelse
                     </tbody>
                     <tfoot>
-                        <tr>
-                            <th colspan="3" class="text-end">Total Cost</th>
-                            <th class="text-end">${{ number_format($grn->supply->total_cost ?? $grn->supply->items->sum(fn($i)=>$i->unit_cost*$i->quantity), 2) }}</th>
+                        <tr class="table-active">
+                            <td colspan="3" class="text-end"><strong>Total Items Received:</strong></td>
+                            <td class="text-center"><strong>{{ number_format($grn->supply->items->sum('quantity')) }}</strong></td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
         </div>
     </div>
+
+    <!-- Notes Section -->
+    @if($grn->supply->notes)
+        <div class="card mt-4">
+            <div class="card-header">
+                <strong><i class="bi bi-sticky me-1"></i> Notes</strong>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">{{ $grn->supply->notes }}</p>
+            </div>
+        </div>
+    @endif
+
+    <!-- Status Information -->
+    @if($grn->status === 'posted')
+        <div class="alert alert-success mt-4">
+            <i class="bi bi-check-circle me-2"></i>
+            <strong>GRN Posted Successfully!</strong> 
+            This GRN has been posted and stock has been updated. A supplier bill has been generated automatically.
+        </div>
+    @elseif($grn->status === 'draft')
+        <div class="alert alert-info mt-4">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Draft GRN</strong> 
+            This GRN is in draft status. Click "Post GRN" to finalize the receiving process and update stock levels.
+        </div>
+    @endif
 </div>
 @endsection 

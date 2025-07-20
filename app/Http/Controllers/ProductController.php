@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
 use App\Services\ProductService;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ProductController extends Controller
@@ -14,10 +16,93 @@ class ProductController extends Controller
     {
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $products = $this->service->list();
-        return view('products.index', compact('products'));
+        $query = Product::query();
+
+        // Search functionality
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter functionality
+        if ($request->filled('price_min')) {
+            $query->where('selling_price', '>=', $request->price_min);
+        }
+
+        if ($request->filled('price_max')) {
+            $query->where('selling_price', '<=', $request->price_max);
+        }
+
+        if ($request->filled('stock_min')) {
+            $query->where('available_stocks', '>=', $request->stock_min);
+        }
+
+        if ($request->filled('stock_max')) {
+            $query->where('available_stocks', '<=', $request->stock_max);
+        }
+
+        // Sort functionality
+        $sort = $request->input('sort', 'id');
+        $direction = strtolower($request->input('direction', 'desc')) === 'desc' ? 'desc' : 'asc';
+
+        switch ($sort) {
+            case 'name':
+                $query->orderBy('name', $direction);
+                break;
+            case 'price':
+                $query->orderBy('selling_price', $direction);
+                break;
+            case 'stock':
+                $query->orderBy('available_stocks', $direction);
+                break;
+            case 'created':
+                $query->orderBy('created_at', $direction);
+                break;
+            default:
+                $query->orderBy('id', $direction);
+        }
+
+        $products = $query->paginate(20)->withQueryString();
+
+        // Get filter options for the view
+        $filterOptions = [
+            'price_min' => [
+                'type' => 'text',
+                'label' => 'Min Price',
+                'placeholder' => 'Enter minimum price'
+            ],
+            'price_max' => [
+                'type' => 'text',
+                'label' => 'Max Price',
+                'placeholder' => 'Enter maximum price'
+            ],
+            'stock_min' => [
+                'type' => 'text',
+                'label' => 'Min Stock',
+                'placeholder' => 'Enter minimum stock'
+            ],
+            'stock_max' => [
+                'type' => 'text',
+                'label' => 'Max Stock',
+                'placeholder' => 'Enter maximum stock'
+            ]
+        ];
+
+        $sortOptions = [
+            'id' => 'ID',
+            'name' => 'Name',
+            'price' => 'Price',
+            'stock' => 'Stock',
+            'created' => 'Created Date'
+        ];
+
+        return view('products.index', compact('products', 'filterOptions', 'sortOptions'));
     }
 
     public function create(): View

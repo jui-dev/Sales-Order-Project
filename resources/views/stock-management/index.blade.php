@@ -24,6 +24,12 @@ thead.table-green-header th,
 
 @section('content')
 <div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Stock Management', 'url' => '#'],
+        ['label' => 'Stock Transaction Records', 'url' => '#']
+    ]" />
+    
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="mb-1">
@@ -161,13 +167,10 @@ thead.table-green-header th,
                             <th width="200" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Product</th>
                             <th width="150" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Location</th>
                             <th width="160" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Transaction Type</th>
-                            <th width="130" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Source</th>
-                            <th width="130" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Destination</th>
                             <th width="120" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Reference</th>
                             <th width="100" class="text-center" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Quantity</th>
                             <th width="100" class="text-end" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Unit Cost</th>
                             <th width="100" class="text-end" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Total Cost</th>
-                            <th width="150" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Notes</th>
                             <th width="130" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Date</th>
                             <th width="100" class="text-center" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Status</th>
                         </tr>
@@ -197,25 +200,7 @@ thead.table-green-header th,
                                 </span>
                                 <div class="small text-muted mt-1">{{ $config['description'] }}</div>
                             </td>
-                            <td>
-                                @if($transaction->sourceLocation)
-                                    <div class="small fw-medium">{{ $transaction->sourceLocation->name }}</div>
-                                    <small class="text-muted">{{ ucfirst($transaction->sourceLocation->location_type ?? '') }}</small>
-                                @elseif($transaction->source_location)
-                                    <div class="small fw-medium">{{ $transaction->source_location }}</div>
-                                    <small class="text-muted">External (Vendor)</small>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if($transaction->destinationLocation)
-                                    <div class="small fw-medium">{{ $transaction->destinationLocation->name }}</div>
-                                    <small class="text-muted">{{ ucfirst($transaction->destinationLocation->location_type ?? '') }}</small>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
+
                             <td>
                                 <div class="font-monospace small">{{ $transaction->reference_number }}</div>
                                 @if($transaction->reference_type)
@@ -235,15 +220,7 @@ thead.table-green-header th,
                             <td class="text-end font-monospace fw-semibold">
                                 ${{ number_format($transaction->total_cost, 2) }}
                             </td>
-                            <td>
-                                @if($transaction->notes)
-                                    <small class="text-muted" title="{{ $transaction->notes }}">
-                                        {{ Str::limit($transaction->notes, 30) }}
-                                    </small>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
+
                             <td>
                                 <div class="small fw-medium">{{ $transaction->created_at->format('M d, Y') }}</div>
                                 <small class="text-muted">{{ $transaction->created_at->format('H:i') }}</small>
@@ -272,7 +249,7 @@ thead.table-green-header th,
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="13" class="text-center py-5">
+                            <td colspan="10" class="text-center py-5">
                                 <div class="text-muted">
                                     <i class="bi bi-inbox display-1 d-block mb-3"></i>
                                     <h5>No Stock Transactions Found</h5>

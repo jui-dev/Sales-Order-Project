@@ -1,11 +1,18 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="row">
-    <div class="col-12 mb-4 d-flex justify-content-between align-items-center">
-        <h1 class="h3 mb-0">Chart of Accounts</h1>
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <x-breadcrumb :items="[
+        ['label' => 'Accounting', 'url' => '#'],
+        ['label' => 'Chart of Accounts', 'url' => '#']
+    ]" />
+    
+    <div class="row">
+        <div class="col-12 mb-4 d-flex justify-content-between align-items-center">
+            <h1 class="h3 mb-0">Chart of Accounts</h1>
+        </div>
     </div>
-</div>
 
 {{-- Create Account Form --}}
 <div class="row mb-4">
