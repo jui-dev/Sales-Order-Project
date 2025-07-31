@@ -3,25 +3,32 @@
 namespace App\Http\Controllers;
 
 use App\Models\SupplierBillPayment;
+use App\Services\SupplierBillPaymentService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class SupplierBillPaymentController extends Controller
 {
+    public function __construct(private readonly SupplierBillPaymentService $supplierBillPaymentService)
+    {
+    }
+
     public function index(Request $request): View
     {
-        $query = SupplierBillPayment::with(['vendor', 'supplierBill'])
-            ->when($request->filled('payment_status'), fn($q) => $q->where('payment_status', $request->payment_status))
-            ->orderByDesc('id');
+        $filters = [
+            'payment_status' => $request->payment_status,
+        ];
 
-        $payments = $query->paginate(20)->withQueryString();
+        $payments = $this->supplierBillPaymentService->getFilteredPayments($filters, 20);
+        $statistics = $this->supplierBillPaymentService->getPaymentStatistics();
+        $filterOptions = $this->supplierBillPaymentService->getFilterOptions();
 
-        return view('supplier-bill-payments.index', compact('payments'));
+        return view('supplier-bill-payments.index', compact('payments', 'statistics', 'filterOptions'));
     }
 
     public function show(SupplierBillPayment $supplierBillPayment): View
     {
-        $supplierBillPayment->load(['vendor', 'supplierBill', 'paymentJournal.lines.account']);
+        $supplierBillPayment = $this->supplierBillPaymentService->getPaymentWithDetails($supplierBillPayment->id);
         return view('supplier-bill-payments.show', compact('supplierBillPayment'));
     }
 }

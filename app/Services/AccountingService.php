@@ -95,7 +95,7 @@ class AccountingService
                 : 'journal_created';
 
             AuditLog::create([
-                'user_id'      => auth()->id(),
+                'user_id'      => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
                 'action'       => $logAction,
                 'description'  => 'Journal Entry ' . ($entry->formatted_id ?? $entry->id) . ' created with status '.ucfirst($status).'.',
                 'subject_type' => $entry->getMorphClass(),
@@ -155,11 +155,169 @@ class AccountingService
 
         // Optional: dispatch events, audit log
         AuditLog::create([
-            'user_id'      => auth()->id(),
+            'user_id'      => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
             'action'       => 'journal_approved',
             'description'  => 'Journal Entry ' . ($entry->formatted_id ?? $entry->id) . ' approved.',
             'subject_type' => $entry->getMorphClass(),
             'subject_id'   => $entry->getKey(),
+        ]);
+    }
+
+    /**
+     * Create a draft journal entry (alias for post with draft status).
+     *
+     * @param array<int,array{account_code?:string,account_id?:int,debit:float,credit:float,description?:string}> $lines
+     */
+    public function createDraft(array $lines, Carbon $date = null, ?string $description = null, ?Model $source = null): JournalEntry
+    {
+        return $this->post($lines, $date, $description, $source, 'draft');
+    }
+
+    /**
+     * Create a return journal entry with draft status.
+     *
+     * @param array<int,array{account_code?:string,account_id?:int,debit:float,credit:float,description?:string}> $lines
+     */
+    public function createReturnEntry(array $lines, Carbon $date = null, ?string $description = null, ?Model $source = null): JournalEntry
+    {
+        return $this->post($lines, $date, $description, $source, 'draft');
+    }
+
+    /**
+     * Create journal entry for credit note with draft status
+     */
+    public function createCreditNoteJournalEntry(\App\Models\CreditNote $creditNote): JournalEntry
+    {
+        $lines = [];
+        $totalRefund = $creditNote->total_amount;
+
+        // Sales Returns & Allowances (Contra Revenue) - Debit (reduces revenue)
+        $lines[] = [
+            'account_code' => '5200', // Sales Returns & Allowances
+            'debit' => $totalRefund,
+            'credit' => 0,
+            'description' => "Customer Return - Credit Note #{$creditNote->credit_note_number}",
+        ];
+
+        // Accounts Receivable - Credit (reduces receivable)
+        $lines[] = [
+            'account_code' => '1100', // Accounts Receivable
+            'debit' => 0,
+            'credit' => $totalRefund,
+            'description' => "Customer Return - Credit Note #{$creditNote->credit_note_number}",
+        ];
+
+        // Calculate total cost of returned items for inventory adjustment
+        $totalCost = $creditNote->items->sum(function ($item) {
+            return $item->quantity * ($item->product->purchase_price ?? 0);
+        });
+
+        if ($totalCost > 0) {
+            // Inventory - Debit (put inventory back)
+            $lines[] = [
+                'account_code' => '1200', // Inventory
+                'debit' => $totalCost,
+                'credit' => 0,
+                'description' => "Customer Return - Inventory Return #{$creditNote->credit_note_number}",
+            ];
+
+            // Cost of Goods Sold - Credit (reverse COGS)
+            $lines[] = [
+                'account_code' => '5000', // Cost of Goods Sold
+                'debit' => 0,
+                'credit' => $totalCost,
+                'description' => "Customer Return - Reverse COGS #{$creditNote->credit_note_number}",
+            ];
+        }
+
+        // Create journal entry with draft status (no immediate financial impact)
+        return $this->post(
+            $lines,
+            $creditNote->issue_date,
+            "Customer Return - Credit Note #{$creditNote->credit_note_number}",
+            $creditNote,
+            'draft'
+        );
+    }
+
+    /**
+     * Create journal entry for debit note with draft status
+     */
+    public function createDebitNoteJournalEntry(\App\Models\DebitNote $debitNote): JournalEntry
+    {
+        $lines = [];
+        $totalAmount = $debitNote->total_amount;
+
+        // Purchase Returns (Contra Expense) - Debit (reduces expense)
+        $lines[] = [
+            'account_code' => '5100', // Purchase Returns
+            'debit' => $totalAmount,
+            'credit' => 0,
+            'description' => "Vendor Return - Debit Note #{$debitNote->debit_note_number}",
+        ];
+
+        // Accounts Payable - Credit (reduces payable)
+        $lines[] = [
+            'account_code' => '2100', // Accounts Payable
+            'debit' => 0,
+            'credit' => $totalAmount,
+            'description' => "Vendor Return - Debit Note #{$debitNote->debit_note_number}",
+        ];
+
+        // Calculate total cost of returned items for inventory adjustment
+        $totalCost = $debitNote->items->sum(function ($item) {
+            return $item->quantity * ($item->product->purchase_price ?? 0);
+        });
+
+        if ($totalCost > 0) {
+            // Inventory - Credit (reduce inventory)
+            $lines[] = [
+                'account_code' => '1200', // Inventory
+                'debit' => 0,
+                'credit' => $totalCost,
+                'description' => "Vendor Return - Inventory Reduction #{$debitNote->debit_note_number}",
+            ];
+
+            // Cost of Goods Sold - Debit (reverse COGS)
+            $lines[] = [
+                'account_code' => '5000', // Cost of Goods Sold
+                'debit' => $totalCost,
+                'credit' => 0,
+                'description' => "Vendor Return - Reverse COGS #{$debitNote->debit_note_number}",
+            ];
+        }
+
+        // Create journal entry with draft status (no immediate financial impact)
+        return $this->post(
+            $lines,
+            $debitNote->issue_date,
+            "Vendor Return - Debit Note #{$debitNote->debit_note_number}",
+            $debitNote,
+            'draft'
+        );
+    }
+
+    /**
+     * Post a journal entry (change status from draft to posted)
+     */
+    public function postJournalEntry(JournalEntry $journalEntry): void
+    {
+        if ($journalEntry->status !== 'draft') {
+            throw new InvalidArgumentException('Only draft journal entries can be posted');
+        }
+
+        $journalEntry->update([
+            'status' => 'posted',
+            'posted_at' => now(),
+        ]);
+
+        // Log the posting
+        AuditLog::create([
+            'user_id' => auth()->id() ?? 1,
+            'action' => 'journal_posted',
+            'description' => "Journal entry #{$journalEntry->formatted_id} posted",
+            'subject_type' => $journalEntry->getMorphClass(),
+            'subject_id' => $journalEntry->getKey(),
         ]);
     }
 } 

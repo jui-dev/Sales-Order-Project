@@ -21,7 +21,7 @@ class Product extends Model
         'selling_price',
         'purchase_price',
         'gross_profit',
-        'profit_margin',
+        'markup',
         'auto_pricing_enabled',
         'available_stocks',
         'last_price_update',
@@ -53,9 +53,16 @@ class Product extends Model
         return $this->hasMany(\App\Models\OrderItem::class);
     }
 
+    // ReturnItems relationship removed - no longer needed
+
     public function stockBalances(): HasMany
     {
         return $this->hasMany(\App\Models\ProductStock::class);
+    }
+
+    public function stockTransactions(): HasMany
+    {
+        return $this->hasMany(\App\Models\StockTransaction::class);
     }
 
     /* ---------------------------------------------------------------------
@@ -63,37 +70,37 @@ class Product extends Model
      |---------------------------------------------------------------------*/
 
     /**
-     * Dynamically expose a "gp" attribute (Gross Profit percentage).
-     * The percentage is shown ONLY when the product has at least one
-     * completed order. For products without a completed sale, this
+     * Dynamically expose a "gp" attribute (Gross Profit amount).
+     * The gross profit is shown ONLY when the product has at least one
+     * confirmed order. For products without a confirmed sale, this
      * accessor returns null so the UI can gracefully hide it.
      */
     public function getGpAttribute(): ?float
     {
-        if (! $this->hasCompletedOrders()) {
+        if (! $this->hasConfirmedOrders()) {
             return null;
         }
 
-        // Prefer the persisted profit_margin column if present
-        if ($this->profit_margin !== null) {
-            return (float) $this->profit_margin;
+        // Return the stored gross_profit amount
+        if ($this->gross_profit !== null) {
+            return (float) $this->gross_profit;
         }
 
-        // Fallback: calculate on-the-fly
+        // Fallback: calculate on-the-fly if we have both prices
         if ($this->purchase_price && $this->selling_price) {
-            return round((($this->selling_price - $this->purchase_price) / $this->purchase_price) * 100, 2);
+            return round($this->selling_price - $this->purchase_price, 2);
         }
 
         return null;
     }
 
     /**
-     * Determine if the product has at least one completed order.
+     * Determine if the product has at least one confirmed order.
      */
-    public function hasCompletedOrders(): bool
+    public function hasConfirmedOrders(): bool
     {
         return $this->orderItems()
-            ->whereHas('order', fn ($q) => $q->where('status', 'completed'))
+            ->whereHas('order', fn ($q) => $q->whereIn('status', ['confirmed', 'completed']))
             ->exists();
     }
 
@@ -108,6 +115,7 @@ class Product extends Model
      */
     public function getStockAtLocation(int $locationId, ?string $locationType = null): \App\Models\ProductStock
     {
+        // Get stock from ProductStock table for the specific location
         $query = \App\Models\ProductStock::where('product_id', $this->id)
             ->where('location_id', $locationId);
 
@@ -115,23 +123,21 @@ class Product extends Model
             $query->where('location_type', $locationType);
         }
 
-        /** @var \App\Models\ProductStock|null $stock */
         $stock = $query->first();
 
-        if (! $stock) {
-            // Provide a lightweight placeholder so callers can still access
-            // ->available_quantity, ->reserved_quantity, etc. without errors.
+        if (!$stock) {
+            // Create a ProductStock model with 0 values if not found
             $stock = new \App\Models\ProductStock([
                 'product_id'    => $this->id,
                 'location_id'   => $locationId,
                 'location_type' => $locationType,
                 'quantity'      => 0,
+                'reserved_quantity' => 0,
             ]);
         }
 
         // Computed/alias attributes expected by some Blade files.
-        $stock->current_stock    = $stock->quantity;
-        $stock->reserved_quantity = 0; // Reservation system not yet implemented.
+        $stock->current_stock = $stock->quantity;
         $stock->available_quantity = $stock->quantity - $stock->reserved_quantity;
 
         return $stock;
@@ -142,12 +148,22 @@ class Product extends Model
     // ------------------------------------------------------------------
     public function getWarehouseStockAttribute(): int
     {
-        return (int) $this->stockBalances()->where('location_type', 'warehouse')->sum('quantity');
+        // Get warehouse stock from ProductStock table
+        $warehouseStock = \App\Models\ProductStock::where('product_id', $this->id)
+            ->where('location_type', \App\Models\Warehouse::class)
+            ->sum('quantity');
+
+        return max(0, (int) $warehouseStock);
     }
 
     public function getRetailerStockAttribute(): int
     {
-        return (int) $this->stockBalances()->where('location_type', 'retailer')->sum('quantity');
+        // Get retailer stock from ProductStock table
+        $retailerStock = \App\Models\ProductStock::where('product_id', $this->id)
+            ->where('location_type', \App\Models\Retailer::class)
+            ->sum('quantity');
+
+        return max(0, (int) $retailerStock);
     }
 
     public function getLocationsCountAttribute(): int
@@ -161,6 +177,11 @@ class Product extends Model
             return (int) $value;
         }
 
-        return (int) $this->stockBalances()->sum('quantity');
+        // Calculate available stock only from product_stocks table (internal locations)
+        // This excludes vendor locations as they are external entities
+        $availableStock = (int) $this->stockBalances()->sum('quantity');
+        
+        // Ensure stock doesn't go negative
+        return max(0, $availableStock);
     }
 } 

@@ -76,6 +76,65 @@
     </div>
 </div>
 
+<!-- Payment Form -->
+@if($invoice->payment_status === 'unpaid')
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-credit-card me-2"></i>Record Payment
+        </h5>
+    </div>
+    <div class="card-body">
+        <form action="{{ route('invoices.pay', $invoice) }}" method="POST">
+            @csrf
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Payment Amount <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" class="form-control" id="amount" name="amount" 
+                               value="{{ $invoice->total }}" required>
+                        <div class="form-text">Full invoice amount: ${{ number_format($invoice->total, 2) }}</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="method" class="form-label">Payment Method <span class="text-danger">*</span></label>
+                        <select class="form-select" id="method" name="method" required>
+                            <option value="cash">Cash</option>
+                            <option value="credit_card">Credit Card</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="check">Check</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label for="reference" class="form-label">Reference Number</label>
+                        <input type="text" class="form-control" id="reference" name="reference" 
+                               placeholder="Transaction ID, Check #, etc.">
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Payment Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2" 
+                                  placeholder="Additional payment details..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-circle me-1"></i>Record Payment
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
 <!-- Payment History -->
 <div class="card">
     <div class="card-header">
@@ -100,7 +159,7 @@
                         <td>{{ $payment->id }}</td>
                         <td>${{ number_format($payment->amount, 2) }}</td>
                         <td>{{ ucfirst(str_replace('_',' ', $payment->method)) }}</td>
-                        <td>{{ optional($payment->paid_at)->format('M d, Y h:i A') }}</td>
+                        <td>{{ optional($payment->payment_date)->format('M d, Y h:i A') }}</td>
                     </tr>
                     @endforeach
                 </tbody>

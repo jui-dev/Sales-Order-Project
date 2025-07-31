@@ -21,7 +21,7 @@ class StoreProductRequest extends FormRequest
             'selling_price' => ['nullable', 'numeric', 'min:0'],
             'available_stocks' => ['sometimes', 'integer', 'min:0'],
             'purchase_price' => ['nullable', 'numeric', 'min:0'],
-            'profit_margin' => ['nullable', 'numeric', 'min:0'],
+            'markup' => ['nullable', 'numeric', 'min:0'],
             'gross_profit' => ['nullable', 'numeric', 'min:0'],
             'auto_pricing_enabled' => ['sometimes', 'boolean'],
             'last_price_update' => ['nullable', 'date'],

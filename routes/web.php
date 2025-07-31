@@ -38,15 +38,33 @@ Route::get('/', function () {
     return view('dashboard');
 })->name('dashboard');
 
+// Dashboard AJAX Routes
+Route::prefix('dashboard')->name('dashboard.')->group(function () {
+    Route::get('/stats', [App\Http\Controllers\DashboardController::class, 'getStats'])->name('stats');
+    Route::get('/sales-trend', [App\Http\Controllers\DashboardController::class, 'getSalesTrend'])->name('sales-trend');
+    Route::get('/top-products', [App\Http\Controllers\DashboardController::class, 'getTopProducts'])->name('top-products');
+    Route::get('/stock-movement', [App\Http\Controllers\DashboardController::class, 'getStockMovement'])->name('stock-movement');
+    Route::get('/returns-breakdown', [App\Http\Controllers\DashboardController::class, 'getReturnsBreakdown'])->name('returns-breakdown');
+    Route::get('/low-stock-products', [App\Http\Controllers\DashboardController::class, 'getLowStockProducts'])->name('low-stock-products');
+    Route::get('/recent-activity', [App\Http\Controllers\DashboardController::class, 'getRecentActivity'])->name('recent-activity');
+});
+
 // Products Routes (Controller ➜ Service ➜ Model)
 Route::resource('products', ProductController::class);
 Route::get('products/{id}/transaction-history', [ProductController::class, 'transactionHistory'])->name('products.transaction-history');
-Route::get('products/{product}/stock-analysis', function (Product $product) {
-    $service   = new ProductService();
-    $stockData = $service->stockAnalysis($product);
-
-    return view('products.stock-analysis', compact('stockData'));
-})->whereNumber('product')->name('products.stock-analysis');
+Route::get('products/{id}/stock-analysis', [ProductController::class, 'stockAnalysis'])->name('products.stock-analysis')->whereNumber('id');
+Route::patch('products/{product}/complete-supplies', function (Product $product) {
+    // Complete all pending supplies for this product
+    $pendingSupplies = \App\Models\Supply::whereHas('supplyItems', function($query) use ($product) {
+        $query->where('product_id', $product->id);
+    })->whereIn('status', ['pending', 'processing'])->get();
+    
+    foreach ($pendingSupplies as $supply) {
+        $supply->update(['status' => 'completed']);
+    }
+    
+    return redirect()->back()->with('success', 'All pending supplies have been completed.');
+})->name('products.complete-supplies');
 
 // Customers Routes
 Route::resource('customers', CustomerController::class);
@@ -97,7 +115,7 @@ Route::get('/orders/{id}/edit', function ($id) {
 // Additional orders routes for update, destroy, update-status
 Route::put('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'update'])->whereNumber('id')->name('orders.update');
 Route::delete('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'destroy'])->whereNumber('id')->name('orders.destroy');
-Route::patch('/orders/{id}/status', [\App\Http\Controllers\OrderController::class, 'updateStatus'])->whereNumber('id')->name('orders.update-status');
+// Note: update-status route is defined in the orders prefix group below
 
 // Supplies Routes (Controller)
 Route::resource('supplies', SupplyController::class)->only(['index', 'create', 'store', 'show']);
@@ -121,123 +139,107 @@ Route::put('/grns/{grn}', [GrnController::class, 'update'])->whereNumber('grn')-
 Route::delete('/grns/{grn}', [GrnController::class, 'destroy'])->whereNumber('grn')->name('grns.destroy');
 
 // Stock Locations UI Routes
-Route::get('/stock-locations', function () {
-    // Build collection of all location models
-    $warehouses = Warehouse::all();
-    $retailers  = Retailer::all();
-    $generic    = StockLocation::all();
+Route::resource('stock-locations', \App\Http\Controllers\StockLocationController::class);
 
-    // ------------------------------------------------------------------
-    // Helper to append computed fields expected by the Blade
-    // ------------------------------------------------------------------
-    $appendComputed = function ($model, string $type) {
-        $model->location_type  = $type;
-        $model->status        ??= 'active';
-        $model->is_default     = (bool) ($model->is_default ?? false);
-        $model->contact_person ??= null;
-        $model->contact_number ??= null;
-        $model->email          ??= null;
-
-        // --------------------------------------------------------------
-        // Stock balances & transactions
-        // --------------------------------------------------------------
-        $modelClass = get_class($model);
-
-        $model->stockBalances = \App\Models\ProductStock::with(['product'])
-            ->where('location_type', $modelClass)
-            ->where('location_id', $model->id)
-            ->get();
-
-        $model->stockTransactions = \App\Models\StockTransaction::with(['product'])
-            ->where('location_type', $modelClass)
-            ->where('location_id', $model->id)
-            ->latest('transaction_date')
-            ->get();
-
-        return $model;
-    };
-
-    $warehouses = $warehouses->map(fn($w) => $appendComputed($w, 'warehouse'));
-    $retailers  = $retailers->map(fn($r) => $appendComputed($r, 'retailer'));
-    $generic    = $generic->map(fn($g) => $appendComputed($g, $g->type ?? 'other'));
-
-    $locations = $warehouses->merge($retailers)->merge($generic);
-
-    return view('stock-locations.index', compact('locations'));
-})->name('stock-locations.index');
-
-Route::get('/stock-locations/create', function () {
-    return view('stock-locations.create');
-})->name('stock-locations.create');
-
-Route::get('/stock-locations/{id}', function ($id) {
-    // Attempt to resolve the location from each supported model
-    $location = Warehouse::find($id) ?? Retailer::find($id) ?? StockLocation::find($id);
-    if (!$location) {
-        abort(404);
-    }
-
-    $locationType = match (get_class($location)) {
-        Warehouse::class     => 'warehouse',
-        Retailer::class      => 'retailer',
-        default              => $location->type ?? 'other',
-    };
-
-    // Populate computed fields (reuse closure from index for consistency)
-    $location = (function ($model, $type) {
-        $model->location_type  = $type;
-        $model->status        ??= 'active';
-        $model->is_default     = (bool) ($model->is_default ?? false);
-        $model->contact_person ??= null;
-        $model->contact_number ??= null;
-        $model->email          ??= null;
-
-        $modelClass = get_class($model);
-        $model->stockBalances = \App\Models\ProductStock::with(['product'])
-            ->where('location_type', $modelClass)
-            ->where('location_id', $model->id)
-            ->get();
-
-        $model->stockTransactions = \App\Models\StockTransaction::with(['product'])
-            ->where('location_type', $modelClass)
-            ->where('location_id', $model->id)
-            ->latest('transaction_date')
-            ->get();
-
-        return $model;
-    })($location, $locationType);
-
-    return view('stock-locations.show', ['location' => $location]);
-})->whereNumber('id')->name('stock-locations.show');
-
-Route::prefix('stock-locations')->name('stock-locations.')->group(function () {
-    // Existing index and create are defined earlier; add missing edit/update/destroy routes to avoid route not defined errors
-    Route::get('/{id}/edit', function ($id) {
-        return view('stock-locations.create'); // reuse create form as placeholder
-    })->whereNumber('id')->name('edit');
-
-    // Store new location
-    Route::post('/', function () {
-        return back()->with('success', 'Location stored (placeholder).');
-    })->name('store');
-
-    Route::match(['put', 'patch'], '/{id}', function ($id) {
-        return back()->with('success', "Location {$id} updated (placeholder).");
-    })->whereNumber('id')->name('update');
-
-    Route::delete('/{id}', function ($id) {
-        return back()->with('success', "Location {$id} deleted (placeholder).");
-    })->whereNumber('id')->name('destroy');
+// AJAX routes for return functionality (must be defined before resource route)
+Route::prefix('returns/ajax')->group(function () {
+    Route::get('customer-invoices/{customer}', [\App\Http\Controllers\ReturnController::class, 'getCustomerInvoices']);
+    Route::get('vendor-supplier-bills/{vendor}', [\App\Http\Controllers\ReturnController::class, 'getVendorSupplierBills']);
+    Route::get('retailer-stock-transfers/{retailer}', [\App\Http\Controllers\ReturnController::class, 'getRetailerStockTransfers']);
+    Route::get('invoice-items/{invoice}', [\App\Http\Controllers\ReturnController::class, 'getInvoiceItems']);
+    Route::get('supplier-bill-items/{supplierBill}', [\App\Http\Controllers\ReturnController::class, 'getSupplierBillItems']);
+    Route::get('stock-transfer-items/{stockTransfer}', [\App\Http\Controllers\ReturnController::class, 'getStockTransferItems']);
+    Route::get('invoice-fulfillment-location/{invoiceId}', [\App\Http\Controllers\ReturnController::class, 'getInvoiceFulfillmentLocation'])->where('invoiceId', '[0-9]+');
+    Route::get('product-return-destination/{referenceId}/{productId}', [\App\Http\Controllers\ReturnController::class, 'getProductReturnDestination'])->where(['referenceId' => '[0-9]+', 'productId' => '[0-9]+']);
+    Route::post('validate-quantity', [\App\Http\Controllers\ReturnController::class, 'validateReturnQuantity']);
 });
 
-// Returns UI Routes
-Route::get('/returns', function () {
-    return view('returns.index');
-})->name('returns.index');
+// Debug route for testing
+Route::get('debug/invoice/{invoice}', function(\App\Models\Invoice $invoice) {
+    try {
+        $invoice->load(['items.product']);
+        return response()->json([
+            'invoice_id' => $invoice->id,
+            'items_count' => $invoice->items->count(),
+            'items' => $invoice->items->map(function($item) {
+                return [
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'product_name' => $item->product ? $item->product->name : 'Unknown',
+                    'quantity' => $item->quantity,
+                ];
+            })
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+});
 
-Route::get('/returns/create', function () {
-    return view('returns.index'); // using same index view as placeholder since create form not implemented
-})->name('returns.create');
+// Test route for fulfillment location
+Route::get('debug/fulfillment-location/{invoice}', function(\App\Models\Invoice $invoice) {
+    try {
+        $invoice->load(['order.fulfillmentLocation']);
+        
+        if (!$invoice->order) {
+            return response()->json(['error' => 'No order found for this invoice'], 404);
+        }
+        
+        $order = $invoice->order;
+        $fulfillmentLocationId = $order->fulfillment_location_id;
+        $fulfillmentLocationType = $order->fulfillment_location_type;
+        
+        // Try to load the fulfillment location manually
+        if ($fulfillmentLocationType === 'App\\Models\\Warehouse') {
+            $fulfillmentLocation = \App\Models\Warehouse::find($fulfillmentLocationId);
+        } elseif ($fulfillmentLocationType === 'App\\Models\\Retailer') {
+            $fulfillmentLocation = \App\Models\Retailer::find($fulfillmentLocationId);
+        } else {
+            $fulfillmentLocation = null;
+        }
+        
+        return response()->json([
+            'invoice_id' => $invoice->id,
+            'order_id' => $order->id,
+            'fulfillment_location_id' => $fulfillmentLocationId,
+            'fulfillment_location_type' => $fulfillmentLocationType,
+            'fulfillment_location' => $fulfillmentLocation ? [
+                'id' => $fulfillmentLocation->id,
+                'name' => $fulfillmentLocation->name,
+                'type' => get_class($fulfillmentLocation),
+                'type_name' => class_basename($fulfillmentLocation)
+            ] : null
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+});
+
+// Returns Routes (Unified Stock Transactions) - Specific routes must come before resource route
+Route::get('returns/create-with-data', [\App\Http\Controllers\ReturnController::class, 'createWithData'])->name('returns.create-with-data');
+Route::resource('returns', \App\Http\Controllers\ReturnController::class);
+Route::post('returns/{return}/approve', [\App\Http\Controllers\ReturnController::class, 'approve'])->name('returns.approve');
+Route::post('returns/{return}/reject', [\App\Http\Controllers\ReturnController::class, 'reject'])->name('returns.reject');
+Route::post('returns/{return}/complete', [\App\Http\Controllers\ReturnController::class, 'complete'])->name('returns.complete');
+
+// Internal Return Notes Routes - REMOVED (no longer needed)
+
+// Credit Notes Routes
+Route::get('credit-notes', [\App\Http\Controllers\CreditNoteController::class, 'index'])->name('credit-notes.index');
+Route::get('credit-notes/{creditNote}', [\App\Http\Controllers\CreditNoteController::class, 'show'])->name('credit-notes.show');
+Route::post('returns/{return}/generate-credit-note', [\App\Http\Controllers\CreditNoteController::class, 'generateForReturn'])->name('credit-notes.generate-for-return');
+Route::post('credit-notes/{creditNote}/cancel', [\App\Http\Controllers\CreditNoteController::class, 'cancel'])->name('credit-notes.cancel');
+Route::get('credit-notes/{creditNote}/download', [\App\Http\Controllers\CreditNoteController::class, 'download'])->name('credit-notes.download');
+Route::post('credit-notes/{creditNote}/post', [\App\Http\Controllers\CreditNoteController::class, 'post'])->name('credit-notes.post');
+Route::post('credit-notes/{creditNote}/post-journal-entry', [\App\Http\Controllers\CreditNoteController::class, 'postJournalEntry'])->name('credit-notes.post-journal-entry');
+
+// Debit Notes Routes
+Route::get('debit-notes', [\App\Http\Controllers\DebitNoteController::class, 'index'])->name('debit-notes.index');
+Route::get('debit-notes/{debitNote}', [\App\Http\Controllers\DebitNoteController::class, 'show'])->name('debit-notes.show');
+Route::post('returns/{return}/generate-debit-note', [\App\Http\Controllers\DebitNoteController::class, 'generateForReturn'])->name('debit-notes.generate-for-return');
+Route::post('debit-notes/{debitNote}/cancel', [\App\Http\Controllers\DebitNoteController::class, 'cancel'])->name('debit-notes.cancel');
+Route::get('debit-notes/{debitNote}/download', [\App\Http\Controllers\DebitNoteController::class, 'download'])->name('debit-notes.download');
+Route::post('debit-notes/{debitNote}/post', [\App\Http\Controllers\DebitNoteController::class, 'post'])->name('debit-notes.post');
+Route::post('debit-notes/{debitNote}/post-journal-entry', [\App\Http\Controllers\DebitNoteController::class, 'postJournalEntry'])->name('debit-notes.post-journal-entry');
 
 // Picking UI Routes
 Route::get('/picking', function () {
@@ -256,52 +258,7 @@ Route::get('/picking/product-transaction-history/{product}', function (Product $
     return view('picking.product-transaction-history', $data);
 })->name('picking.product-transaction-history');
 
-Route::get('/transaction-flow', function () {
-    // Total products
-    $totalProducts = \App\Models\Product::count();
-
-    // Total stock value (on-hand across all locations) = sum(quantity * purchase_price)
-    $totalStockValue = \App\Models\ProductStock::query()
-        ->join('products', 'product_stocks.product_id', '=', 'products.id')
-        ->selectRaw('SUM(product_stocks.quantity * products.purchase_price) as total_value')
-        ->value('total_value') ?? 0;
-
-    // Pending movements (picking lists status pending)
-    $pendingMovements = \App\Models\PickingList::where('status', 'pending')->count();
-
-    // Active pickings (status pending OR open) for any picking list
-    $activePickings = \App\Models\PickingList::whereIn('status', ['pending','open'])->count();
-
-    $stockSummary = [
-        'total_products'     => $totalProducts,
-        'total_stock_value'  => round($totalStockValue, 2),
-        'pending_movements'  => $pendingMovements,
-        'active_pickings'    => $activePickings,
-    ];
-
-    // Recent movements: use StockTransaction last 20
-    $recentMovements = \App\Models\StockTransaction::with(['product', 'stockLocation'])
-        ->latest('transaction_date')
-        ->limit(20)
-        ->get()
-        ->map(function ($txn) {
-            // Determine from/to: For inbound/outbound we may not have both; attach pseudo from/to for UI
-            $txn->fromLocation = $txn->direction === 'outbound' ? $txn->stockLocation : null;
-            $txn->toLocation   = $txn->direction === 'inbound'  ? $txn->stockLocation : null;
-            $txn->movement_type = match ($txn->transaction_type) {
-                \App\Models\StockTransaction::TYPE_STOCK_IN       => 'supply_in',
-                \App\Models\StockTransaction::TYPE_STOCK_TRANSFER => 'transfer',
-                \App\Models\StockTransaction::TYPE_ORDER_FULFILLMENT => 'sale',
-                default => 'adjustment',
-            };
-            return $txn;
-        });
-
-    $warehouses = \App\Models\Warehouse::all();
-    $retailers  = \App\Models\Retailer::all();
-
-    return view('picking.transaction-flow', compact('stockSummary', 'recentMovements', 'warehouses', 'retailers'));
-})->name('picking.transaction-flow');
+Route::get('/transaction-flow', [\App\Http\Controllers\TransactionFlowController::class, 'index'])->name('picking.transaction-flow');
 
 // Stock Management UI Routes
 Route::get('/stock-management', [StockManagementController::class, 'index'])
@@ -385,7 +342,7 @@ Route::get('/stock-transfers/warehouse-to-retailer/create', function () {
                     return [
                         'warehouse_id'    => $stock->location_id,
                         // Available = on-hand minus any reserved qty (if reservation not tracked we just use quantity)
-                        'available_stock' => (int) ($stock->available_quantity ?? $stock->quantity ?? 0),
+                        'available_stock' => (int) (($stock->quantity ?? 0) - ($stock->reserved_quantity ?? 0)),
                         // We currently have no per-warehouse cost column, so fall back to the product's purchase_price
                         'unit_cost'       => (float) ($product->purchase_price ?? 0),
                     ];
@@ -412,25 +369,46 @@ Route::get('/stock-transfers/warehouse-to-retailer/pending', function () {
 
 // Stock Transfers – Warehouse to Retailer (show)
 Route::get('/stock-transfers/warehouse-to-retailer/{id}', function ($id) {
-    /** @var \App\Models\PickingList|null $pickingList */
-    $pickingList = \App\Models\PickingList::with(['items.product'])->find($id);
-
+    // First try to find the StockTransfer
+    $stockTransfer = \App\Models\StockTransfer::with(['items.product', 'fromLocation', 'toLocation'])->find($id);
+    
+    if (!$stockTransfer) {
+        // Return a 404 error if StockTransfer not found
+        abort(404, 'Warehouse-to-retailer transfer not found');
+    }
+    
+    // Find the associated PickingList
+    $pickingList = \App\Models\PickingList::with(['items.product', 'fromLocation', 'toLocation'])
+        ->where('reference_type', \App\Models\StockTransfer::class)
+        ->where('reference_id', $stockTransfer->id)
+        ->first();
+    
     if (!$pickingList) {
+        // If no PickingList found, create a fallback using StockTransfer data
         $pickingList = new \App\Models\PickingList([
-            'id'           => $id,
-            'status'       => 'pending',
-            'picking_date' => now(),
+            'id' => $stockTransfer->id,
+            'status' => $stockTransfer->status,
+            'from_location_id' => $stockTransfer->from_location_id,
+            'from_location_type' => $stockTransfer->from_location_type,
+            'to_location_id' => $stockTransfer->to_location_id,
+            'to_location_type' => $stockTransfer->to_location_type,
+            'picking_date' => $stockTransfer->transfer_date,
+            'notes' => $stockTransfer->notes,
         ]);
-        $pickingList->setRelation('items', collect());
-        $pickingList->setRelation('pickingItems', collect());
+        
+        // Set the items from StockTransfer
+        $pickingList->setRelation('items', $stockTransfer->items);
+        $pickingList->setRelation('pickingItems', $stockTransfer->items);
+        
+        // Set the locations
+        $pickingList->setRelation('fromLocation', $stockTransfer->fromLocation);
+        $pickingList->setRelation('toLocation', $stockTransfer->toLocation);
     } else {
+        // Ensure the pickingItems relation is set for the view
         $pickingList->setRelation('pickingItems', $pickingList->items);
     }
 
-    // Default locations (warehouse → retailer)
-    $pickingList->fromLocation = (object) ['name' => 'Warehouse', 'address' => null];
-    $pickingList->toLocation   = (object) ['name' => 'Retailer',  'address' => null];
-
+    // Ensure picking number is set
     $pickingList->picking_number ??= 'PL-' . str_pad($pickingList->id, 6, '0', STR_PAD_LEFT);
 
     return view('stock-transfers.warehouse-to-retailer.show', compact('pickingList'));
@@ -612,9 +590,10 @@ Route::get('/warehouse-to-customer-picking/{id}', function ($id) {
 // Statistics JSON endpoint for warehouse-to-customer dashboard
 Route::get('/warehouse-to-customer-picking/statistics', function () {
     return response()->json([
-        'total_movements'     => 0,
+        'total_pickings'      => 0,
         'completed_today'     => 0,
-        'total_items_picked'  => 0,
+        'pending_pickings'    => 0,
+        'total_items_shipped' => 0,
         'active_warehouses'   => 0,
         'active_customers'    => 0,
     ]);
@@ -796,11 +775,25 @@ Route::patch('/warehouse-to-customer-picking/{id}/update-status', function ($id)
             'completed_at' => in_array($status, ['completed', 'closed'], true) ? now() : $pickingList->completed_at,
         ]);
 
+        if (in_array($status, ['completed', 'closed'], true)) {
+            // Check if this picking list is associated with an order and has an invoice
+            if ($pickingList->reference_type === \App\Models\Order::class) {
+                $order = \App\Models\Order::find($pickingList->reference_id);
+                if ($order && $order->invoice) {
+                    return redirect()->route('invoices.show', $order->invoice->id)
+                        ->with('success', 'Picking completed! Invoice has been generated automatically. You can now process the payment.');
+                }
+            }
+            return back()->with('success', 'Picking completed! Invoice has been generated automatically. You can now process the payment.');
+        }
+
         return back()->with('success', 'Picking list status updated.');
     }
 
     return back()->with('error', 'Picking list not found.');
 })->whereNumber('id')->name('warehouse-to-customer-picking.update-status');
+
+
 
 Route::post('/stock-transfers/warehouse-to-retailer', function () {
     $data = request()->validate([
@@ -818,75 +811,109 @@ Route::post('/stock-transfers/warehouse-to-retailer', function () {
     /** @var \App\Models\StockTransfer $transfer */
     /** @var \App\Models\PickingList  $pickingList */
 
-    \Illuminate\Support\Facades\DB::transaction(function () use ($data, $warehouse, $retailer, &$transfer, &$pickingList) {
-        // 1. Create Stock Transfer header (pending until picking is completed)
-        $transfer = \App\Models\StockTransfer::create([
-            'from_location_id'   => $warehouse->id,
-            'from_location_type' => \App\Models\Warehouse::class,
-            'to_location_id'     => $retailer->id,
-            'to_location_type'   => \App\Models\Retailer::class,
-            'status'             => 'pending',
-            'transfer_date'      => now(),
-            'notes'              => $data['notes'] ?? null,
-        ]);
-
-        // 2. Create Picking List (open status)
-        $pickingList = \App\Models\PickingList::create([
-            'reference_type'     => \App\Models\StockTransfer::class,
-            'reference_id'       => $transfer->id,
-            'from_location_id'   => $warehouse->id,
-            'from_location_type' => \App\Models\Warehouse::class,
-            'to_location_id'     => $retailer->id,
-            'to_location_type'   => \App\Models\Retailer::class,
-            'status'             => 'pending', // will be completed later
-            'picking_date'       => now(),
-        ]);
-
-        // Generate a human-readable picking number and persist silently
-        $pickingList->picking_number = 'PL-' . str_pad($pickingList->id, 6, '0', STR_PAD_LEFT);
-        $pickingList->saveQuietly();
-
-        $transferItemsData = [];
-
-        foreach ($data['items'] as $idx => $itemData) {
-            $product  = \App\Models\Product::findOrFail($itemData['product_id']);
-            $quantity = (int) $itemData['quantity'];
-
-            // Guard against insufficient stock at creation time
-            $stockAtWarehouse = \App\Models\ProductStock::where([
-                'product_id'    => $product->id,
-                'location_id'   => $warehouse->id,
-                'location_type' => \App\Models\Warehouse::class,
-            ])->first();
-
-            if (!$stockAtWarehouse || $stockAtWarehouse->quantity < $quantity) {
-                throw new \Exception("Insufficient stock of {$product->name} at {$warehouse->name}.");
-            }
-
-            // Reserve the quantity (increase reserved_quantity) – optional placeholder
-            $stockAtWarehouse->reserved_quantity = ($stockAtWarehouse->reserved_quantity ?? 0) + $quantity;
-            $stockAtWarehouse->save();
-
-            // Add to picking list items
-            $pickingList->items()->create([
-                'product_id'         => $product->id,
-                'quantity_requested' => $quantity,
-                'quantity_picked'    => 0,
+    try {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($data, $warehouse, $retailer, &$transfer, &$pickingList) {
+            // 1. Create Stock Transfer header (pending until picking is completed)
+            $transfer = \App\Models\StockTransfer::create([
+                'from_location_id'   => $warehouse->id,
+                'from_location_type' => \App\Models\Warehouse::class,
+                'to_location_id'     => $retailer->id,
+                'to_location_type'   => \App\Models\Retailer::class,
                 'status'             => 'pending',
+                'transfer_date'      => now(),
+                'notes'              => $data['notes'] ?? null,
             ]);
 
-            // Prepare transfer item for later creation after picking complete
-            $transferItemsData[] = [
-                'product_id' => $product->id,
-                'quantity'   => $quantity,
-            ];
+            // 2. Create Picking List (open status)
+            $pickingList = \App\Models\PickingList::create([
+                'reference_type'     => \App\Models\StockTransfer::class,
+                'reference_id'       => $transfer->id,
+                'from_location_id'   => $warehouse->id,
+                'from_location_type' => \App\Models\Warehouse::class,
+                'to_location_id'     => $retailer->id,
+                'to_location_type'   => \App\Models\Retailer::class,
+                'status'             => 'pending', // will be completed later
+                'picking_date'       => now(),
+            ]);
+
+            // Generate a human-readable picking number and persist silently
+            $pickingList->picking_number = 'PL-' . str_pad($pickingList->id, 6, '0', STR_PAD_LEFT);
+            $pickingList->saveQuietly();
+
+            $transferItemsData = [];
+
+            foreach ($data['items'] as $idx => $itemData) {
+                $product  = \App\Models\Product::findOrFail($itemData['product_id']);
+                $quantity = (int) $itemData['quantity'];
+
+                // Check if warehouse has sufficient stock for the transfer
+                $stockAtWarehouse = \App\Models\ProductStock::where([
+                    'product_id'    => $product->id,
+                    'location_id'   => $warehouse->id,
+                    'location_type' => \App\Models\Warehouse::class,
+                ])->first();
+
+                if (!$stockAtWarehouse) {
+                    // Create a stock record with 0 quantity - stock will be added when supplies are received
+                    $stockAtWarehouse = \App\Models\ProductStock::create([
+                        'product_id'    => $product->id,
+                        'location_id'   => $warehouse->id,
+                        'location_type' => \App\Models\Warehouse::class,
+                        'quantity'      => 0,
+                        'reserved_quantity' => 0,
+                    ]);
+                }
+
+                // Reserve the quantity for this transfer
+                $stockAtWarehouse->reserved_quantity = ($stockAtWarehouse->reserved_quantity ?? 0) + $quantity;
+                $stockAtWarehouse->save();
+
+                // Add to picking list items
+                $pickingList->items()->create([
+                    'product_id'         => $product->id,
+                    'quantity_requested' => $quantity,
+                    'quantity_picked'    => 0,
+                    'status'             => 'pending',
+                ]);
+
+                // Prepare transfer item for later creation after picking complete
+                $transferItemsData[] = [
+                    'product_id' => $product->id,
+                    'quantity'   => $quantity,
+                ];
+            }
+
+            // Persist transfer items (header to align with picking list quantities)
+            $transfer->items()->createMany($transferItemsData);
+        });
+    } catch (\Exception $e) {
+        if (request()->expectsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error creating transfer: ' . $e->getMessage(),
+            ], 500);
         }
+        
+        return redirect()->route('stock-transfers.warehouse-to-retailer.create')
+            ->with('error', 'Error creating transfer: ' . $e->getMessage());
+    }
 
-        // Persist transfer items (header to align with picking list quantities)
-        $transfer->items()->createMany($transferItemsData);
-    });
+    // Ensure picking list was created successfully
+    if (!$pickingList) {
+        if (request()->expectsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create picking list. Please try again.',
+            ], 500);
+        }
+        
+        return redirect()->route('stock-transfers.warehouse-to-retailer.create')
+            ->with('error', 'Failed to create picking list. Please try again.');
+    }
 
-    $redirectUrl = route('stock-transfers.warehouse-to-retailer.show', $pickingList ?? 0);
+
+
+    $redirectUrl = route('stock-transfers.warehouse-to-retailer.show', $pickingList->id);
 
     if (request()->expectsJson() || request()->ajax()) {
         return response()->json([
@@ -957,23 +984,32 @@ Route::prefix('stock-transfers/warehouse-to-retailer')->name('stock-transfers.wa
 
     // Cancel transfer (PATCH)
     Route::patch('/{pickingList}/cancel', function (\App\Models\PickingList $pickingList) {
-        // Rollback any reservations
-        foreach ($pickingList->items as $item) {
-            $stock = \App\Models\ProductStock::where([
-                'product_id'    => $item->product_id,
-                'location_id'   => $pickingList->from_location_id,
-                'location_type' => $pickingList->from_location_type,
-            ])->first();
-            if ($stock) {
-                $stock->reserved_quantity = max(0, $stock->reserved_quantity - $item->quantity_requested);
-                $stock->save();
+        \Illuminate\Support\Facades\DB::transaction(function () use ($pickingList) {
+            // Rollback any reservations
+            foreach ($pickingList->items as $item) {
+                $stock = \App\Models\ProductStock::where([
+                    'product_id'    => $item->product_id,
+                    'location_id'   => $pickingList->from_location_id,
+                    'location_type' => $pickingList->from_location_type,
+                ])->first();
+                if ($stock) {
+                    $stock->reserved_quantity = max(0, $stock->reserved_quantity - $item->quantity_requested);
+                    $stock->save();
+                }
+                
+                // Update item status to cancelled
+                $item->update([
+                    'status' => 'cancelled',
+                    'quantity_picked' => 0
+                ]);
             }
-        }
 
-        $pickingList->update(['status' => 'cancelled']);
-        if ($pickingList->reference_type === \App\Models\StockTransfer::class) {
-            \App\Models\StockTransfer::where('id', $pickingList->reference_id)->update(['status' => 'cancelled']);
-        }
+            $pickingList->update(['status' => 'cancelled']);
+            if ($pickingList->reference_type === \App\Models\StockTransfer::class) {
+                \App\Models\StockTransfer::where('id', $pickingList->reference_id)->update(['status' => 'cancelled']);
+            }
+        });
+        
         return back()->with('success', 'Transfer cancelled.');
     })->whereNumber('pickingList')->name('cancel');
 });
@@ -1054,6 +1090,7 @@ Route::get('/journal-entries', [JournalEntryController::class, 'index'])->name('
 // Manual Journal Entry creation
 Route::get('/journal-entries/create', [JournalEntryController::class, 'create'])->name('journal-entries.create');
 Route::post('/journal-entries', [JournalEntryController::class, 'store'])->name('journal-entries.store');
+Route::get('/journal-entries/{journalEntry}', [JournalEntryController::class, 'show'])->name('journal-entries.show');
 Route::patch('/journal-entries/{journalEntry}/approve', [JournalEntryController::class, 'approve'])->name('journal-entries.approve');
 Route::patch('/journal-entries/{journalEntry}/reject', [JournalEntryController::class, 'reject'])->name('journal-entries.reject');
 Route::patch('/journal-entries/{journalEntry}/post', [JournalEntryController::class, 'post'])->name('journal-entries.post');
@@ -1061,6 +1098,7 @@ Route::get('/journal-entries/{journalEntry}/edit', [JournalEntryController::clas
 Route::patch('/journal-entries/{journalEntry}', [JournalEntryController::class, 'update'])->name('journal-entries.update');
 Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
 Route::get('/accounting/chart-of-accounts', [\App\Http\Controllers\ChartOfAccountsController::class, 'index'])->name('accounting.chart-of-accounts');
+Route::get('/accounting/chart-of-accounts/create', [\App\Http\Controllers\ChartOfAccountsController::class, 'create'])->name('accounting.chart-of-accounts.create');
 Route::post('/accounting/chart-of-accounts', [\App\Http\Controllers\ChartOfAccountsController::class, 'store'])->name('accounting.chart-of-accounts.store');
 
 /**

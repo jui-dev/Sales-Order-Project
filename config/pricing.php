@@ -4,16 +4,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Default Profit Margin
+    | Default Markup
     |--------------------------------------------------------------------------
     |
-    | This value is used as the default profit margin for all products when
+    | This value is used as the default markup for all products when
     | calculating selling prices from purchase prices. Value should be a
-    | decimal (e.g., 0.20 for 20%).
+    | percentage (e.g., 25 for 25%).
     |
     */
 
-    'default_profit_margin' => 0.25, // Fixed 25% profit margin
+    'default_markup' => 25, // Fixed 25% markup
 
     /*
     |--------------------------------------------------------------------------
@@ -42,20 +42,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Product-Specific Profit Margins
+    | Product-Specific Markups
     |--------------------------------------------------------------------------
     |
-    | You can define different profit margins for different product categories
+    | You can define different markups for different product categories
     | or specific products here. Use product IDs or category names as keys.
     |
     */
 
-    'product_margins' => [
+    'product_markups' => [
         // Examples:
-        // 'electronics' => 0.25,
-        // 'furniture' => 0.30,
-        // 'books' => 0.15,
-        // 'product_id_123' => 0.35,
+        // 'electronics' => 25,
+        // 'furniture' => 30,
+        // 'books' => 15,
+        // 'product_id_123' => 35,
     ],
 
     /*

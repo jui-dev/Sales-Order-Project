@@ -21,13 +21,20 @@ async function updateAvailableLocations() {
         locationSelect.disabled = true;
         locationSelect.innerHTML = '<option value="">Loading available locations...</option>';
         
+        // Add timeout to prevent hanging requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
         const response = await fetch(`/api/orders/available-fulfillment-locations?product_ids=${JSON.stringify(productIds)}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
-            }
+            },
+            signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
             throw new Error('Failed to fetch available locations');
@@ -61,7 +68,7 @@ async function updateAvailableLocations() {
         // Show error message to user
         const errorDiv = document.createElement('div');
         errorDiv.className = 'alert alert-danger mt-3';
-        errorDiv.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>${error.message}`;
+        errorDiv.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>${error.name === 'AbortError' ? 'Request timed out. Please try again.' : error.message}`;
         stockInfoContainer.innerHTML = '';
         stockInfoContainer.appendChild(errorDiv);
     }

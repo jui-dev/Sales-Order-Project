@@ -168,8 +168,8 @@
                                 @endif
                             </td>
                             <td>
-                                <strong>{{ $pickingList->pickingItems->sum('quantity_requested') }}</strong> requested
-                                <br><small class="text-muted">{{ $pickingList->pickingItems->sum('quantity_picked') }} picked</small>
+                                <strong>{{ $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_requested') : 0 }}</strong> requested
+                                <br><small class="text-muted">{{ $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_picked') : 0 }} picked</small>
                             </td>
                             <td>
                                 <div class="progress" style="height: 20px;">

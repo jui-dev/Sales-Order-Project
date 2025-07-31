@@ -51,4 +51,13 @@ class Invoice extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    /**
+     * Get the sales journal entry for this invoice
+     */
+    public function salesJournal(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class, 'id', 'source_id')
+            ->where('source_type', Invoice::class);
+    }
 } 

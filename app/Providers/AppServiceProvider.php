@@ -80,9 +80,7 @@ class AppServiceProvider extends ServiceProvider
             \App\Models\Invoice::observe(\App\Observers\InvoiceObserver::class);
         }
 
-        if (class_exists(\App\Models\ReturnRecord::class) && class_exists(\App\Observers\ReturnRecordObserver::class)) {
-            \App\Models\ReturnRecord::observe(\App\Observers\ReturnRecordObserver::class);
-        }
+        // ReturnRecord observer removed - model no longer exists
 
         if (class_exists(\App\Models\StockTransfer::class) && class_exists(\App\Observers\StockTransferObserver::class)) {
             \App\Models\StockTransfer::observe(\App\Observers\StockTransferObserver::class);

@@ -150,7 +150,7 @@
                                 </div>
                                 <div class="mt-2">
                                     <span class="badge bg-success">{{ $transfer->status }}</span>
-                                    <span class="badge bg-light text-dark ms-1">{{ $transfer->pickingItems->sum('quantity_picked') }} items</span>
+                                    <span class="badge bg-light text-dark ms-1">{{ $transfer->pickingItems ? $transfer->pickingItems->sum('quantity_picked') : 0 }} items</span>
                                 </div>
                             </div>
                         </div>
@@ -273,8 +273,8 @@
                                 </div>
                             </td>
                             <td>
-                                <strong>{{ $transfer->pickingItems->sum('quantity_requested') }}</strong> items requested
-                                <br><small class="text-muted">{{ $transfer->pickingItems->sum('quantity_picked') }} items picked</small>
+                                <strong>{{ $transfer->pickingItems ? $transfer->pickingItems->sum('quantity_requested') : 0 }}</strong> items requested
+                                <br><small class="text-muted">{{ $transfer->pickingItems ? $transfer->pickingItems->sum('quantity_picked') : 0 }} items picked</small>
                                 @if($transfer->reference_type === 'retailer_order')
                                     <br><small class="text-info">
                                         <i class="bi bi-box-seam me-1"></i>For customer order
@@ -283,8 +283,8 @@
                             </td>
                             <td>
                                 @php
-                                    $totalRequested = $transfer->pickingItems->sum('quantity_requested');
-                                    $totalPicked = $transfer->pickingItems->sum('quantity_picked');
+                                                                    $totalRequested = $transfer->pickingItems ? $transfer->pickingItems->sum('quantity_requested') : 0;
+                                $totalPicked = $transfer->pickingItems ? $transfer->pickingItems->sum('quantity_picked') : 0;
                                     $progressPercentage = $totalRequested > 0 ? ($totalPicked / $totalRequested) * 100 : 0;
                                 @endphp
                                 <div class="progress" style="height: 20px;">
@@ -321,76 +321,107 @@
                                 @endif
                             </td>
                             <td>
-                                {{ $transfer->picking_date->format('M d, Y') }}
-                                <br><small class="text-muted">{{ $transfer->picking_date->format('H:i') }}</small>
+                                <div class="text-dark">{{ $transfer->picking_date->format('M d, Y H:i') }}</div>
                                 @if($transfer->completed_at)
-                                    <br><small class="text-success">Completed: {{ $transfer->completed_at->format('M d, H:i') }}</small>
+                                    <div class="text-success small">
+                                        <i class="bi bi-check-circle me-1"></i>Completed: {{ $transfer->completed_at->format('M d, Y H:i') }}
+                                    </div>
                                 @endif
                             </td>
                             <td>
-                                <div class="btn-group" role="group">
-                                    <a href="{{ route('stock-transfers.warehouse-to-retailer.show', $transfer) }}" class="btn btn-sm btn-outline-primary" title="View Details">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                    
-                                    @if($transfer->reference_type === 'retailer_order' && $transfer->order)
-                                        <a href="{{ route('orders.show', $transfer->order) }}" class="btn btn-sm btn-outline-info" title="View Order">
-                                            <i class="bi bi-cart"></i>
+                                <div class="d-flex flex-column gap-1">
+                                    <!-- Primary Actions Row -->
+                                    <div class="d-flex gap-1">
+                                        <a href="{{ route('stock-transfers.warehouse-to-retailer.show', $transfer) }}" 
+                                           class="btn btn-sm btn-primary" 
+                                           title="View Details">
+                                            <i class="bi bi-eye me-1"></i>View
                                         </a>
-                                    @endif
+                                        
+                                        @if($transfer->reference_type === 'retailer_order' && $transfer->order)
+                                            <a href="{{ route('orders.show', $transfer->order) }}" 
+                                               class="btn btn-sm btn-info" 
+                                               title="View Order">
+                                                <i class="bi bi-cart me-1"></i>Order
+                                            </a>
+                                        @endif
+                                    </div>
                                     
+                                    <!-- Status-based Actions Row -->
                                     @if($transfer->status === 'pending')
-                                        {{-- Only order-generated transfers should be pending; manual transfers are completed immediately --}}
                                         @if($transfer->reference_type === 'retailer_order')
-                                            <form action="{{ route('stock-transfers.warehouse-to-retailer.quick-complete', $transfer) }}" 
-                                                  method="POST" class="d-inline">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="btn btn-sm btn-outline-success" 
-                                                        onclick="return confirm('Complete transfer with all requested quantities?')"
-                                                        title="Quick Complete">
-                                                    <i class="bi bi-check-double"></i>
-                                                </button>
-                                            </form>
-                                            
-                                            <span class="btn btn-sm btn-outline-secondary disabled" title="Order-generated transfers cannot be cancelled">
-                                                <i class="bi bi-shield-check"></i>
-                                            </span>
+                                            <div class="d-flex gap-1">
+                                                <form action="{{ route('stock-transfers.warehouse-to-retailer.quick-complete', $transfer) }}" 
+                                                      method="POST" class="d-inline">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button type="submit" 
+                                                            class="btn btn-sm btn-success" 
+                                                            onclick="return confirm('Complete transfer with all requested quantities?')"
+                                                            title="Quick Complete">
+                                                        <i class="bi bi-check-double me-1"></i>Complete
+                                                    </button>
+                                                </form>
+                                                
+                                                <span class="btn btn-sm btn-secondary disabled" 
+                                                      title="Order-generated transfers cannot be cancelled">
+                                                    <i class="bi bi-shield-check me-1"></i>Protected
+                                                </span>
+                                            </div>
                                         @else
-                                            {{-- This should rarely happen since manual transfers are auto-completed --}}
-                                            <form action="{{ route('stock-transfers.warehouse-to-retailer.quick-complete', $transfer) }}" 
-                                                  method="POST" class="d-inline">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="btn btn-sm btn-outline-success" 
-                                                        onclick="return confirm('Complete transfer with all requested quantities?')"
-                                                        title="Quick Complete">
-                                                    <i class="bi bi-check-double"></i>
-                                                </button>
-                                            </form>
-                                            
-                                            <form action="{{ route('stock-transfers.warehouse-to-retailer.cancel', $transfer) }}" 
-                                                  method="POST" class="d-inline">
-                                                @csrf
-                                                @method('PATCH')
-                                                <button type="submit" class="btn btn-sm btn-outline-danger" 
-                                                        onclick="return confirm('Cancel this transfer?')"
-                                                        title="Cancel Transfer">
-                                                    <i class="bi bi-times"></i>
-                                                </button>
-                                            </form>
+                                            <div class="d-flex gap-1">
+                                                <form action="{{ route('stock-transfers.warehouse-to-retailer.quick-complete', $transfer) }}" 
+                                                      method="POST" class="d-inline">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button type="submit" 
+                                                            class="btn btn-sm btn-success" 
+                                                            onclick="return confirm('Complete transfer with all requested quantities?')"
+                                                            title="Quick Complete">
+                                                        <i class="bi bi-check-double me-1"></i>Complete
+                                                    </button>
+                                                </form>
+                                                
+                                                <form action="{{ route('stock-transfers.warehouse-to-retailer.cancel', $transfer) }}" 
+                                                      method="POST" class="d-inline">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <button type="submit" 
+                                                            class="btn btn-sm btn-danger" 
+                                                            title="Cancel Transfer">
+                                                        <i class="bi bi-times me-1"></i>Cancel
+                                                    </button>
+                                                </form>
+                                            </div>
                                         @endif
+                                    @elseif($transfer->status === 'completed')
+                                        <div class="d-flex gap-1">
+                                            @if($transfer->reference_type === 'retailer_order')
+                                                <span class="btn btn-sm btn-success disabled" 
+                                                      title="Auto-completed from order">
+                                                    <i class="bi bi-lightning me-1"></i>Auto-Complete
+                                                </span>
+                                            @else
+                                                <span class="btn btn-sm btn-success disabled" 
+                                                      title="Manual transfer completed">
+                                                    <i class="bi bi-check-circle me-1"></i>Completed
+                                                </span>
+                                            @endif
+                                        </div>
+                                    @elseif($transfer->status === 'cancelled')
+                                        <div class="d-flex gap-1">
+                                            <span class="btn btn-sm btn-danger disabled" 
+                                                  title="Transfer cancelled">
+                                                <i class="bi bi-x-circle me-1"></i>Cancelled
+                                            </span>
+                                        </div>
                                     @else
-                                        {{-- Completed transfers - show completion info --}}
-                                        @if($transfer->reference_type === 'retailer_order')
-                                            <span class="btn btn-sm btn-outline-secondary disabled" title="Auto-completed from order">
-                                                <i class="bi bi-lightning"></i>
+                                        <div class="d-flex gap-1">
+                                            <span class="btn btn-sm btn-secondary disabled" 
+                                                  title="Transfer status: {{ ucfirst($transfer->status) }}">
+                                                <i class="bi bi-info-circle me-1"></i>{{ ucfirst($transfer->status) }}
                                             </span>
-                                        @else
-                                            <span class="btn btn-sm btn-outline-secondary disabled" title="Manual transfer completed">
-                                                <i class="bi bi-check-circle"></i>
-                                            </span>
-                                        @endif
+                                        </div>
                                     @endif
                                 </div>
                             </td>

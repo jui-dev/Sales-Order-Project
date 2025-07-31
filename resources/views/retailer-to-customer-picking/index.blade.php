@@ -155,14 +155,14 @@
                                     <strong>{{ $pickingList->pickingItems->count() }}</strong> items
                                     <br>
                                     <small class="text-muted">
-                                        {{ $pickingList->pickingItems->sum('quantity_picked') }} / {{ $pickingList->pickingItems->sum('quantity_requested') }} picked
+                                        {{ $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_picked') : 0 }} / {{ $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_requested') : 0 }} picked
                                     </small>
                                 </td>
                                 <td data-label="Progress">
                                     <div class="progress" style="height: 20px;">
                                         @php
-                                            $totalRequested = $pickingList->pickingItems->sum('quantity_requested');
-                                            $totalPicked = $pickingList->pickingItems->sum('quantity_picked');
+                                            $totalRequested = $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_requested') : 0;
+                                            $totalPicked = $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_picked') : 0;
                                             $progressPercentage = $totalRequested > 0 ? ($totalPicked / $totalRequested) * 100 : 0;
                                         @endphp
                                         <div class="progress-bar bg-{{ $progressPercentage == 100 ? 'success' : ($progressPercentage > 0 ? 'warning' : 'secondary') }}" 
@@ -291,9 +291,9 @@ function loadStatistics() {
         .then(response => response.json())
         .then(data => {
             // Format numbers with commas for better readability
-            document.getElementById('total-pickings').textContent = data.total.toLocaleString();
-            document.getElementById('completed-pickings').textContent = data.completed.toLocaleString();
-            document.getElementById('pending-pickings').textContent = (data.pending + data.in_progress).toLocaleString();
+            document.getElementById('total-pickings').textContent = data.total ? data.total.toLocaleString() : '0';
+            document.getElementById('completed-pickings').textContent = data.completed ? data.completed.toLocaleString() : '0';
+            document.getElementById('pending-pickings').textContent = ((data.pending || 0) + (data.in_progress || 0)).toLocaleString();
             document.getElementById('total-items').textContent = data.total_items ? data.total_items.toLocaleString() : '0';
         })
         .catch(error => {

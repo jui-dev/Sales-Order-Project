@@ -6,103 +6,52 @@ use App\Models\Product;
 use App\Services\ProductService;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
+use App\Exceptions\DataNotFoundException;
+use App\Traits\HasApiResponses;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
 
 class ProductController extends Controller
 {
+    use HasApiResponses;
+
     public function __construct(private readonly ProductService $service)
     {
     }
 
     public function index(Request $request): View
     {
-        $query = Product::query();
+        try {
+            $filters = [
+                'search' => $request->search,
+                'price_min' => $request->price_min,
+                'price_max' => $request->price_max,
+                'stock_min' => $request->stock_min,
+                'stock_max' => $request->stock_max,
+                'sort' => $request->sort,
+                'direction' => $request->direction,
+            ];
 
-        // Search functionality
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('sku', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
-            });
+            $products = $this->service->getFilteredProducts($filters, 20);
+            $filterOptions = $this->service->getFilterOptions();
+            $sortOptions = $this->service->getSortOptions();
+
+            return view('products.index', compact('products', 'filterOptions', 'sortOptions'));
+        } catch (\Exception $e) {
+            \Log::error('Error loading products: ' . $e->getMessage());
+            
+            // Return empty paginated result with proper structure
+            $emptyProducts = \App\Models\Product::paginate(20);
+            $emptyProducts->setCollection(collect());
+            
+            return view('products.index', [
+                'products' => $emptyProducts,
+                'filterOptions' => $this->service->getFilterOptions(),
+                'sortOptions' => $this->service->getSortOptions()
+            ])->with('error', 'Unable to load products. Please try again later.');
         }
-
-        // Filter functionality
-        if ($request->filled('price_min')) {
-            $query->where('selling_price', '>=', $request->price_min);
-        }
-
-        if ($request->filled('price_max')) {
-            $query->where('selling_price', '<=', $request->price_max);
-        }
-
-        if ($request->filled('stock_min')) {
-            $query->where('available_stocks', '>=', $request->stock_min);
-        }
-
-        if ($request->filled('stock_max')) {
-            $query->where('available_stocks', '<=', $request->stock_max);
-        }
-
-        // Sort functionality
-        $sort = $request->input('sort', 'id');
-        $direction = strtolower($request->input('direction', 'desc')) === 'desc' ? 'desc' : 'asc';
-
-        switch ($sort) {
-            case 'name':
-                $query->orderBy('name', $direction);
-                break;
-            case 'price':
-                $query->orderBy('selling_price', $direction);
-                break;
-            case 'stock':
-                $query->orderBy('available_stocks', $direction);
-                break;
-            case 'created':
-                $query->orderBy('created_at', $direction);
-                break;
-            default:
-                $query->orderBy('id', $direction);
-        }
-
-        $products = $query->paginate(20)->withQueryString();
-
-        // Get filter options for the view
-        $filterOptions = [
-            'price_min' => [
-                'type' => 'text',
-                'label' => 'Min Price',
-                'placeholder' => 'Enter minimum price'
-            ],
-            'price_max' => [
-                'type' => 'text',
-                'label' => 'Max Price',
-                'placeholder' => 'Enter maximum price'
-            ],
-            'stock_min' => [
-                'type' => 'text',
-                'label' => 'Min Stock',
-                'placeholder' => 'Enter minimum stock'
-            ],
-            'stock_max' => [
-                'type' => 'text',
-                'label' => 'Max Stock',
-                'placeholder' => 'Enter maximum stock'
-            ]
-        ];
-
-        $sortOptions = [
-            'id' => 'ID',
-            'name' => 'Name',
-            'price' => 'Price',
-            'stock' => 'Stock',
-            'created' => 'Created Date'
-        ];
-
-        return view('products.index', compact('products', 'filterOptions', 'sortOptions'));
     }
 
     public function create(): View
@@ -112,40 +61,145 @@ class ProductController extends Controller
 
     public function store(StoreProductRequest $request): RedirectResponse
     {
-        $this->service->create($request->validated());
-
-        return redirect()->route('products.index')->with('success', 'Product created successfully.');
+        try {
+            $product = $this->service->create($request->validated());
+            return redirect()->route('products.show', $product->id)
+                ->with('success', 'Product created successfully.');
+        } catch (\Exception $e) {
+            return back()->withInput()->with('error', 'Unable to create product. Please try again.');
+        }
     }
 
-    public function show(int $id): View
+    public function show(int $id): View|RedirectResponse
     {
-        $product = $this->service->get($id);
-        return view('products.show', compact('product'));
+        try {
+            $product = $this->service->get($id);
+            $transactionHistory = $this->service->transactionHistory($product);
+            $stockAnalysis = $this->service->stockAnalysis($product);
+            
+            return view('products.show', compact('product', 'transactionHistory', 'stockAnalysis'));
+        } catch (DataNotFoundException $e) {
+            return redirect()->route('products.index')
+                ->with('error', $e->getMessage());
+        } catch (\Exception $e) {
+            \Log::error('Error loading product: ' . $e->getMessage());
+            return redirect()->route('products.index')
+                ->with('error', 'Unable to load product details. Please try again later.');
+        }
     }
 
-    public function edit(int $id): View
+    public function edit(int $id): View|RedirectResponse
     {
-        $product = $this->service->get($id);
-        return view('products.edit', compact('product'));
+        try {
+            $product = $this->service->get($id);
+            return view('products.edit', compact('product'));
+        } catch (DataNotFoundException $e) {
+            return redirect()->route('products.index')
+                ->with('error', $e->getMessage());
+        } catch (\Exception $e) {
+            return redirect()->route('products.index')
+                ->with('error', 'Unable to load product for editing. Please try again later.');
+        }
     }
 
     public function update(UpdateProductRequest $request, int $id): RedirectResponse
     {
-        $this->service->update($id, $request->validated());
-
-        return redirect()->route('products.show', $id)->with('success', 'Product updated successfully.');
+        try {
+            $product = $this->service->update($id, $request->validated());
+            return redirect()->route('products.show', $product->id)
+                ->with('success', 'Product updated successfully.');
+        } catch (DataNotFoundException $e) {
+            return redirect()->route('products.index')
+                ->with('error', $e->getMessage());
+        } catch (\Exception $e) {
+            return back()->withInput()->with('error', 'Unable to update product. Please try again.');
+        }
     }
 
     public function destroy(int $id): RedirectResponse
     {
-        $this->service->delete($id);
-        return redirect()->route('products.index')->with('success', 'Product deleted.');
+        try {
+            $this->service->delete($id);
+            return redirect()->route('products.index')
+                ->with('success', 'Product deleted successfully.');
+        } catch (DataNotFoundException $e) {
+            return redirect()->route('products.index')
+                ->with('error', $e->getMessage());
+        } catch (\Exception $e) {
+            return redirect()->route('products.index')
+                ->with('error', 'Unable to delete product. Please try again.');
+        }
     }
 
-    public function transactionHistory(int $id): View
+    /**
+     * API endpoint for getting products (for AJAX requests)
+     */
+    public function apiIndex(Request $request): JsonResponse
     {
-        $product = $this->service->get($id);
-        // This view already exists in resources/views/products/transaction-history.blade.php
-        return view('products.transaction-history', compact('product'));
+        return $this->handlePaginatedApiOperation(
+            function() use ($request) {
+                $filters = [
+                    'search' => $request->search,
+                    'price_min' => $request->price_min,
+                    'price_max' => $request->price_max,
+                    'stock_min' => $request->stock_min,
+                    'stock_max' => $request->stock_max,
+                    'sort' => $request->sort,
+                    'direction' => $request->direction,
+                ];
+                
+                $perPage = $request->get('per_page', 20);
+                return $this->service->getFilteredProducts($filters, $perPage);
+            },
+            'products',
+            'Products retrieved successfully'
+        );
+    }
+
+    /**
+     * API endpoint for getting a single product
+     */
+    public function apiShow(int $id): JsonResponse
+    {
+        return $this->handleSingleItemApiOperation(
+            function() use ($id) {
+                return $this->service->get($id);
+            },
+            'product',
+            'Product retrieved successfully'
+        );
+    }
+
+    /**
+     * Recalculate all product stocks
+     */
+    public function recalculateStocks(): JsonResponse
+    {
+        return $this->handleApiOperation(
+            function() {
+                return $this->service->recalculateAllProductStocks();
+            },
+            'product stocks',
+            'Product stocks recalculated successfully'
+        );
+    }
+
+    /**
+     * Show stock analysis for a product
+     */
+    public function stockAnalysis(int $id): View|RedirectResponse
+    {
+        try {
+            $product = $this->service->get($id);
+            $stockData = $this->service->stockAnalysis($product);
+            return view('products.stock-analysis', compact('stockData'));
+        } catch (DataNotFoundException $e) {
+            return redirect()->route('products.index')
+                ->with('error', $e->getMessage());
+        } catch (\Exception $e) {
+            \Log::error('Error loading stock analysis: ' . $e->getMessage());
+            return redirect()->route('products.index')
+                ->with('error', 'Unable to load stock analysis. Please try again later.');
+        }
     }
 } 

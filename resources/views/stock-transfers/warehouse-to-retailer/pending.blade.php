@@ -50,7 +50,7 @@
                                             {{ $transfer->pickingItems->count() }} items
                                         </span>
                                         <small class="text-muted d-block">
-                                            {{ $transfer->pickingItems->sum('quantity_requested') }} total qty
+                                            {{ $transfer->pickingItems ? $transfer->pickingItems->sum('quantity_requested') : 0 }} total qty
                                         </small>
                                     </td>
                                     <td>{{ $transfer->created_at->format('M d, Y H:i') }}</td>

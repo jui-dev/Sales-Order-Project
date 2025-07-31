@@ -33,12 +33,15 @@ class ChartOfAccountsSeeder extends Seeder
             '1000' => ['Cash', 'Asset', 'Physical cash on hand available for immediate use.'],
             '1100' => ['Accounts Receivable', 'Asset', 'Money owed by customers for goods or services delivered on credit.'],
             '1200' => ['Inventory', 'Asset', 'Value of products or raw materials held for sale or production.'],
+            '1300' => ['Intercompany Receivable', 'Asset', 'Amounts owed by related companies or subsidiaries.'],
             '2000' => ['Accounts Payable', 'Liability', 'Amounts the business owes to suppliers for goods or services received.'],
-            '3000' => ["Owner's Equity", 'Equity', 'Owner’s initial and additional investment in the business.'],
+            '2100' => ['Accounts Payable', 'Liability', 'Amounts the business owes to suppliers for goods or services received.'],
+            '3000' => ["Owner's Equity", 'Equity', 'Owner\'s initial and additional investment in the business.'],
             '3010' => ['Retained Earnings', 'Equity', 'Accumulated net income not distributed as dividends'],
             '4000' => ['Sales Revenue', 'Revenue', 'Income earned from selling goods or services to customers.'],
+            '4100' => ['Sales Returns', 'Contra Revenue', 'Reductions in revenue due to product returns from customers.'],
             '5000' => ['Cost of Goods Sold', 'Expense', 'Direct costs attributable to the production or purchase of goods sold.'],
-            '5100' => ['Purchase Expense', 'Expense', 'Cost incurred for buying raw materials or goods for resale.'],
+            '5100' => ['Purchase Returns', 'Contra Expense', 'Reductions in expenses due to product returns to vendors.'],
             '5200' => ['Sales Returns & Allowances', 'Contra Revenue', 'Reductions in revenue due to product returns or sales discounts granted.'], // Revenue type but contra flag
         ];
 

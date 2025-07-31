@@ -22,22 +22,25 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="filterModalLabel">Filter Supplier Bill Payments</h5>
+                    <h5 class="modal-title" id="filterModalLabel">Filter Payments</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form method="GET" id="filterForm">
+                <form method="GET" action="{{ route('supplier-bill-payments.index') }}">
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label">Payment Status</label>
-                            <select name="payment_status" class="form-select">
-                                <option value="">-- Any --</option>
-                                <option value="unpaid" {{ request('payment_status') == 'unpaid' ? 'selected' : '' }}>Unpaid</option>
-                                <option value="paid" {{ request('payment_status') == 'paid' ? 'selected' : '' }}>Paid</option>
+                            <label for="payment_status" class="form-label">Payment Status</label>
+                            <select class="form-select" id="payment_status" name="payment_status">
+                                <option value="">All Statuses</option>
+                                @foreach($filterOptions['payment_status']['options'] as $value => $label)
+                                    <option value="{{ $value }}" {{ request('payment_status') == $value ? 'selected' : '' }}>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
                             </select>
                         </div>
                     </div>
-                    <div class="modal-footer d-flex justify-content-between">
-                        <a href="{{ route('supplier-bill-payments.index') }}" class="btn btn-outline-secondary">Clear Filters</a>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary">Apply Filters</button>
                     </div>
                 </form>
@@ -77,27 +80,16 @@
                                 <td class="text-end">${{ number_format($payment->payment_amount, 2) }}</td>
                                 <td>
                                     @php
-                                        $badge = [
-                                            'unpaid' => 'warning',
-                                            'paid'   => 'success',
-                                        ][$payment->payment_status] ?? 'secondary';
+                                        $statusBadge = $payment->payment_status === 'paid' ? 'success' : 'warning';
                                     @endphp
-                                    <span class="badge bg-{{ $badge }}">{{ ucfirst($payment->payment_status) }}</span>
+                                    <span class="badge bg-{{ $statusBadge }}">{{ ucfirst($payment->payment_status) }}</span>
                                 </td>
                                 <td>{{ $payment->created_at->format('M d, Y H:i') }}</td>
                                 <td class="text-center">
-                                    <div class="d-flex flex-wrap gap-1 justify-content-center">
-                                        <a href="{{ route('supplier-bill-payments.show', $payment) }}" class="btn btn-sm btn-info d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Details">
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ route('supplier-bill-payments.show', $payment) }}" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        <a href="{{ route('supplier-bills.show', $payment->supplier_bill_id) }}" class="btn btn-sm btn-secondary d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Supplier Bill">
-                                            <i class="bi bi-file-earmark-text"></i>
-                                        </a>
-                                        @if($payment->supplierBill && $payment->supplierBill->grn)
-                                            <a href="{{ route('grns.show', $payment->supplierBill->grn) }}" class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View GRN">
-                                                <i class="bi bi-receipt"></i>
-                                            </a>
-                                        @endif
                                         @if($payment->supplierBill && $payment->supplierBill->grn && $payment->supplierBill->grn->supply)
                                             <a href="{{ route('supplies.show', $payment->supplierBill->grn->supply) }}" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Supply">
                                                 <i class="bi bi-truck"></i>
@@ -120,8 +112,7 @@
         </div>
     </div>
 
-        <x-pagination :paginator="$payments" />
-    </div>
+    <x-pagination :paginator="$payments" />
 </div>
 @endsection
 

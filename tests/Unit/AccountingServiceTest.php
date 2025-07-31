@@ -50,4 +50,22 @@ class AccountingServiceTest extends TestCase
             ['account_code' => '1000', 'debit' => 0,  'credit' => 50],
         ]);
     }
+
+    /** @test */
+    public function trial_balance_returns_correct_structure(): void
+    {
+        // Create a simple journal entry with posted status
+        $entry = $this->service->post([
+            ['account_code' => '1000', 'debit' => 100, 'credit' => 0],
+            ['account_code' => '2000', 'debit' => 0,  'credit' => 100],
+        ], null, null, null, 'posted');
+
+        $trialBalance = $this->service->trialBalance();
+
+        $this->assertIsObject($trialBalance);
+        $this->assertTrue($trialBalance->has('1000'));
+        $this->assertTrue($trialBalance->has('2000'));
+        $this->assertEquals(100, $trialBalance['1000']['debit']);
+        $this->assertEquals(100, $trialBalance['2000']['credit']);
+    }
 } 

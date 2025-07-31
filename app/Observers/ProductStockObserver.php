@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\ProductStock;
+use App\Models\StockTransaction;
 
 class ProductStockObserver
 {
@@ -29,12 +30,14 @@ class ProductStockObserver
             return;
         }
 
-        $totalAvailable = ProductStock::where('product_id', $stock->product_id)
-            ->get()
-            ->sum(fn (ProductStock $s) => $s->quantity - $s->reserved_quantity);
+        // Calculate available stock purely from product_stocks table only
+        // This avoids double-counting issues with stock_transactions
+        $availableStock = (int) ProductStock::where('product_id', $stock->product_id)
+            ->sum('quantity');
+        $availableStock = max(0, $availableStock);
 
         // Persist quietly to avoid triggering observers / events.
-        $stock->product->available_stocks = $totalAvailable;
+        $stock->product->available_stocks = $availableStock;
         $stock->product->saveQuietly();
     }
 } 

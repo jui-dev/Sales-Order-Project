@@ -2,24 +2,29 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AuditLog;
+use App\Services\AuditLogService;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class AuditLogController extends Controller
 {
-    public function index(Request $request)
+    public function __construct(private readonly AuditLogService $auditLogService)
     {
-        $query = AuditLog::with(['user'])
-            ->when($request->filled('start_date'), fn($q) => $q->whereDate('created_at', '>=', $request->start_date))
-            ->when($request->filled('end_date'), fn($q) => $q->whereDate('created_at', '<=', $request->end_date))
-            ->when($request->filled('action'), fn($q) => $q->where('action', $request->action))
-            ->when($request->filled('user_id'), fn($q) => $q->where('user_id', $request->user_id))
-            ->orderByDesc('created_at');
+    }
 
-        $auditLogs = $query->paginate(20)->withQueryString();
-        $users = class_exists('App\\Models\\User') ? \App\Models\User::orderBy('name')->get() : collect();
-        $actions = AuditLog::select('action')->distinct()->pluck('action');
+    public function index(Request $request): View
+    {
+        $filters = [
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
+            'action' => $request->action,
+            'user_id' => $request->user_id,
+        ];
 
-        return view('audit-logs.index', compact('auditLogs', 'users', 'actions'));
+        $auditLogs = $this->auditLogService->getFilteredAuditLogs($filters, 20);
+        $filterOptions = $this->auditLogService->getFilterOptions();
+        $statistics = $this->auditLogService->getAuditLogStatistics();
+
+        return view('audit-logs.index', compact('auditLogs', 'filterOptions', 'statistics'));
     }
 } 

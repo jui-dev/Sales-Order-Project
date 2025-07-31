@@ -11,13 +11,17 @@
 
 <div class="card">
     <div class="card-body">
+        <div class="alert alert-light mb-4">
+            <i class="bi bi-exclamation-circle text-danger"></i> Fields marked with <span class="text-danger">*</span> are required and must be filled before submitting the form.
+        </div>
+        
         <form action="{{ route('supplies.update', $supply) }}" method="POST">
             @csrf
             @method('PUT')
             
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="vendor_id" class="form-label">Vendor</label>
+                    <label for="vendor_id" class="form-label">Vendor <span class="text-danger">*</span></label>
                     <select name="vendor_id" id="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror" required>
                         <option value="">Select Vendor</option>
                         @foreach($vendors as $vendor)
@@ -32,7 +36,7 @@
                 </div>
                 
                 <div class="col-md-6 mb-3">
-                    <label for="supply_date" class="form-label">Supply Date</label>
+                    <label for="supply_date" class="form-label">Supply Date <span class="text-danger">*</span></label>
                     <input type="date" name="supply_date" id="supply_date" class="form-control @error('supply_date') is-invalid @enderror" 
                         value="{{ old('supply_date', $supply->supply_date->format('Y-m-d')) }}" required>
                     @error('supply_date')
@@ -97,4 +101,30 @@
         </form>
     </div>
 </div>
+
+<style>
+    /* Required field indicator styling - consistent with create page */
+    .text-danger {
+        color: var(--danger) !important;
+    }
+    
+    .form-label .text-danger {
+        font-weight: 600;
+        margin-left: 2px;
+    }
+    
+    /* Enhanced focus states for required fields */
+    .form-control:required:focus,
+    .form-select:required:focus {
+        border-color: var(--danger);
+        box-shadow: 0 0 0 0.2rem rgba(231, 111, 81, 0.25);
+    }
+    
+    @media (max-width: 768px) {
+        /* Ensure required indicators are visible on mobile */
+        .form-label .text-danger {
+            font-size: 0.9em;
+        }
+    }
+</style>
 @endsection 

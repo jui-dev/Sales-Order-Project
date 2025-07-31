@@ -24,48 +24,72 @@ class UnifiedSearchSystem {
     }
     
     bindEvents() {
-        // Search input events
-        const searchInput = document.querySelector(this.options.searchInput);
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.handleSearchInput(e.target.value);
-            });
-            
-            searchInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.performSearch();
-                }
-            });
-        }
-        
-        // Filter form events
-        const filterForm = document.querySelector(this.options.filterForm);
-        if (filterForm) {
-            filterForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                this.applyFilters();
-            });
-        }
-        
-        // Sort form events
-        const sortForm = document.querySelector(this.options.sortForm);
-        if (sortForm) {
-            const sortSelects = sortForm.querySelectorAll('select');
-            sortSelects.forEach(select => {
-                select.addEventListener('change', () => {
-                    this.applySorting();
+        try {
+            // Search input events
+            const searchInput = document.querySelector(this.options.searchInput);
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    try {
+                        this.handleSearchInput(e.target.value);
+                    } catch (error) {
+                        console.error('Error handling search input:', error);
+                    }
                 });
-            });
-        }
-        
-        // Clear filters button
-        const clearFiltersBtn = document.querySelector('.clear-filters');
-        if (clearFiltersBtn) {
-            clearFiltersBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.clearAllFilters();
-            });
+                
+                searchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        try {
+                            this.performSearch();
+                        } catch (error) {
+                            console.error('Error performing search:', error);
+                        }
+                    }
+                });
+            }
+            
+            // Filter form events
+            const filterForm = document.querySelector(this.options.filterForm);
+            if (filterForm) {
+                filterForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    try {
+                        this.applyFilters();
+                    } catch (error) {
+                        console.error('Error applying filters:', error);
+                    }
+                });
+            }
+            
+            // Sort form events
+            const sortForm = document.querySelector(this.options.sortForm);
+            if (sortForm) {
+                const sortSelects = sortForm.querySelectorAll('select');
+                sortSelects.forEach(select => {
+                    select.addEventListener('change', () => {
+                        try {
+                            this.applySorting();
+                        } catch (error) {
+                            console.error('Error applying sorting:', error);
+                        }
+                    });
+                });
+            }
+            
+            // Clear filters button
+            const clearFiltersBtn = document.querySelector('.clear-filters');
+            if (clearFiltersBtn) {
+                clearFiltersBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    try {
+                        this.clearAllFilters();
+                    } catch (error) {
+                        console.error('Error clearing filters:', error);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error binding events:', error);
         }
     }
     
@@ -74,10 +98,18 @@ class UnifiedSearchSystem {
         if (!searchInput) return;
         
         searchInput.addEventListener('input', (e) => {
-            clearTimeout(this.searchTimeout);
-            this.searchTimeout = setTimeout(() => {
-                this.performSearch();
-            }, this.options.searchDelay);
+            try {
+                clearTimeout(this.searchTimeout);
+                this.searchTimeout = setTimeout(() => {
+                    try {
+                        this.performSearch();
+                    } catch (error) {
+                        console.error('Error in debounced search:', error);
+                    }
+                }, this.options.searchDelay);
+            } catch (error) {
+                console.error('Error setting up debounced search:', error);
+            }
         });
     }
     
@@ -167,8 +199,11 @@ class UnifiedSearchSystem {
         // Show loading spinner
         this.showLoadingSpinner();
         
-        // Reload the page with current URL
-        window.location.reload();
+        // Use a small delay to ensure the spinner is shown
+        setTimeout(() => {
+            // Reload the page with current URL
+            window.location.reload();
+        }, 100);
     }
     
     showLoadingSpinner() {
@@ -215,25 +250,58 @@ class UnifiedSearchSystem {
         
         return filters;
     }
+    
+    // Cleanup method to handle page unload
+    cleanup() {
+        try {
+            if (this.searchTimeout) {
+                clearTimeout(this.searchTimeout);
+                this.searchTimeout = null;
+            }
+        } catch (error) {
+            console.error('Error during cleanup:', error);
+        }
+    }
 }
 
 // Initialize the system when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize unified search system
-    window.unifiedSearch = new UnifiedSearchSystem();
-    
-    // Auto-focus search input if it exists
+    // Check if we're on a page that uses unified search
     const searchInput = document.querySelector('#global-search');
-    if (searchInput && !searchInput.value) {
-        searchInput.focus();
+    const filterForm = document.querySelector('#filter-form');
+    
+    if (!searchInput && !filterForm) {
+        // Not on a page with unified search, don't initialize
+        return;
     }
     
-    // Show active filters indicator
-    if (window.unifiedSearch.hasActiveFilters()) {
-        const activeFiltersBadge = document.querySelector('.active-filters-badge');
-        if (activeFiltersBadge) {
-            activeFiltersBadge.style.display = 'inline-block';
+    try {
+        // Initialize unified search system
+        window.unifiedSearch = new UnifiedSearchSystem();
+        
+        // Auto-focus search input if it exists
+        if (searchInput && !searchInput.value) {
+            searchInput.focus();
         }
+        
+        // Show active filters indicator
+        if (window.unifiedSearch && window.unifiedSearch.hasActiveFilters()) {
+            const activeFiltersBadge = document.querySelector('.active-filters-badge');
+            if (activeFiltersBadge) {
+                activeFiltersBadge.style.display = 'inline-block';
+            }
+        }
+        
+        // Add page unload event listener for cleanup
+        window.addEventListener('beforeunload', function() {
+            if (window.unifiedSearch && typeof window.unifiedSearch.cleanup === 'function') {
+                window.unifiedSearch.cleanup();
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error initializing UnifiedSearchSystem:', error);
+        // Don't let the error break the page
     }
 });
 

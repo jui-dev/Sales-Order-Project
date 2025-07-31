@@ -17,6 +17,17 @@
     {{-- Page-specific styles pushed via @push('styles') --}}
     @stack('styles')
 
+    <!-- Load jQuery early to ensure it's available -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script>
+        // Test jQuery loading
+        if (typeof jQuery !== 'undefined') {
+            console.log('jQuery loaded successfully in head');
+        } else {
+            console.error('jQuery failed to load in head');
+        }
+    </script>
+
     <style>
         /* Multi-level dropdown styles */
         .dropdown-submenu {
@@ -199,6 +210,22 @@
                         </ul>
                     </li>
 
+                    <!-- Returns Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="returnsTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-arrow-return-left me-1"></i>Returns
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="returnsTop">
+                            <li><a class="dropdown-item" href="{{ route('returns.index') }}"><i class="bi bi-list me-1"></i> All Returns</a></li>
+                            <li><a class="dropdown-item" href="{{ route('credit-notes.index') }}"><i class="bi bi-receipt me-1"></i> Credit Notes</a></li>
+                            <li><a class="dropdown-item" href="{{ route('debit-notes.index') }}"><i class="bi bi-receipt me-1"></i> Debit Notes</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ route('returns.index', ['type' => 'customer_return']) }}"><i class="bi bi-arrow-return-left text-danger me-1"></i> Customer Returns</a></li>
+                            <li><a class="dropdown-item" href="{{ route('returns.index', ['type' => 'vendor_return']) }}"><i class="bi bi-arrow-return-right text-info me-1"></i> Vendor Returns</a></li>
+                            <li><a class="dropdown-item" href="{{ route('returns.index', ['type' => 'retailer_return']) }}"><i class="bi bi-arrow-return-left text-warning me-1"></i> Retailer Returns</a></li>
+                        </ul>
+                    </li>
+
                     <!-- Stock Management Dropdown -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="stockTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -207,7 +234,6 @@
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="stockTop">
                             <li><a class="dropdown-item" href="{{ route('stock-management.index') }}"><i class="bi bi-boxes me-1"></i> Stock Management</a></li>
                             <li><a class="dropdown-item" href="{{ route('stock-locations.index') }}"><i class="bi bi-geo-alt me-1"></i> Stock Locations</a></li>
-                            <li><a class="dropdown-item" href="{{ route('returns.index') }}"><i class="bi bi-arrow-return-left me-1"></i> Returns</a></li>
                             <li><a class="dropdown-item" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 me-1"></i> Transaction Flow</a></li>
                         </ul>
                     </li>
@@ -322,6 +348,24 @@
                         </div>
                     </li>
 
+                    <!-- Returns -->
+                    <li class="nav-item">
+                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#returnsMenu" role="button" aria-expanded="false" aria-controls="returnsMenu">
+                            <span><i class="bi bi-arrow-return-left me-2"></i>Returns</span>
+                            <i class="bi bi-chevron-down small"></i>
+                        </a>
+                        <div class="collapse" id="returnsMenu" data-bs-parent="#sidebarAccordion">
+                            <ul class="navbar-nav ps-3">
+                                <li><a class="nav-link px-3" href="{{ route('returns.index') }}"><i class="bi bi-list me-2"></i>All Returns</a></li>
+                                <li><a class="nav-link px-3" href="{{ route('credit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Credit Notes</a></li>
+                                <li><a class="nav-link px-3" href="{{ route('debit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Debit Notes</a></li>
+                                <li><a class="nav-link px-3" href="{{ route('returns.index', ['type' => 'customer_return']) }}"><i class="bi bi-arrow-return-left text-danger me-2"></i>Customer Returns</a></li>
+                                <li><a class="nav-link px-3" href="{{ route('returns.index', ['type' => 'vendor_return']) }}"><i class="bi bi-arrow-return-right text-info me-2"></i>Vendor Returns</a></li>
+                                <li><a class="nav-link px-3" href="{{ route('returns.index', ['type' => 'retailer_return']) }}"><i class="bi bi-arrow-return-left text-warning me-2"></i>Retailer Returns</a></li>
+                            </ul>
+                        </div>
+                    </li>
+
                     <!-- Stock Management -->
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#stockMenu" role="button" aria-expanded="false" aria-controls="stockMenu">
@@ -332,7 +376,6 @@
                             <ul class="navbar-nav ps-3">
                                 <li><a class="nav-link px-3" href="{{ route('stock-management.index') }}"><i class="bi bi-boxes me-2"></i>Stock Management</a></li>
                                 <li><a class="nav-link px-3" href="{{ route('stock-locations.index') }}"><i class="bi bi-geo-alt me-2"></i>Stock Locations</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('returns.index') }}"><i class="bi bi-arrow-return-left me-2"></i>Returns</a></li>
                                 <li><a class="nav-link px-3" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 me-2"></i>Transaction Flow</a></li>
                             </ul>
                         </div>
@@ -422,9 +465,170 @@
         </div>
     </footer>
 
+    <!-- Scripts -->
+    <!-- jQuery already loaded in head -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Temporarily disabled to debug syntax error
     <script src="{{ asset('js/unified-search.js') }}"></script>
+    -->
+    
+    <!-- Global Error Handler -->
+    <script>
+        // Enhanced unhandled promise rejection handler
+        window.addEventListener('unhandledrejection', function(event) {
+            const reason = event.reason;
+            
+            // Check if this is a browser extension message channel error
+            if (reason && reason.message && (
+                reason.message.includes('message channel closed') ||
+                reason.message.includes('asynchronous response') ||
+                reason.message.includes('listener indicated')
+            )) {
+                console.log('Browser extension message channel error detected, safely ignoring...');
+                event.preventDefault();
+                return false;
+            }
+            
+            // Check if this is a network-related error that we can safely ignore
+            if (reason && reason.message && (
+                reason.message.includes('Failed to fetch') ||
+                reason.message.includes('NetworkError') ||
+                reason.message.includes('ERR_INTERNET_DISCONNECTED')
+            )) {
+                console.log('Network error detected, safely ignoring...');
+                event.preventDefault();
+                return false;
+            }
+            
+            // Log other unhandled promise rejections for debugging
+            console.error('Unhandled promise rejection:', reason);
+            console.error('Promise rejection details:', {
+                message: reason?.message,
+                stack: reason?.stack,
+                name: reason?.name
+            });
+            
+            // Prevent the default browser behavior for unhandled rejections
+            event.preventDefault();
+        });
+        
+        // Enhanced global error handler
+        window.addEventListener('error', function(event) {
+            const error = event.error;
+            
+            // Check if this is a browser extension related error
+            if (error && error.message && (
+                error.message.includes('message channel closed') ||
+                error.message.includes('asynchronous response') ||
+                error.message.includes('Extension context invalidated')
+            )) {
+                console.log('Browser extension error detected, safely ignoring...');
+                event.preventDefault();
+                return false;
+            }
+            
+            // Log other errors for debugging
+            console.error('Global error:', error);
+            console.error('Error details:', {
+                message: event.message,
+                filename: event.filename,
+                lineno: event.lineno,
+                colno: event.colno,
+                error: error
+            });
+        });
+        
+        // Handle beforeunload to clean up any pending operations
+        window.addEventListener('beforeunload', function(event) {
+            // Cancel any pending fetch requests
+            if (window.activeRequests) {
+                window.activeRequests.forEach(controller => {
+                    if (controller && typeof controller.abort === 'function') {
+                        controller.abort();
+                    }
+                });
+            }
+        });
+        
+        // Track active fetch requests for cleanup
+        window.activeRequests = new Set();
+        
+        // Override fetch to track requests
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            const controller = new AbortController();
+            window.activeRequests.add(controller);
+            
+            const promise = originalFetch(...args, { signal: controller.signal })
+                .finally(() => {
+                    window.activeRequests.delete(controller);
+                });
+            
+            return promise;
+        };
+        
+        // Simple test to verify JavaScript is working
+        console.log('Layout scripts loaded successfully');
+    </script>
+    
+    <!-- Global DataTables Configuration -->
+    <!-- Temporarily disabled to debug syntax error
+    <script>
+        // Wait for jQuery to be fully loaded before configuring DataTables
+        function configureDataTables() {
+            try {
+                // Check if jQuery is available
+                if (typeof jQuery !== 'undefined' && jQuery && jQuery.fn && jQuery.fn.DataTable) {
+                    jQuery.extend(true, jQuery.fn.dataTable.defaults, {
+                        // Suppress warnings
+                        deferRender: true,
+                        processing: true,
+                        // Better error handling
+                        language: {
+                            processing: "Processing...",
+                            search: "Search:",
+                            lengthMenu: "Show _MENU_ entries",
+                            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                            infoEmpty: "Showing 0 to 0 of 0 entries",
+                            infoFiltered: "(filtered from _MAX_ total entries)",
+                            infoPostFix: "",
+                            loadingRecords: "Loading...",
+                            zeroRecords: "No matching records found",
+                            emptyTable: "No data available in table",
+                            paginate: {
+                                first: "First",
+                                previous: "Previous",
+                                next: "Next",
+                                last: "Last"
+                            },
+                            aria: {
+                                sortAscending: ": activate to sort column ascending",
+                                sortDescending: ": activate to sort column descending"
+                            }
+                        }
+                    });
+                    console.log('DataTables configured successfully');
+                } else {
+                    // Retry after a short delay if jQuery is not ready
+                    setTimeout(configureDataTables, 100);
+                }
+            } catch (error) {
+                console.error('Error configuring DataTables:', error);
+            }
+        }
 
+        // Try to configure DataTables when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', configureDataTables);
+        } else {
+            configureDataTables();
+        }
+        
+        // Also try when window is loaded to ensure all scripts are ready
+        window.addEventListener('load', configureDataTables);
+    </script>
+    -->
+    
     {{-- Page-specific scripts declared via @section('scripts') in child views --}}
     @yield('scripts')
     {{-- Page-specific scripts pushed via @push('scripts') --}}
@@ -432,26 +636,34 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const currentPath = window.location.pathname;
-            document.querySelectorAll('#sidebar .nav-link, #topNav .nav-link').forEach(link => {
-                const href = link.getAttribute('href');
-                if (href && currentPath.includes(href.split('/').filter(Boolean).pop())) {
-                    link.classList.add('active');
-                    // If the link is inside a collapsed menu, expand it
-                    const parentCollapse = link.closest('.collapse');
-                    if (parentCollapse) {
-                        const collapseInstance = bootstrap.Collapse.getOrCreateInstance(parentCollapse, { toggle: false });
-                        collapseInstance.show();
+            try {
+                const currentPath = window.location.pathname;
+                document.querySelectorAll('#sidebar .nav-link, #topNav .nav-link').forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href && currentPath.includes(href.split('/').filter(Boolean).pop())) {
+                        link.classList.add('active');
+                        // If the link is inside a collapsed menu, expand it
+                        const parentCollapse = link.closest('.collapse');
+                        if (parentCollapse) {
+                            const collapseInstance = bootstrap.Collapse.getOrCreateInstance(parentCollapse, { toggle: false });
+                            collapseInstance.show();
+                        }
                     }
-                }
-            });
-        // Automatically show bootstrap toasts if present
-        const toastElList = [].slice.call(document.querySelectorAll('.toast'));
-        toastElList.forEach(function (toastEl) {
-            const toast = new bootstrap.Toast(toastEl);
-            toast.show();
-        });
-
+                });
+                
+                // Automatically show bootstrap toasts if present
+                const toastElList = [].slice.call(document.querySelectorAll('.toast'));
+                toastElList.forEach(function (toastEl) {
+                    try {
+                        const toast = new bootstrap.Toast(toastEl);
+                        toast.show();
+                    } catch (toastError) {
+                        console.warn('Error showing toast:', toastError);
+                    }
+                });
+            } catch (error) {
+                console.error('Error in DOMContentLoaded:', error);
+            }
         });
     </script>
 </body>

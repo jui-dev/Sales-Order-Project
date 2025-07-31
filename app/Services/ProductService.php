@@ -3,235 +3,646 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\StockTransaction;
+use App\Traits\HasErrorHandling;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Exception;
 
 class ProductService
 {
+    use HasErrorHandling;
+
     public function list(): Collection
     {
-        try {
-            return Product::all();
-        } catch (\Throwable $e) {
-            // In UI-only or migration-incomplete scenarios, ensure a safe fallback
-            return collect();
-        }
+        return $this->getCollectionOrEmpty(Product::class, 'products');
     }
 
     public function get(int $id): Product
     {
-        return Product::with([
-            'supplyItems.supply.vendor',
-            'orderItems.order.customer',
-            'stockBalances.location',
-        ])->findOrFail($id);
+        return $this->handleServiceOperation(
+            function() use ($id) {
+                $product = Product::with([
+                    'supplyItems.supply.vendor',
+                    'orderItems.order.customer',
+                    'stockBalances.location',
+                    'stockTransactions.location',
+                    'stockTransactions.reference',
+                ])->find($id);
+                
+                if (!$product) {
+                    $this->logMissingData('product', $id);
+                    throw new \App\Exceptions\DataNotFoundException('product', $id);
+                }
+                
+                return $product;
+            },
+            'product',
+            $id
+        );
     }
 
     public function create(array $data): Product
     {
-        return Product::create($data);
+        return $this->handleServiceOperation(
+            fn() => Product::create($data),
+            'product'
+        );
     }
 
     public function update(int $id, array $data): Product
     {
-        $product = Product::findOrFail($id);
-        $product->update($data);
-        return $product;
+        return $this->handleServiceOperation(
+            function() use ($id, $data) {
+                $product = $this->findOrFail(Product::class, $id, 'product');
+                $product->update($data);
+                return $product;
+            },
+            'product',
+            $id
+        );
     }
 
     public function delete(int $id): void
     {
-        $product = Product::findOrFail($id);
-        $product->delete();
+        $this->handleServiceOperation(
+            function() use ($id) {
+                $product = $this->findOrFail(Product::class, $id, 'product');
+                $product->delete();
+            },
+            'product',
+            $id
+        );
     }
 
-    public function stockAnalysis(Product $product): array
+    /**
+     * Recalculate available_stocks for all products
+     * This method considers both base stock from product_stocks table
+     * and adjustments from stock transactions (including returns)
+     */
+    public function recalculateAllProductStocks(): array
     {
-        // Completed supplies
-        $totalSupplied = \App\Models\SupplyItem::where('product_id', $product->id)
-            ->whereHas('supply', fn ($q) => $q->where('status', 'completed'))
-            ->sum('quantity');
+        return $this->handleServiceOperation(
+            function() {
+                $products = Product::all();
+                $results = [];
 
-        // Completed orders (sold)
-        $totalOrdered = \App\Models\OrderItem::where('product_id', $product->id)
-            ->whereHas('order', fn ($q) => $q->where('status', 'completed'))
-            ->sum('quantity');
+                foreach ($products as $product) {
+                    $this->recalculateProductStock($product);
+                    $results[] = [
+                        'product_id' => $product->id,
+                        'product_name' => $product->name,
+                        'new_stock' => $product->available_stocks,
+                    ];
+                }
 
-        // Pending supplies & orders
-        $pendingSupplies = \App\Models\SupplyItem::where('product_id', $product->id)
-            ->whereHas('supply', fn ($q) => $q->whereIn('status', ['pending', 'processing']))
-            ->sum('quantity');
-
-        $pendingOrders = \App\Models\OrderItem::where('product_id', $product->id)
-            ->whereHas('order', fn ($q) => $q->whereIn('status', ['pending', 'processing']))
-            ->sum('quantity');
-
-        // Current stock derived from ProductStock balances
-        $currentStock = (int) $product->stockBalances()->sum('quantity');
-
-        $stockData = [
-            'product'           => $product,
-            'current_stock'     => $currentStock,
-            'total_supplied'    => $totalSupplied,
-            'total_ordered'     => $totalOrdered,
-            'projected_stock'   => $currentStock + $pendingSupplies - $pendingOrders,
-            'pending_supplies'  => $pendingSupplies,
-            'pending_orders'    => $pendingOrders,
-            'stock_by_location' => $product->stockBalances()->with('location')->get()->each(function ($s) {
-                // Provide alias used by Blade
-                $s->setRelation('stockLocation', $s->location);
-            }),
-            'supplies'          => \App\Models\Supply::query()
-                ->whereHas('items', fn ($q) => $q->where('product_id', $product->id))
-                ->with(['vendor'])
-                ->get()
-                ->map(function ($supply) use ($product) {
-                    // Attach quantity & unit cost for this product only
-                    $item = $supply->items->firstWhere('product_id', $product->id);
-                    $supply->quantity   = $item?->quantity ?? 0;
-                    $supply->unit_cost  = $item?->unit_cost ?? 0;
-                    $supply->vendor_name= $supply->vendor?->name;
-                    return $supply;
-                }),
-            'orders'            => \App\Models\Order::query()
-                ->whereHas('items', fn ($q) => $q->where('product_id', $product->id))
-                ->with(['customer'])
-                ->get()
-                ->map(function ($order) use ($product) {
-                    $item = $order->items->firstWhere('product_id', $product->id);
-                    $order->quantity   = $item?->quantity ?? 0;
-                    $order->unit_price = $item?->unit_price ?? 0;
-                    $order->customer_name = $order->customer?->name;
-                    return $order;
-                }),
-        ];
-
-        return $stockData;
+                return $results;
+            },
+            'product stock calculation'
+        );
     }
 
+    /**
+     * Recalculate available_stocks for a specific product
+     * Only considers internal locations (warehouses and retailers)
+     */
+    public function recalculateProductStock(Product $product): void
+    {
+        // Get base stock from product_stocks table (internal locations only)
+        $baseStock = DB::table('product_stocks')
+            ->where('product_id', $product->id)
+            ->whereIn('location_type', [
+                'App\\Models\\Warehouse',
+                'App\\Models\\Retailer'
+            ])
+            ->sum('quantity');
+
+        // Update the product's available_stocks
+        $product->update(['available_stocks' => max(0, $baseStock)]);
+    }
+
+    /**
+     * Get filtered products with pagination
+     */
+    public function getFilteredProducts(array $filters = [], int $perPage = 20)
+    {
+        return $this->getPaginatedOrEmpty(
+            function() use ($filters, $perPage) {
+                $query = Product::query();
+
+                // Apply search filter
+                if (!empty($filters['search'])) {
+                    $search = $filters['search'];
+                    $query->where(function ($q) use ($search) {
+                        $q->where('name', 'like', "%{$search}%")
+                          ->orWhere('sku', 'like', "%{$search}%")
+                          ->orWhere('description', 'like', "%{$search}%");
+                    });
+                }
+
+                // Apply price filters
+                if (!empty($filters['price_min'])) {
+                    $query->where('selling_price', '>=', $filters['price_min']);
+                }
+                if (!empty($filters['price_max'])) {
+                    $query->where('selling_price', '<=', $filters['price_max']);
+                }
+
+                // Apply stock filters
+                if (!empty($filters['stock_min'])) {
+                    $query->where('available_stocks', '>=', $filters['stock_min']);
+                }
+                if (!empty($filters['stock_max'])) {
+                    $query->where('available_stocks', '<=', $filters['stock_max']);
+                }
+
+                // Apply sorting
+                $sortField = $filters['sort'] ?? 'id';
+                $sortDirection = $filters['direction'] ?? 'desc';
+                $query->orderBy($sortField, $sortDirection);
+
+                return $query->paginate($perPage);
+            },
+            'products',
+            $perPage,
+            $filters
+        );
+    }
+
+    /**
+     * Get transaction history for a product
+     */
     public function transactionHistory(Product $product): array
     {
-        $totalSupplied = \App\Models\SupplyItem::where('product_id', $product->id)
-            ->sum('quantity');
-        $totalSold = \App\Models\OrderItem::where('product_id', $product->id)
-            ->sum('quantity');
-
-        // Transfers (stock transfers)
-        $totalTransferred = \App\Models\StockTransferItem::where('product_id', $product->id)->sum('quantity');
-
-        // Current balances
-        $stockBalances = $product->stockBalances()->with('location')->get()->each(function ($s) {
-            $s->setRelation('stockLocation', $s->location);
-        });
-
-        $currentTotalStock     = $stockBalances->sum('quantity');
-        $currentReservedStock  = $stockBalances->sum('reserved_quantity');
-        $currentAvailableStock = $currentTotalStock - $currentReservedStock;
-
-        // Movements (stock transactions)
-        $movements = \App\Models\StockTransaction::where('product_id', $product->id)
-            ->with('location') // eager load polymorphic location (warehouse/retailer)
-            ->orderByDesc('transaction_date')
-            ->paginate(20);
-
-        /* ------------------------------------------------------------------
-         | Post-process each transaction so the Blade template has the
-         | aliases/attributes it is expecting (movement_date, movement_type,
-         | fromLocation, toLocation, status)
-         |------------------------------------------------------------------*/
-        $movements->getCollection()->transform(function ($txn) {
-            /* --------------------------------------------------------------
-             | movement_date : ensure Carbon instance available
-             --------------------------------------------------------------*/
-            $txn->movement_date = $txn->transaction_date ?? $txn->created_at ?? now();
-
-            /* --------------------------------------------------------------
-             | movement_type : map internal constants to legacy labels used
-             | by the Blade ( supply_in / sale / transfer / adjustment )
-             --------------------------------------------------------------*/
-            $txn->movement_type = match ($txn->transaction_type) {
-                \App\Models\StockTransaction::TYPE_STOCK_IN          => 'supply_in',
-                \App\Models\StockTransaction::TYPE_ORDER_FULFILLMENT => 'sale',
-                \App\Models\StockTransaction::TYPE_STOCK_TRANSFER    => 'transfer',
-                default                                               => 'adjustment',
-            };
-
-            /* --------------------------------------------------------------
-             | fromLocation / toLocation : derive based on direction
-             | If direction == outbound  => FROM is current location
-             | If direction == inbound   => TO   is current location
-             --------------------------------------------------------------*/
-            if ($txn->direction === 'outbound') {
-                $txn->fromLocation = $txn->location; // warehouse/retailer
-                $txn->toLocation   = null;
-            } else {
-                $txn->fromLocation = null;
-                $txn->toLocation   = $txn->location;
-
-                // Populate meaningful fromLocation for inbound scenarios
-                if ($txn->reference_type === \App\Models\Supply::class) {
-                    $supply = $txn->reference_id ? \App\Models\Supply::with(['vendor'])->find($txn->reference_id) : null;
-                    if ($supply && $supply->vendor) {
-                        $txn->fromLocation = (object) [
-                            'name'          => $supply->vendor->name,
-                            'location_type' => 'vendor',
-                        ];
-                    }
-                }
-
-                if ($txn->reference_type === \App\Models\StockTransfer::class) {
-                    $transfer = $txn->reference_id ? \App\Models\StockTransfer::find($txn->reference_id) : null;
-                    if ($transfer) {
-                        // Build a pseudo location object for the source
-                        $srcModel = app($transfer->from_location_type)::find($transfer->from_location_id);
-                        if ($srcModel) {
-                            $txn->fromLocation = (object) [
-                                'name'          => $srcModel->name ?? ('ID '.$srcModel->id),
-                                'location_type' => strtolower(class_basename($transfer->from_location_type)),
-                            ];
-                        }
-                    }
-                }
-            }
-
-            /* --------------------------------------------------------------
-             | status : proxy status from the reference model (supply/order/
-             | transfer) if available, else default to completed.
-             --------------------------------------------------------------*/
-            $status = 'completed';
-            if ($txn->reference_type && $txn->reference_id) {
+        return $this->handleServiceOperation(
+            function() use ($product) {
+                // Simplified version to isolate the issue
+                $totalSupplied = 0;
+                $totalSold = 0;
+                $totalTransferred = 0;
+                
                 try {
-                    $refModel = app($txn->reference_type)::find($txn->reference_id);
-                    if ($refModel && property_exists($refModel, 'status')) {
-                        $status = $refModel->status ?? $status;
-                    }
-                } catch (\Throwable $e) {
-                    // silent – keep default status
+                    // Get total supplied quantity (completed supplies)
+                    $totalSupplied = DB::table('supply_items')
+                        ->join('supplies', 'supply_items.supply_id', '=', 'supplies.id')
+                        ->where('supply_items.product_id', $product->id)
+                        ->where('supplies.status', 'completed')
+                        ->sum('supply_items.quantity');
+                } catch (Exception $e) {
+                    // Log error but continue
+                    Log::error('Error getting total supplied', ['error' => $e->getMessage()]);
                 }
-            }
-            $txn->status = $status;
 
-            return $txn;
-        });
+                try {
+                    // Get total sold quantity (completed orders)
+                    $totalSold = DB::table('order_items')
+                        ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                        ->where('order_items.product_id', $product->id)
+                        ->where('orders.status', 'completed')
+                        ->sum('order_items.quantity');
+                } catch (Exception $e) {
+                    // Log error but continue
+                    Log::error('Error getting total sold', ['error' => $e->getMessage()]);
+                }
 
-        // Picking lists (using PickingListItem model maybe) – keep empty for now if models missing
-        $pickingLists = \App\Models\PickingList::query()
-            ->whereHas('items', fn ($q) => $q->where('product_id', $product->id))
-            ->with(['fromLocation', 'toLocation'])
-            ->latest()
-            ->take(10)
-            ->get();
+                try {
+                    // Get total transferred quantity (completed stock transfers)
+                    $totalTransferred = DB::table('stock_transfer_items')
+                        ->join('stock_transfers', 'stock_transfer_items.stock_transfer_id', '=', 'stock_transfers.id')
+                        ->where('stock_transfer_items.product_id', $product->id)
+                        ->where('stock_transfers.status', 'completed')
+                        ->sum('stock_transfer_items.quantity');
+                } catch (Exception $e) {
+                    // Log error but continue
+                    Log::error('Error getting total transferred', ['error' => $e->getMessage()]);
+                }
 
-        return compact(
-            'product',
-            'totalSupplied',
-            'totalSold',
-            'totalTransferred',
-            'currentTotalStock',
-            'currentAvailableStock',
-            'currentReservedStock',
-            'stockBalances',
-            'movements',
-            'pickingLists',
+                // Get current stock balances by location
+                $stockBalances = collect();
+                try {
+                    $stockBalances = DB::table('product_stocks')
+                        ->leftJoin('warehouses', function($join) {
+                            $join->on('product_stocks.location_id', '=', 'warehouses.id')
+                                 ->on('product_stocks.location_type', '=', DB::raw("'App\\\\Models\\\\Warehouse'"));
+                        })
+                        ->leftJoin('retailers', function($join) {
+                            $join->on('product_stocks.location_id', '=', 'retailers.id')
+                                 ->on('product_stocks.location_type', '=', DB::raw("'App\\\\Models\\\\Retailer'"));
+                        })
+                        ->where('product_stocks.product_id', $product->id)
+                        ->select(
+                            'product_stocks.*',
+                            DB::raw('COALESCE(warehouses.name, retailers.name) as location_name'),
+                            DB::raw('CASE WHEN warehouses.id IS NOT NULL THEN "warehouse" 
+                                     WHEN retailers.id IS NOT NULL THEN "retailer" 
+                                     ELSE "unknown" END as location_type'),
+                            DB::raw('(product_stocks.quantity - COALESCE(product_stocks.reserved_quantity, 0)) as available_quantity')
+                        )
+                        ->get()
+                        ->map(function ($balance) {
+                            // Create a stockLocation object for the view
+                            $balance->stockLocation = (object) [
+                                'name' => $balance->location_name,
+                                'location_type' => $balance->location_type,
+                            ];
+                            return $balance;
+                        });
+                } catch (Exception $e) {
+                    // Log error but continue
+                    Log::error('Error getting stock balances', ['error' => $e->getMessage()]);
+                }
+
+                // Ensure stockBalances is always a collection
+                if (!$stockBalances instanceof \Illuminate\Support\Collection) {
+                    $stockBalances = collect();
+                }
+
+                // Get all stock movements (transactions)
+                $movements = collect();
+                try {
+                    $movements = StockTransaction::with(['location', 'reference'])
+                        ->where('product_id', $product->id)
+                        ->latest('transaction_date')
+                        ->get()
+                        ->map(function ($transaction) {
+                            // Determine movement type based on transaction type
+                            $movementType = 'adjustment'; // default
+                            switch($transaction->transaction_type) {
+                                case 'stock_in':
+                                    $movementType = 'supply_in';
+                                    break;
+                                case 'order_fulfillment':
+                                    $movementType = 'sale';
+                                    break;
+                                case 'stock_transfer':
+                                    $movementType = 'transfer';
+                                    break;
+                                case 'customer_return':
+                                    $movementType = 'customer_return';
+                                    break;
+                                case 'vendor_return':
+                                    $movementType = 'vendor_return';
+                                    break;
+                                case 'retailer_return':
+                                    $movementType = 'retailer_return';
+                                    break;
+                            }
+
+                            // Determine from/to locations based on direction and transaction type
+                            $fromLocation = null;
+                            $toLocation = null;
+
+                            if ($transaction->direction === 'outbound') {
+                                $fromLocation = $transaction->location;
+                                // For sales, destination is customer
+                                if ($transaction->transaction_type === 'order_fulfillment') {
+                                    $toLocation = null; // Customer (not a location in our system)
+                                } else {
+                                    $toLocation = null; // Will be determined by reference
+                                }
+                            } else {
+                                $toLocation = $transaction->location;
+                                // For supplies, source is vendor
+                                if ($transaction->transaction_type === 'stock_in') {
+                                    $fromLocation = null; // Vendor (not a location in our system)
+                                } else {
+                                    $fromLocation = null; // Will be determined by reference
+                                }
+                            }
+
+                            // For transfers, determine from/to from the reference
+                            if ($transaction->transaction_type === 'stock_transfer' && $transaction->reference) {
+                                $fromLocation = $transaction->reference->fromLocation;
+                                $toLocation = $transaction->reference->toLocation;
+                            }
+
+                            return (object) [
+                                'id' => $transaction->id,
+                                'movement_date' => $transaction->transaction_date,
+                                'movement_type' => $movementType,
+                                'direction' => $transaction->direction,
+                                'quantity' => $transaction->quantity,
+                                'fromLocation' => $fromLocation,
+                                'toLocation' => $toLocation,
+                                'reference_type' => $transaction->reference_type ? (strpos($transaction->reference_type, '\\') !== false ? substr($transaction->reference_type, strrpos($transaction->reference_type, '\\') + 1) : $transaction->reference_type) : null,
+                                'reference_id' => $transaction->reference_id,
+                                'status' => $transaction->status ?? 'completed',
+                                'notes' => $transaction->notes,
+                            ];
+                        });
+                } catch (Exception $e) {
+                    // Log error but continue
+                    Log::error('Error getting movements', ['error' => $e->getMessage()]);
+                    $movements = collect(); // Ensure it's always a collection
+                }
+
+                // Ensure movements is always a collection
+                if (!$movements instanceof \Illuminate\Support\Collection) {
+                    $movements = collect();
+                }
+
+                // Get related picking lists
+                $pickingLists = collect();
+                try {
+                    $pickingLists = DB::table('picking_list_items')
+                        ->join('picking_lists', 'picking_list_items.picking_list_id', '=', 'picking_lists.id')
+                        ->leftJoin('warehouses as from_warehouses', function($join) {
+                            $join->on('picking_lists.from_location_id', '=', 'from_warehouses.id')
+                                 ->on('picking_lists.from_location_type', '=', DB::raw("'App\\\\Models\\\\Warehouse'"));
+                        })
+                        ->leftJoin('retailers as from_retailers', function($join) {
+                            $join->on('picking_lists.from_location_id', '=', 'from_retailers.id')
+                                 ->on('picking_lists.from_location_type', '=', DB::raw("'App\\\\Models\\\\Retailer'"));
+                        })
+                        ->leftJoin('warehouses as to_warehouses', function($join) {
+                            $join->on('picking_lists.to_location_id', '=', 'to_warehouses.id')
+                                 ->on('picking_lists.to_location_type', '=', DB::raw("'App\\\\Models\\\\Warehouse'"));
+                        })
+                        ->leftJoin('retailers as to_retailers', function($join) {
+                            $join->on('picking_lists.to_location_id', '=', 'to_retailers.id')
+                                 ->on('picking_lists.to_location_type', '=', DB::raw("'App\\\\Models\\\\Retailer'"));
+                        })
+                        ->where('picking_list_items.product_id', $product->id)
+                        ->select(
+                            'picking_lists.id',
+                            'picking_lists.picking_date',
+                            'picking_lists.status',
+                            'picking_lists.picking_type',
+                            'picking_list_items.quantity',
+                            DB::raw('COALESCE(from_warehouses.name, from_retailers.name) as from_location_name'),
+                            DB::raw('COALESCE(to_warehouses.name, to_retailers.name) as to_location_name')
+                        )
+                        ->orderBy('picking_lists.picking_date', 'desc')
+                        ->get()
+                        ->map(function ($picking) {
+                            // Create fromLocation and toLocation objects for the view
+                            $picking->fromLocation = $picking->from_location_name ? (object) [
+                                'name' => $picking->from_location_name,
+                            ] : null;
+                            $picking->toLocation = $picking->to_location_name ? (object) [
+                                'name' => $picking->to_location_name,
+                            ] : null;
+                            $picking->picking_number = 'PL-' . str_pad($picking->id, 6, '0', STR_PAD_LEFT);
+                            return $picking;
+                        });
+                } catch (Exception $e) {
+                    // Log error but continue
+                    Log::error('Error getting picking lists', ['error' => $e->getMessage()]);
+                }
+
+                // Ensure pickingLists is always a collection
+                if (!$pickingLists instanceof \Illuminate\Support\Collection) {
+                    $pickingLists = collect();
+                }
+
+                // Calculate current stock totals
+                $currentTotalStock = $stockBalances->sum('quantity');
+                $currentAvailableStock = $stockBalances->sum('available_quantity');
+                $currentReservedStock = $currentTotalStock - $currentAvailableStock;
+
+                return [
+                    'product' => $product,
+                    'totalSupplied' => $totalSupplied,
+                    'totalSold' => $totalSold,
+                    'totalTransferred' => $totalTransferred,
+                    'currentTotalStock' => $currentTotalStock,
+                    'currentAvailableStock' => $currentAvailableStock,
+                    'currentReservedStock' => $currentReservedStock,
+                    'stockBalances' => $stockBalances,
+                    'movements' => $movements,
+                    'pickingLists' => $pickingLists,
+                ];
+            },
+            'product transaction history',
+            $product->id
+        );
+    }
+
+    /**
+     * Get filter options for the view
+     */
+    public function getFilterOptions(): array
+    {
+        return [
+            'search' => [
+                'type' => 'text',
+                'label' => 'Search',
+                'placeholder' => 'Search by name, SKU, or description'
+            ],
+            'price_min' => [
+                'type' => 'number',
+                'label' => 'Min Price',
+                'placeholder' => 'Minimum price'
+            ],
+            'price_max' => [
+                'type' => 'number',
+                'label' => 'Max Price',
+                'placeholder' => 'Maximum price'
+            ],
+            'stock_min' => [
+                'type' => 'number',
+                'label' => 'Min Stock',
+                'placeholder' => 'Minimum stock level'
+            ],
+            'stock_max' => [
+                'type' => 'number',
+                'label' => 'Max Stock',
+                'placeholder' => 'Maximum stock level'
+            ]
+        ];
+    }
+
+    /**
+     * Get sort options for the view
+     */
+    public function getSortOptions(): array
+    {
+        return [
+            'id' => 'ID',
+            'name' => 'Name',
+            'sku' => 'SKU',
+            'selling_price' => 'Price',
+            'available_stocks' => 'Stock Level',
+            'created_at' => 'Created Date',
+        ];
+    }
+
+    /**
+     * Get stock analysis for a product
+     */
+    public function stockAnalysis(Product $product): array
+    {
+        return $this->handleServiceOperation(
+            function() use ($product) {
+                // Get total supplied quantity (completed supplies)
+                $totalSupplied = DB::table('supply_items')
+                    ->join('supplies', 'supply_items.supply_id', '=', 'supplies.id')
+                    ->where('supply_items.product_id', $product->id)
+                    ->where('supplies.status', 'completed')
+                    ->sum('supply_items.quantity');
+
+                // Get total ordered quantity (completed orders)
+                $totalOrdered = DB::table('order_items')
+                    ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                    ->where('order_items.product_id', $product->id)
+                    ->where('orders.status', 'completed')
+                    ->sum('order_items.quantity');
+
+                // Calculate current stock
+                $currentStock = $totalSupplied - $totalOrdered;
+
+                // Get pending supplies
+                $pendingSupplies = DB::table('supply_items')
+                    ->join('supplies', 'supply_items.supply_id', '=', 'supplies.id')
+                    ->where('supply_items.product_id', $product->id)
+                    ->whereIn('supplies.status', ['pending', 'processing'])
+                    ->sum('supply_items.quantity');
+
+                // Get pending orders
+                $pendingOrders = DB::table('order_items')
+                    ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                    ->where('order_items.product_id', $product->id)
+                    ->whereIn('orders.status', ['pending', 'processing'])
+                    ->sum('order_items.quantity');
+
+                // Calculate projected stock
+                $projectedStock = $currentStock + $pendingSupplies - $pendingOrders;
+
+                // Get stock by location using product_stocks table
+                $stockByLocation = DB::table('product_stocks')
+                    ->leftJoin('stock_locations', function($join) {
+                        $join->on('product_stocks.location_id', '=', 'stock_locations.id')
+                             ->where('product_stocks.location_type', '=', DB::raw("'App\\\\Models\\\\StockLocation'"));
+                    })
+                    ->leftJoin('warehouses', function($join) {
+                        $join->on('product_stocks.location_id', '=', 'warehouses.id')
+                             ->where('product_stocks.location_type', '=', DB::raw("'App\\\\Models\\\\Warehouse'"));
+                    })
+                    ->leftJoin('retailers', function($join) {
+                        $join->on('product_stocks.location_id', '=', 'retailers.id')
+                             ->where('product_stocks.location_type', '=', DB::raw("'App\\\\Models\\\\Retailer'"));
+                    })
+                    ->leftJoin(DB::raw('(SELECT 
+                        location_id, 
+                        location_type, 
+                        MAX(transaction_date) as last_movement_date 
+                        FROM stock_transactions 
+                        WHERE product_id = ' . $product->id . ' 
+                        GROUP BY location_id, location_type) as last_movements'), function($join) {
+                        $join->on('product_stocks.location_id', '=', 'last_movements.location_id')
+                             ->on('product_stocks.location_type', '=', 'last_movements.location_type');
+                    })
+                    ->where('product_stocks.product_id', $product->id)
+                    ->select(
+                        'product_stocks.*',
+                        DB::raw('COALESCE(stock_locations.name, warehouses.name, retailers.name) as location_name'),
+                        DB::raw('COALESCE(stock_locations.type, 
+                            CASE WHEN warehouses.id IS NOT NULL THEN "warehouse" 
+                                 WHEN retailers.id IS NOT NULL THEN "retailer" 
+                                 ELSE "unknown" END) as location_type'),
+                        DB::raw('(product_stocks.quantity - COALESCE(product_stocks.reserved_quantity, 0)) as available_quantity'),
+                        'last_movements.last_movement_date'
+                    )
+                    ->get();
+
+                // Get supplies history
+                $supplies = DB::table('supply_items')
+                    ->join('supplies', 'supply_items.supply_id', '=', 'supplies.id')
+                    ->join('vendors', 'supplies.vendor_id', '=', 'vendors.id')
+                    ->where('supply_items.product_id', $product->id)
+                    ->select(
+                        'supply_items.supply_id',
+                        'supplies.supply_date',
+                        'vendors.name as vendor_name',
+                        'supply_items.quantity',
+                        'supply_items.unit_cost',
+                        'supplies.status'
+                    )
+                    ->orderBy('supplies.supply_date', 'desc')
+                    ->get();
+
+                // Get orders history
+                $orders = DB::table('order_items')
+                    ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                    ->join('customers', 'orders.customer_id', '=', 'customers.id')
+                    ->where('order_items.product_id', $product->id)
+                    ->select(
+                        'order_items.order_id',
+                        'orders.order_date',
+                        'customers.name as customer_name',
+                        'order_items.quantity',
+                        'order_items.unit_price',
+                        'orders.status'
+                    )
+                    ->orderBy('orders.order_date', 'desc')
+                    ->get();
+
+                // Get return statistics
+                $returnStats = DB::table('stock_transactions')
+                    ->where('product_id', $product->id)
+                    ->whereIn('transaction_type', [
+                        \App\Models\StockTransaction::TYPE_CUSTOMER_RETURN,
+                        \App\Models\StockTransaction::TYPE_VENDOR_RETURN,
+                        \App\Models\StockTransaction::TYPE_RETAILER_RETURN
+                    ])
+                    ->selectRaw('
+                        transaction_type,
+                        direction,
+                        status,
+                        SUM(CASE WHEN direction = "inbound" THEN quantity ELSE 0 END) as inbound_quantity,
+                        SUM(CASE WHEN direction = "outbound" THEN quantity ELSE 0 END) as outbound_quantity,
+                        COUNT(*) as transaction_count
+                    ')
+                    ->groupBy('transaction_type', 'direction', 'status')
+                    ->get();
+
+                // Calculate return totals
+                $totalCustomerReturns = $returnStats->where('transaction_type', \App\Models\StockTransaction::TYPE_CUSTOMER_RETURN)->sum('inbound_quantity');
+                $totalVendorReturns = $returnStats->where('transaction_type', \App\Models\StockTransaction::TYPE_VENDOR_RETURN)->sum('outbound_quantity');
+                $totalRetailerReturns = $returnStats->where('transaction_type', \App\Models\StockTransaction::TYPE_RETAILER_RETURN)->sum('inbound_quantity');
+                $pendingReturns = $returnStats->where('status', 'pending')->sum('inbound_quantity') + $returnStats->where('status', 'pending')->sum('outbound_quantity');
+
+                // Get return history
+                $returns = DB::table('stock_transactions')
+                    ->where('product_id', $product->id)
+                    ->whereIn('transaction_type', [
+                        \App\Models\StockTransaction::TYPE_CUSTOMER_RETURN,
+                        \App\Models\StockTransaction::TYPE_VENDOR_RETURN,
+                        \App\Models\StockTransaction::TYPE_RETAILER_RETURN
+                    ])
+                    ->select(
+                        'id',
+                        'transaction_type',
+                        'direction',
+                        'quantity',
+                        'transaction_date',
+                        'status',
+                        'notes'
+                    )
+                    ->orderBy('transaction_date', 'desc')
+                    ->get();
+
+                return [
+                    'product' => $product,
+                    'current_stock' => $currentStock,
+                    'total_supplied' => $totalSupplied,
+                    'total_ordered' => $totalOrdered,
+                    'projected_stock' => $projectedStock,
+                    'stock_by_location' => $stockByLocation,
+                    'pending_supplies' => $pendingSupplies,
+                    'pending_orders' => $pendingOrders,
+                    'supplies' => $supplies,
+                    'orders' => $orders,
+                    'total_customer_returns' => $totalCustomerReturns,
+                    'total_vendor_returns' => $totalVendorReturns,
+                    'total_retailer_returns' => $totalRetailerReturns,
+                    'pending_returns' => $pendingReturns,
+                    'returns' => $returns,
+                ];
+            },
+            'product stock analysis',
+            $product->id
         );
     }
 } 

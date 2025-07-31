@@ -86,7 +86,7 @@
                     </tr>
                     <tr>
                         <th>Total Items:</th>
-                        <td>{{ $supply->items->sum('quantity') }}</td>
+                        <td>{{ $supply->items ? $supply->items->sum('quantity') : 0 }}</td>
                     </tr>
                     <tr>
                         <th>Total Cost:</th>

@@ -265,35 +265,47 @@ class AccountingObserversTest extends TestCase
         ]);
         $invoice = app(\App\Services\InvoiceService::class)->generateFromOrder($order);
 
-        // Create Return record in initiated state
-        /** @var \App\Models\ReturnRecord $return */
-        $return = \App\Models\ReturnRecord::create([
+        // Create stock transaction for return (using unified approach)
+        $returnTransaction = \App\Models\StockTransaction::create([
+            'product_id' => $product->id,
+            'transaction_type' => 'customer_return',
+            'direction' => 'inbound',
+            'quantity' => 1,
+            'unit_cost' => 20,
+            'total_cost' => 20,
+            'status' => 'completed',
+            'location_type' => \App\Models\Warehouse::class,
+            'location_id' => \App\Models\Warehouse::first()->id,
             'reference_type' => $invoice->getMorphClass(),
-            'reference_id'   => $invoice->id,
-            'status'         => 'initiated',
-            'return_date'    => now(),
-            'reason'         => 'Damaged',
-        ]);
-        \App\Models\ReturnItem::create([
-            'return_id' => $return->id,
-            'product_id'=> $product->id,
-            'quantity'  => 1,
-            'reason'    => 'Damaged',
+            'reference_id' => $invoice->id,
+            'notes' => json_encode([
+                'reason' => 'Damaged',
+                'amount' => 20,
+                'approved_by' => 1,
+                'approved_at' => now()->toISOString(),
+                'completed_by' => 1,
+                'completed_at' => now()->toISOString(),
+            ]),
         ]);
 
-        // Complete return (observer fires)
-        $return->update(['status' => 'completed']);
-        // Touch again (should not duplicate)
-        $return->update(['reason' => 'Updated note']);
+        // Update return transaction (observer fires)
+        $returnTransaction->update(['notes' => json_encode([
+            'reason' => 'Updated note',
+            'amount' => 20,
+            'approved_by' => 1,
+            'approved_at' => now()->toISOString(),
+            'completed_by' => 1,
+            'completed_at' => now()->toISOString(),
+        ])]);
 
-        $entry = \App\Models\JournalEntry::where('source_type', $return->getMorphClass())
-            ->where('source_id', $return->id)
+        $entry = \App\Models\JournalEntry::where('source_type', $returnTransaction->getMorphClass())
+            ->where('source_id', $returnTransaction->id)
             ->first();
         $this->assertNotNull($entry, 'Return journal missing');
         $this->assertEquals($entry->totalDebit(), $entry->totalCredit());
 
-        $count = \App\Models\JournalEntry::where('source_type', $return->getMorphClass())
-            ->where('source_id', $return->id)->count();
+        $count = \App\Models\JournalEntry::where('source_type', $returnTransaction->getMorphClass())
+            ->where('source_id', $returnTransaction->id)->count();
         $this->assertEquals(1, $count, 'Return journal duplicated');
     }
 } 

@@ -15,6 +15,22 @@
         </a>
     </div>
 
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle me-2"></i>
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
 <div class="card">
     <div class="card-body">
         <!-- Sorting Controls -->
@@ -45,12 +61,12 @@
                 <tbody>
                     @forelse ($vendors as $vendor)
                     <tr>
-                        <td data-label="ID">{{ $vendor->id }}</td>
-                        <td data-label="Name">{{ $vendor->name }}</td>
-                        <td data-label="Contact Person">{{ $vendor->contact_person }}</td>
-                        <td data-label="Email">{{ $vendor->email }}</td>
-                        <td data-label="Phone">{{ $vendor->phone }}</td>
-                        <td data-label="Actions">
+                        <td>{{ $vendor->id }}</td>
+                        <td>{{ $vendor->name }}</td>
+                        <td>{{ $vendor->contact_person }}</td>
+                        <td>{{ $vendor->email }}</td>
+                        <td>{{ $vendor->phone }}</td>
+                        <td>
                             <div class="d-flex flex-wrap gap-1">
                                 <a href="{{ route('vendors.show', $vendor) }}" class="btn btn-sm btn-info d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Details">
                                     <i class="bi bi-eye"></i>
@@ -77,7 +93,16 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="text-center">No vendors found</td>
+                        <td colspan="6" class="text-center py-4">
+                            <div class="text-muted">
+                                <i class="bi bi-building display-1 d-block mb-3"></i>
+                                <h5>No Vendors Found</h5>
+                                <p class="mb-0">No vendors have been added to the system yet.</p>
+                                <a href="{{ route('vendors.create') }}" class="btn btn-primary mt-3">
+                                    <i class="bi bi-plus-circle me-1"></i>Add First Vendor
+                                </a>
+                            </div>
+                        </td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -89,34 +114,189 @@
 
 @section('scripts')
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="{{ asset('js/datatables-utils.js') }}"></script>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const table = $('#data-table').DataTable({
-            paging: true,
-            ordering: true,
-            info: true,
-            lengthMenu: [10, 25, 50, 100],
-            language: {
-                search: 'Filter:',
-                lengthMenu: 'Show _MENU_ entries',
-                info: 'Showing _START_ to _END_ of _TOTAL_ vendors',
+    // Enhanced DataTables initialization using DataTablesUtils
+    function initializeDataTables() {
+        try {
+            console.log('Starting DataTables initialization...');
+            
+            // Check if required dependencies are available
+            if (typeof jQuery === 'undefined') {
+                console.warn('jQuery not available, retrying in 100ms');
+                setTimeout(initializeDataTables, 100);
+                return;
             }
-        });
 
-        $('#sort-by').on('change', function(){
-            table.order([parseInt(this.value,10), $('#sort-direction').data('dir')]).draw();
-        });
+            if (typeof jQuery.fn.DataTable === 'undefined') {
+                console.warn('DataTables plugin not available, retrying in 100ms');
+                setTimeout(initializeDataTables, 100);
+                return;
+            }
 
-        $('#sort-direction').on('click', function(){
-            const dir = $(this).data('dir') === 'asc' ? 'desc' : 'asc';
-            $(this).data('dir', dir);
-            $(this).find('i').toggleClass('bi-sort-alpha-down bi-sort-alpha-up');
-            $('#sort-by').trigger('change');
+            // Check if table element exists
+            const tableElement = document.getElementById('data-table');
+            if (!tableElement) {
+                console.warn('Table element with ID "data-table" not found, retrying in 100ms');
+                setTimeout(initializeDataTables, 100);
+                return;
+            }
+
+            console.log('Table element found, checking if already initialized...');
+
+            // Check if table is already initialized
+            if (jQuery.fn.DataTable.isDataTable('#data-table')) {
+                console.log('DataTable already initialized, destroying and reinitializing');
+                jQuery('#data-table').DataTable().destroy();
+            }
+
+            // Use DataTablesUtils for safe initialization
+            if (typeof DataTablesUtils !== 'undefined' && DataTablesUtils.isReady()) {
+                console.log('DataTablesUtils available and ready, using safe initialization...');
+                
+                // Clean up any existing DataTables artifacts
+                DataTablesUtils.cleanupForDataTables('data-table');
+                
+                // Get table stats for debugging
+                const stats = DataTablesUtils.getTableStats('data-table');
+                console.log('Table stats:', stats);
+                
+                // Use a simpler configuration to avoid cell indexing issues
+                const table = DataTablesUtils.safeInit('#data-table', {
+                    responsive: false, // Disable responsive to avoid cell issues
+                    pageLength: 25,
+                    order: [[0, 'desc']],
+                    language: {
+                        emptyTable: "No vendors found",
+                        zeroRecords: "No vendors match your search criteria"
+                    },
+                    columnDefs: [
+                        {
+                            targets: -1, // Actions column
+                            orderable: false,
+                            searchable: false
+                        }
+                    ],
+                    // Disable problematic features that might cause cell indexing issues
+                    deferRender: true,
+                    processing: false,
+                    // Simple initialization without complex callbacks
+                    initComplete: function() {
+                        console.log('DataTable initialized successfully');
+                    }
+                });
+
+                if (table) {
+                    console.log('DataTable initialized successfully using DataTablesUtils');
+                } else {
+                    console.warn('DataTable initialization failed, retrying in 100ms');
+                    setTimeout(initializeDataTables, 100);
+                }
+            } else if (typeof DataTablesUtils !== 'undefined') {
+                // DataTablesUtils exists but dependencies not ready, wait for them
+                console.log('DataTablesUtils available but dependencies not ready, waiting...');
+                DataTablesUtils.waitForReady(function() {
+                    console.log('Dependencies ready, retrying initialization...');
+                    setTimeout(initializeDataTables, 50);
+                });
+            } else {
+                console.log('DataTablesUtils not available, using fallback initialization...');
+                
+                // Clean up table manually for fallback initialization
+                if (tableElement) {
+                    // Remove data-label attributes
+                    const dataLabelCells = tableElement.querySelectorAll('td[data-label], th[data-label]');
+                    dataLabelCells.forEach(cell => cell.removeAttribute('data-label'));
+                    
+                    // Clean up any existing DataTables properties
+                    const allCells = tableElement.querySelectorAll('td, th');
+                    allCells.forEach(cell => {
+                        if (cell._DT_CellIndex !== undefined) delete cell._DT_CellIndex;
+                        if (cell._DT_RowIndex !== undefined) delete cell._DT_RowIndex;
+                    });
+                    
+                    // Ensure all cells have content
+                    allCells.forEach(cell => {
+                        if (!cell.textContent.trim() && !cell.innerHTML.trim()) {
+                            cell.innerHTML = '&nbsp;';
+                        }
+                    });
+                }
+
+                // Use a simpler configuration for fallback
+                const table = jQuery('#data-table').DataTable({
+                    responsive: false, // Disable responsive to avoid cell issues
+                    pageLength: 25,
+                    order: [[0, 'desc']],
+                    language: {
+                        emptyTable: "No vendors found",
+                        zeroRecords: "No vendors match your search criteria"
+                    },
+                    columnDefs: [
+                        {
+                            targets: -1, // Actions column
+                            orderable: false,
+                            searchable: false
+                        }
+                    ],
+                    // Disable problematic features
+                    deferRender: true,
+                    processing: false,
+                    // Simple initialization without complex callbacks
+                    initComplete: function() {
+                        console.log('DataTable initialized successfully');
+                    }
+                });
+
+                console.log('DataTable initialized successfully (fallback method)');
+            }
+
+        } catch (error) {
+            console.error('Error initializing DataTable:', error);
+            // Don't retry on error to avoid infinite loops
+        }
+    }
+
+    // Enhanced initialization with multiple fallback strategies
+    function startInitialization() {
+        console.log('Starting DataTables initialization sequence...');
+        
+        // Strategy 1: Try immediately if everything is ready
+        if (document.readyState === 'complete' && typeof jQuery !== 'undefined' && typeof jQuery.fn.DataTable !== 'undefined') {
+            console.log('All dependencies ready, initializing immediately...');
+            initializeDataTables();
+            return;
+        }
+        
+        // Strategy 2: Wait for DOM content loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('DOM content loaded, waiting for dependencies...');
+                setTimeout(initializeDataTables, 100);
+            });
+        } else {
+            // DOM is already loaded, wait for dependencies
+            console.log('DOM already loaded, waiting for dependencies...');
+            setTimeout(initializeDataTables, 100);
+        }
+        
+        // Strategy 3: Wait for window load
+        window.addEventListener('load', function() {
+            console.log('Window loaded, attempting initialization...');
+            setTimeout(initializeDataTables, 200);
         });
-    });
+        
+        // Strategy 4: Final fallback with longer delay
+        setTimeout(function() {
+            console.log('Final fallback initialization attempt...');
+            initializeDataTables();
+        }, 1000);
+    }
+    
+    // Start the initialization sequence
+    startInitialization();
 </script>
 @endsection 

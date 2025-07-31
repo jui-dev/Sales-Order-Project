@@ -70,8 +70,8 @@
                     </p>
                     <p class="mb-1">Received Date: {{ optional($grn->received_date)->format('M d, Y') }}</p>
                     <p class="mb-1">Supply Reference: <a href="{{ route('supplies.show', $grn->supply_id) }}">#{{ $grn->supply_id }}</a></p>
-                    <p class="mb-1">Total Items: {{ $grn->supply->items->sum('quantity') }}</p>
-                    <p class="mb-1">Total Products: {{ $grn->supply->items->count() }}</p>
+                    <p class="mb-1">Total Items: {{ $grn->supply && $grn->supply->items ? $grn->supply->items->sum('quantity') : 0 }}</p>
+                    <p class="mb-1">Total Products: {{ $grn->supply && $grn->supply->items ? $grn->supply->items->count() : 0 }}</p>
                 </div>
             </div>
         </div>
@@ -123,7 +123,7 @@
                     <tfoot>
                         <tr class="table-active">
                             <td colspan="3" class="text-end"><strong>Total Items Received:</strong></td>
-                            <td class="text-center"><strong>{{ number_format($grn->supply->items->sum('quantity')) }}</strong></td>
+                            <td class="text-center"><strong>{{ number_format($grn->supply && $grn->supply->items ? $grn->supply->items->sum('quantity') : 0) }}</strong></td>
                             <td></td>
                         </tr>
                     </tfoot>

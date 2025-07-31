@@ -11,12 +11,16 @@
 
 <div class="card">
     <div class="card-body">
+        <div class="alert alert-light mb-4">
+            <i class="bi bi-exclamation-circle text-danger"></i> Fields marked with <span class="text-danger">*</span> are required and must be filled before submitting the form.
+        </div>
+        
         <form action="{{ route('orders.update', $order) }}" method="POST">
             @csrf
             @method('PUT')
             
             <div class="mb-3">
-                <label for="customer_id" class="form-label">Customer</label>
+                <label for="customer_id" class="form-label">Customer <span class="text-danger">*</span></label>
                 <select name="customer_id" id="customer_id" class="form-select @error('customer_id') is-invalid @enderror" required>
                     <option value="">Select Customer</option>
                     @foreach($customers as $customer)
@@ -31,7 +35,7 @@
             </div>
             
             <div class="mb-3">
-                <label for="order_date" class="form-label">Order Date</label>
+                <label for="order_date" class="form-label">Order Date <span class="text-danger">*</span></label>
                 <input type="date" name="order_date" id="order_date" class="form-control @error('order_date') is-invalid @enderror" 
                     value="{{ old('order_date', $order->order_date->format('Y-m-d')) }}" required>
                 @error('order_date')
@@ -40,11 +44,12 @@
             </div>
             
             <div class="mb-3">
-                <label for="status" class="form-label">Status</label>
+                <label for="status" class="form-label">Status <span class="text-danger">*</span></label>
                 <select name="status" id="status" class="form-select @error('status') is-invalid @enderror" required>
                     <option value="pending" {{ (old('status', $order->status) == 'pending') ? 'selected' : '' }}>Pending</option>
                     <option value="processing" {{ (old('status', $order->status) == 'processing') ? 'selected' : '' }}>Processing</option>
                     <option value="confirmed" {{ (old('status', $order->status) == 'confirmed') ? 'selected' : '' }}>Confirmed</option>
+                    <option value="completed" {{ (old('status', $order->status) == 'completed') ? 'selected' : '' }}>Completed</option>
                     <option value="cancelled" {{ (old('status', $order->status) == 'cancelled') ? 'selected' : '' }}>Cancelled</option>
                 </select>
                 @error('status')
@@ -100,4 +105,30 @@
         </form>
     </div>
 </div>
+
+<style>
+    /* Required field indicator styling - consistent with create page */
+    .text-danger {
+        color: var(--danger) !important;
+    }
+    
+    .form-label .text-danger {
+        font-weight: 600;
+        margin-left: 2px;
+    }
+    
+    /* Enhanced focus states for required fields */
+    .form-control:required:focus,
+    .form-select:required:focus {
+        border-color: var(--danger);
+        box-shadow: 0 0 0 0.2rem rgba(231, 111, 81, 0.25);
+    }
+    
+    @media (max-width: 768px) {
+        /* Ensure required indicators are visible on mobile */
+        .form-label .text-danger {
+            font-size: 0.9em;
+        }
+    }
+</style>
 @endsection 

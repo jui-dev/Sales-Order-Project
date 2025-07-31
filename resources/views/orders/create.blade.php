@@ -29,6 +29,10 @@
 
 <div class="card">
     <div class="card-body">
+        <div class="alert alert-light mb-4">
+            <i class="bi bi-exclamation-circle text-danger"></i> Fields marked with <span class="text-danger">*</span> are required and must be filled before submitting the form.
+        </div>
+        
         <form action="{{ route('orders.store') }}" method="POST" id="orderForm">
             @csrf
             
@@ -43,7 +47,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="customer_id" class="form-label">Customer</label>
+                                <label for="customer_id" class="form-label">Customer <span class="text-danger">*</span></label>
                                 <select name="customer_id" id="customer_id" class="form-select @error('customer_id') is-invalid @enderror" required>
                                     <option value="">Select Customer</option>
                                     @foreach($customers as $customer)
@@ -60,7 +64,7 @@
                         
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="order_date" class="form-label">Order Date</label>
+                                <label for="order_date" class="form-label">Order Date <span class="text-danger">*</span></label>
                                 <input type="date" name="order_date" id="order_date" class="form-control @error('order_date') is-invalid @enderror" 
                                     value="{{ old('order_date', date('Y-m-d')) }}" required>
                                 @error('order_date')
@@ -76,7 +80,7 @@
             <div class="card mb-4">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-2-circle me-2"></i>Step 2: Select Products
+                        <i class="bi bi-2-circle me-2"></i>Step 2: Select Products <span class="text-danger">*</span>
                     </h5>
                     <button type="button" id="add-item" class="btn btn-primary btn-sm">
                         <i class="bi bi-plus-circle me-1"></i>Add Item
@@ -89,7 +93,7 @@
                                 <!-- First Row: Product and Fulfillment Location -->
                                 <div class="row mb-3">
                                     <div class="col-md-6">
-                                        <label class="form-label fw-bold">Product</label>
+                                        <label class="form-label fw-bold">Product <span class="text-danger">*</span></label>
                                         <select name="products[0][product_id]" class="form-select product-select" required>
                                             <option value="">Select Product</option>
                                             @foreach($products as $product)
@@ -103,7 +107,7 @@
                                         <div class="stock-info form-text mt-1"></div>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label fw-bold">Fulfillment Location</label>
+                                        <label class="form-label fw-bold">Fulfillment Location <span class="text-danger">*</span></label>
                                         <select name="products[0][fulfillment_location_id]" class="form-select fulfillment-location-select" required>
                                             <option value="">Select product first</option>
                                         </select>
@@ -116,7 +120,7 @@
                                 <!-- Second Row: Quantity, Unit Price, Subtotal, and Remove Button -->
                                 <div class="row">
                                     <div class="col-md-3">
-                                        <label class="form-label fw-bold">Quantity</label>
+                                        <label class="form-label fw-bold">Quantity <span class="text-danger">*</span></label>
                                         <input type="number" name="products[0][quantity]" class="form-control item-quantity" min="1" value="1" required>
                                         <div class="invalid-feedback quantity-error"></div>
                                     </div>
@@ -235,6 +239,41 @@
     .invalid-feedback {
         font-size: 0.875rem;
     }
+    
+    /* Required field indicator styling - consistent with supply page */
+    .text-danger {
+        color: var(--danger) !important;
+    }
+    
+    .form-label .text-danger {
+        font-weight: 600;
+        margin-left: 2px;
+    }
+    
+    /* Enhanced focus states for required fields */
+    .form-control:required:focus,
+    .form-select:required:focus {
+        border-color: var(--danger);
+        box-shadow: 0 0 0 0.2rem rgba(231, 111, 81, 0.25);
+    }
+    
+    /* Subtle indicator for required field groups */
+    h5 .text-danger {
+        font-size: 0.8em;
+        vertical-align: super;
+        margin-left: 4px;
+    }
+    
+    @media (max-width: 768px) {
+        /* Ensure required indicators are visible on mobile */
+        .form-label .text-danger {
+            font-size: 0.9em;
+        }
+        
+        h5 .text-danger {
+            font-size: 0.7em;
+        }
+    }
 </style>
 @endsection
 
@@ -279,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const params = new URLSearchParams();
             params.append('product_ids[]', productId);
             
-            const response = await fetch(`/api/orders/available-fulfillment-locations?${params.toString()}`);
+            const response = await fetch(`/api/fulfillment-locations?${params.toString()}`);
             const data = await response.json();
             
             // Update warehouse options with stock info
@@ -438,6 +477,8 @@ document.addEventListener('DOMContentLoaded', function() {
         template.querySelector('.quantity-error').textContent = '';
         template.querySelector('.fulfillment-location-type').value = '';
         
+        // Required field indicators are preserved in the cloned template
+        
         document.getElementById('order-items').appendChild(template);
         setupEventListeners();
         
@@ -586,6 +627,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initial setup
     setupEventListeners();
+    updateTotal();
 });
 </script>
 @endsection

@@ -91,6 +91,7 @@ class GrnService
                 'reference_type'   => Grn::class,
                 'reference_id'     => $grn->id,
                 'transaction_date' => now(),
+                'status'           => 'completed', // Stock is actually received when GRN is posted
             ]);
 
             // Persist transfer item row (linked to the transfer created above)

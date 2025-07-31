@@ -480,15 +480,15 @@
 
                         <div class="stats-grid">
                             <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockBalances->count() }}</div>
+                                <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->count() : 0 }}</div>
                                 <div class="stat-label">Products</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockBalances->sum('quantity') }}</div>
+                                <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->sum('quantity') : 0 }}</div>
                                 <div class="stat-label">Stock</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockTransactions->count() }}</div>
+                                <div class="stat-value">{{ $location->stockTransactions ? $location->stockTransactions->count() : 0 }}</div>
                                 <div class="stat-label">Transactions</div>
                             </div>
                         </div>
@@ -563,15 +563,15 @@
 
                         <div class="stats-grid">
                             <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockBalances->count() }}</div>
+                                <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->count() : 0 }}</div>
                                 <div class="stat-label">Products</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockBalances->sum('quantity') }}</div>
+                                <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->sum('quantity') : 0 }}</div>
                                 <div class="stat-label">Stock</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockTransactions->count() }}</div>
+                                <div class="stat-value">{{ $location->stockTransactions ? $location->stockTransactions->count() : 0 }}</div>
                                 <div class="stat-label">Transactions</div>
                             </div>
                         </div>

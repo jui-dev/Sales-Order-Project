@@ -200,7 +200,7 @@
                             @forelse ($pickingLists as $pickingList)
                             <tr>
                                 <td data-label="Picking #">{{ $pickingList->picking_number }}</td>
-                                <td data-label="Order #">{{ $pickingList->order_id }}</td>
+                                <td data-label="Order #">{{ $pickingList->reference_id }}</td>
                                 <td data-label="From Location">{{ $pickingList->fromLocation->name }}</td>
                                 <td data-label="Status">
                                     <span class="badge bg-{{ $pickingList->status === 'completed' ? 'success' : ($pickingList->status === 'processing' ? 'primary' : 'warning') }}">
@@ -383,10 +383,10 @@ function loadStatistics() {
         fetch('{{ route("warehouse-to-customer-picking.statistics") }}')
             .then(response => response.json())
             .then(data => {
-                document.getElementById('total-pickings').textContent = data.total_pickings;
-                document.getElementById('completed-today').textContent = data.completed_today;
-                document.getElementById('pending-pickings').textContent = data.pending_pickings;
-                document.getElementById('total-items').textContent = data.total_items_shipped;
+                document.getElementById('total-pickings').textContent = data.total_pickings || '0';
+                document.getElementById('completed-today').textContent = data.completed_today || '0';
+                document.getElementById('pending-pickings').textContent = data.pending_pickings || '0';
+                document.getElementById('total-items').textContent = data.total_items_shipped || '0';
                 
                 statisticsCards.style.display = 'block';
             })

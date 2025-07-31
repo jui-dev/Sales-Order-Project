@@ -20,12 +20,18 @@ class JournalEntry extends Model
         // Added for status workflow
         'status',
         'approved_at',
+        // Added for reverse journal functionality
+        'is_reverse',
+        'reverses_journal_id',
+        'linked_debit_note_id',
+        'linked_credit_note_id',
     ];
 
     protected $casts = [
         'entry_date' => 'date',
         'posted_at'  => 'datetime',
         'approved_at'=> 'datetime',
+        'is_reverse' => 'boolean',
     ];
 
     public function lines()
@@ -36,6 +42,38 @@ class JournalEntry extends Model
     public function source()
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Get the original journal entry that this entry reverses
+     */
+    public function reversesJournal()
+    {
+        return $this->belongsTo(JournalEntry::class, 'reverses_journal_id');
+    }
+
+    /**
+     * Get the reverse journal entries for this journal entry
+     */
+    public function reverseJournals()
+    {
+        return $this->hasMany(JournalEntry::class, 'reverses_journal_id');
+    }
+
+    /**
+     * Get the linked debit note for this journal entry
+     */
+    public function linkedDebitNote()
+    {
+        return $this->belongsTo(DebitNote::class, 'linked_debit_note_id');
+    }
+
+    /**
+     * Get the linked credit note for this journal entry
+     */
+    public function linkedCreditNote()
+    {
+        return $this->belongsTo(CreditNote::class, 'linked_credit_note_id');
     }
 
     public function totalDebit(): float

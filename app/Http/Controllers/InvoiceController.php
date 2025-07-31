@@ -5,45 +5,75 @@ namespace App\Http\Controllers;
 use App\Models\Invoice;
 use App\Models\Customer;
 use App\Services\InvoiceService;
+use App\Traits\HasApiResponses;
+use App\Exceptions\DataNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
+use Illuminate\Http\JsonResponse;
 
 class InvoiceController extends Controller
 {
+    use HasApiResponses;
+
     public function __construct(private readonly InvoiceService $invoiceService)
     {
     }
 
-    public function index(Request $request)
+    public function index(Request $request): View
     {
-        $query = Invoice::with(['customer', 'order']);
+        $filters = [
+            'status' => $request->status,
+            'customer_id' => $request->customer_id,
+            'from' => $request->from,
+            'to' => $request->to,
+        ];
 
-        // Filters
-        if ($request->filled('status')) {
-            $query->where('payment_status', $request->status);
-        }
-
-        if ($request->filled('customer_id')) {
-            $query->where('customer_id', $request->customer_id);
-        }
-
-        if ($request->filled('from')) {
-            $query->whereDate('invoice_date', '>=', $request->from);
-        }
-
-        if ($request->filled('to')) {
-            $query->whereDate('invoice_date', '<=', $request->to);
-        }
-
-        $invoices = $query->latest()->paginate(20)->withQueryString();
+        $invoices = $this->invoiceService->getFilteredInvoices($filters, 20);
         $customers = Customer::orderBy('name')->get();
 
         return view('invoices.index', compact('invoices', 'customers'));
     }
 
-    public function show(Invoice $invoice)
+    /**
+     * API endpoint to get all invoices
+     */
+    public function apiIndex(Request $request): JsonResponse
     {
-        $invoice->load(['items', 'customer', 'order', 'payments']);
+        return $this->handlePaginatedApiOperation(
+            function() use ($request) {
+                $filters = [
+                    'status' => $request->get('status'),
+                    'customer_id' => $request->get('customer_id'),
+                    'from' => $request->get('from'),
+                    'to' => $request->get('to'),
+                ];
+
+                $perPage = $request->get('per_page', 20);
+                return $this->invoiceService->getFilteredInvoices($filters, $perPage);
+            },
+            'invoices',
+            'Invoices retrieved successfully'
+        );
+    }
+
+    public function show(Invoice $invoice): View
+    {
+        $invoice = $this->invoiceService->getInvoiceWithDetails($invoice->id);
         return view('invoices.show', compact('invoice'));
+    }
+
+    /**
+     * API endpoint to get a specific invoice
+     */
+    public function apiShow(int $id): JsonResponse
+    {
+        return $this->handleSingleItemApiOperation(
+            function() use ($id) {
+                return $this->invoiceService->getInvoiceWithDetails($id);
+            },
+            'invoice',
+            'Invoice retrieved successfully'
+        );
     }
 
     public function download(Invoice $invoice)

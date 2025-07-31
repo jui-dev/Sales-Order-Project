@@ -58,7 +58,7 @@
                                 @endif
                             </ul>
                         </td>
-                        <td>{{ $supply->items->sum('quantity') }}</td>
+                        <td>{{ $supply->items ? $supply->items->sum('quantity') : 0 }}</td>
                         <td>${{ number_format($supply->total_cost, 2) }}</td>
                         <td>{{ $supply->supply_date->format('M d, Y') }}</td>
                         <td>

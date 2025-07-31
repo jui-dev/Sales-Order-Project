@@ -203,7 +203,7 @@
                                 <div class="card bg-light">
                                     <div class="card-body text-center">
                                         <h6>Total Requested</h6>
-                                        <h4>{{ $pickingList->pickingItems->sum('quantity_requested') }}</h4>
+                                        <h4>{{ $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_requested') : 0 }}</h4>
                                     </div>
                                 </div>
                             </div>
@@ -211,7 +211,7 @@
                                 <div class="card bg-light">
                                     <div class="card-body text-center">
                                         <h6>Total Picked</h6>
-                                        <h4>{{ $pickingList->pickingItems->sum('quantity_picked') }}</h4>
+                                        <h4>{{ $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_picked') : 0 }}</h4>
                                     </div>
                                 </div>
                             </div>
@@ -342,7 +342,7 @@
                             {{ $pickingList->supply->supply_date->format('M d, Y') }}
                         </div>
 
-                        @if($pickingList->supply->total_cost)
+                        @if($pickingList->supply && isset($pickingList->supply->total_cost) && $pickingList->supply->total_cost)
                             <div class="mb-3">
                                 <strong>Total Cost:</strong><br>
                                 <span class="fs-5 text-success">${{ number_format($pickingList->supply->total_cost, 2) }}</span>

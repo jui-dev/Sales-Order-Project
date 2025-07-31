@@ -49,6 +49,12 @@ class Order extends Model
     {
         return $this->morphTo('fulfillment_location');
     }
+    
+    // Add an alias for backward compatibility
+    public function getFulfillmentLocationAttribute()
+    {
+        return $this->fulfillmentLocation()->withDefault()->getResults();
+    }
 
     public function invoice(): HasOne
     {

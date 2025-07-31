@@ -9,9 +9,9 @@
                 <i class="bi bi-arrow-left me-1"></i> Back to Bill
             </a>
             @if($supplierBill->status === 'posted' && $supplierBill->payment && $supplierBill->payment->payment_status === 'unpaid')
-                <form action="{{ route('supplier-bills.pay', $supplierBill) }}" method="POST" class="d-inline">
+                <form action="{{ route('supplier-bills.pay', $supplierBill) }}" method="POST" class="d-inline" id="markAsPaidForm">
                     @csrf
-                    <button type="submit" class="btn btn-success">
+                    <button type="submit" class="btn btn-success" id="markAsPaidBtn">
                         <i class="bi bi-credit-card me-1"></i> Mark as Paid
                     </button>
                 </form>
@@ -84,7 +84,7 @@
                 </div>
                 <div class="card-body">
                     <p class="mb-1">Total Amount: <strong>${{ number_format($supplierBill->total_amount, 2) }}</strong></p>
-                    <p class="mb-1">Total Items: {{ $supplierBill->items->sum('quantity') }}</p>
+                    <p class="mb-1">Total Items: {{ $supplierBill->items ? $supplierBill->items->sum('quantity') : 0 }}</p>
                     @if($supplierBill->description)
                         <p class="mb-1">Description: {{ $supplierBill->description }}</p>
                     @endif
@@ -126,39 +126,32 @@
         </div>
     </div>
 
-    <!-- Bill Items Summary -->
+    <!-- Payment Items Table -->
     <div class="card mt-4">
         <div class="card-header">
-            <strong><i class="bi bi-box me-1"></i> Items Summary</strong>
+            <strong><i class="bi bi-list-ul me-1"></i> Payment Items</strong>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Product</th>
-                            <th>SKU</th>
-                            <th class="text-center">Quantity</th>
-                            <th class="text-center">Unit Cost</th>
-                            <th class="text-end">Subtotal</th>
+                            <th>Item</th>
+                            <th>Description</th>
+                            <th>Quantity</th>
+                            <th>Unit Price</th>
+                            <th>Subtotal</th>
+                            <th class="text-end">Total</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($supplierBill->items as $index => $item)
+                        @forelse($supplierBill->items as $item)
                             <tr>
-                                <td>{{ $index + 1 }}</td>
-                                <td>
-                                    <strong>{{ $item->product->name }}</strong>
-                                    @if($item->product->description)
-                                        <br><small class="text-muted">{{ $item->product->description }}</small>
-                                    @endif
-                                </td>
-                                <td>{{ $item->product->sku ?? 'N/A' }}</td>
-                                <td class="text-center">
-                                    <span class="badge bg-primary">{{ number_format($item->quantity) }}</span>
-                                </td>
-                                <td class="text-center">${{ number_format($item->unit_cost, 2) }}</td>
+                                <td>{{ $item->product->name ?? 'N/A' }}</td>
+                                <td>{{ $item->description ?? 'No description' }}</td>
+                                <td>{{ $item->quantity }}</td>
+                                <td>${{ number_format($item->unit_price, 2) }}</td>
+                                <td>${{ number_format($item->subtotal, 2) }}</td>
                                 <td class="text-end">${{ number_format($item->subtotal, 2) }}</td>
                             </tr>
                         @empty
@@ -180,4 +173,140 @@
 
 
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let isProcessing = false;
+    
+    // Handle Mark as Paid button protection
+    const markAsPaidForm = document.getElementById('markAsPaidForm');
+    const markAsPaidBtn = document.getElementById('markAsPaidBtn');
+    
+    console.log('Payment Info page loaded');
+    console.log('Mark as Paid form found:', !!markAsPaidForm);
+    console.log('Mark as Paid button found:', !!markAsPaidBtn);
+    
+    if (markAsPaidForm && markAsPaidBtn) {
+        // Log form details for debugging
+        console.log('Form action:', markAsPaidForm.action);
+        console.log('Form method:', markAsPaidForm.method);
+        console.log('CSRF token present:', !!markAsPaidForm.querySelector('input[name="_token"]'));
+        
+        markAsPaidForm.addEventListener('submit', function(e) {
+            console.log('Mark as Paid form submitted');
+            
+            if (isProcessing) {
+                console.log('Already processing, preventing submission');
+                e.preventDefault();
+                return false;
+            }
+            
+            console.log('Starting payment processing...');
+            isProcessing = true;
+            
+            // Disable the button immediately
+            markAsPaidBtn.disabled = true;
+            markAsPaidBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Processing...';
+            markAsPaidBtn.classList.remove('btn-success');
+            markAsPaidBtn.classList.add('btn-secondary');
+            
+            // Prevent multiple submissions
+            markAsPaidForm.style.pointerEvents = 'none';
+            
+            // Show processing indicator
+            showProcessingIndicator('Processing payment...');
+            
+            // Add a timeout to reset if form submission takes too long
+            setTimeout(function() {
+                if (isProcessing) {
+                    console.log('Form submission timeout, resetting state');
+                    resetProcessingState();
+                }
+            }, 10000); // 10 seconds timeout
+        });
+    }
+    
+    // Function to show processing indicator
+    function showProcessingIndicator(message) {
+        // Create overlay if it doesn't exist
+        let overlay = document.getElementById('processingOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'processingOverlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 9999;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            `;
+            
+            const content = document.createElement('div');
+            content.style.cssText = `
+                background: white;
+                padding: 2rem;
+                border-radius: 8px;
+                text-align: center;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            `;
+            
+            content.innerHTML = `
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mb-0">${message}</p>
+                <small class="text-muted">Please wait, do not refresh the page...</small>
+            `;
+            
+            overlay.appendChild(content);
+            document.body.appendChild(overlay);
+        }
+        
+        overlay.style.display = 'flex';
+    }
+    
+    // Function to reset processing state
+    function resetProcessingState() {
+        isProcessing = false;
+        
+        if (markAsPaidBtn) {
+            markAsPaidBtn.disabled = false;
+            markAsPaidBtn.innerHTML = '<i class="bi bi-credit-card me-1"></i> Mark as Paid';
+            markAsPaidBtn.classList.remove('btn-secondary');
+            markAsPaidBtn.classList.add('btn-success');
+        }
+        
+        if (markAsPaidForm) {
+            markAsPaidForm.style.pointerEvents = 'auto';
+        }
+        
+        // Hide processing overlay
+        const overlay = document.getElementById('processingOverlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+    
+    // Prevent accidental navigation during processing
+    window.addEventListener('beforeunload', function(e) {
+        if (isProcessing) {
+            e.preventDefault();
+            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+            return e.returnValue;
+        }
+    });
+    
+    // Reset state when page is unloaded
+    window.addEventListener('unload', function() {
+        isProcessing = false;
+    });
+});
+</script>
+@endpush
 @endsection 

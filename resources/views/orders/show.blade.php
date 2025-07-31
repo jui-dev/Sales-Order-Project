@@ -75,6 +75,17 @@
                     </button>
                 </div>
                 @endif
+                
+                @if($order->status == 'confirmed' && !$order->invoice)
+                <div class="d-flex justify-content-center mt-4">
+                    <form action="{{ route('orders.update-status', $order) }}" method="POST" class="mx-2">
+                        @csrf
+                        @method('PATCH')
+                        <input type="hidden" name="status" value="completed">
+                        <button type="submit" class="btn btn-warning">Mark as Completed</button>
+                    </form>
+                </div>
+                @endif
             </div>
         </div>
     </div>
@@ -208,17 +219,18 @@
                             <select class="form-select" id="fulfillment_location_id" name="fulfillment_location_id" required>
                                 <option value="">Select fulfillment location</option>
                                 @php
-                                    $stockLocations = \App\Models\StockLocation::where('status', 'active')->get();
+                                    $warehouses = \App\Models\Warehouse::where('status', 'active')->get();
+                                    $retailers = \App\Models\Retailer::where('status', 'active')->get();
                                 @endphp
                                 <optgroup label="Warehouses">
-                                    @foreach($stockLocations->where('location_type', 'warehouse') as $warehouse)
+                                    @foreach($warehouses as $warehouse)
                                         <option value="{{ $warehouse->id }}">
                                             {{ $warehouse->name }}
                                         </option>
                                     @endforeach
                                 </optgroup>
                                 <optgroup label="Retailers">
-                                    @foreach($stockLocations->where('type', 'retailer') as $retailer)
+                                    @foreach($retailers as $retailer)
                                         <option value="{{ $retailer->id }}">
                                             {{ $retailer->name }}
                                         </option>

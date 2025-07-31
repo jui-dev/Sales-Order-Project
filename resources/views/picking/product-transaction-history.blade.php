@@ -2,7 +2,7 @@
 
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-clock-history me-2"></i>Transaction History: {{ $product->name }}</h1>
+    <h1><i class="bi bi-clock-history me-2"></i>Transaction History: {{ $product->name ?? 'Unknown Product' }}</h1>
     <div>
         <a href="{{ route('products.stock-analysis', $product) }}" class="btn btn-outline-info">
             <i class="bi bi-graph-up me-1"></i> Stock Analysis
@@ -16,13 +16,27 @@
     </div>
 </div>
 
+<!-- Debug Information (remove in production) -->
+@if(config('app.debug'))
+<div class="alert alert-info">
+    <strong>Debug Info:</strong>
+    <ul class="mb-0">
+        <li>Product: {{ $product->name ?? 'Not set' }}</li>
+        <li>Total Supplied: {{ $totalSupplied ?? 'Not set' }}</li>
+        <li>Total Sold: {{ $totalSold ?? 'Not set' }}</li>
+        <li>Movements Count: {{ $movements->count() ?? 'Not set' }}</li>
+        <li>Stock Balances Count: {{ $stockBalances->count() ?? 'Not set' }}</li>
+    </ul>
+</div>
+@endif
+
 <!-- Product Summary Cards -->
 <div class="row mb-4">
     <div class="col-md-2">
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-success">Total Supplied</h5>
-                <h2>{{ $totalSupplied }}</h2>
+                <h2>{{ $totalSupplied ?? 0 }}</h2>
                 <small class="text-muted">Units received</small>
             </div>
         </div>
@@ -31,7 +45,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-danger">Total Sold</h5>
-                <h2>{{ $totalSold }}</h2>
+                <h2>{{ $totalSold ?? 0 }}</h2>
                 <small class="text-muted">Units sold</small>
             </div>
         </div>
@@ -40,7 +54,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-warning">Transferred</h5>
-                <h2>{{ $totalTransferred }}</h2>
+                <h2>{{ $totalTransferred ?? 0 }}</h2>
                 <small class="text-muted">Between locations</small>
             </div>
         </div>
@@ -49,7 +63,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-primary">Current Stock</h5>
-                <h2>{{ $currentTotalStock }}</h2>
+                <h2>{{ $currentTotalStock ?? 0 }}</h2>
                 <small class="text-muted">Total in system</small>
             </div>
         </div>
@@ -58,7 +72,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-info">Available</h5>
-                <h2>{{ $currentAvailableStock }}</h2>
+                <h2>{{ $currentAvailableStock ?? 0 }}</h2>
                 <small class="text-muted">Ready to pick</small>
             </div>
         </div>
@@ -67,7 +81,7 @@
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-secondary">Reserved</h5>
-                <h2>{{ $currentReservedStock }}</h2>
+                <h2>{{ $currentReservedStock ?? 0 }}</h2>
                 <small class="text-muted">Pending picks</small>
             </div>
         </div>
@@ -75,7 +89,7 @@
 </div>
 
 <!-- Current Stock by Location -->
-@if($stockBalances->count() > 0)
+@if(isset($stockBalances) && $stockBalances->count() > 0)
 <div class="card mb-4">
     <div class="card-header">
         <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Current Stock by Location</h5>
@@ -87,35 +101,35 @@
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h6 class="card-title mb-0">{{ $balance->stockLocation ? $balance->stockLocation->name : 'Location Deleted' }}</h6>
-                            <span class="badge bg-{{ $balance->stockLocation && $balance->stockLocation->location_type === 'warehouse' ? 'success' : 'info' }}">
-                                {{ $balance->stockLocation ? ucfirst($balance->stockLocation->location_type) : 'Unknown' }}
+                            <h6 class="card-title mb-0">{{ isset($balance->stockLocation) && $balance->stockLocation ? $balance->stockLocation->name : 'Location Deleted' }}</h6>
+                            <span class="badge bg-{{ isset($balance->stockLocation) && $balance->stockLocation && isset($balance->stockLocation->location_type) && $balance->stockLocation->location_type === 'warehouse' ? 'success' : 'info' }}">
+                                {{ isset($balance->stockLocation) && $balance->stockLocation && isset($balance->stockLocation->location_type) ? ucfirst($balance->stockLocation->location_type) : 'Unknown' }}
                             </span>
                         </div>
                         
                         <div class="row text-center">
                             <div class="col-4">
                                 <div class="border-end">
-                                    <h5 class="text-primary mb-0">{{ $balance->quantity }}</h5>
+                                    <h5 class="text-primary mb-0">{{ $balance->quantity ?? 0 }}</h5>
                                     <small class="text-muted">Total</small>
                                 </div>
                             </div>
                             <div class="col-4">
                                 <div class="border-end">
-                                    <h5 class="text-warning mb-0">{{ $balance->reserved_quantity }}</h5>
+                                    <h5 class="text-warning mb-0">{{ $balance->reserved_quantity ?? 0 }}</h5>
                                     <small class="text-muted">Reserved</small>
                                 </div>
                             </div>
                             <div class="col-4">
-                                <h5 class="text-success mb-0">{{ $balance->available_quantity }}</h5>
+                                <h5 class="text-success mb-0">{{ $balance->available_quantity ?? 0 }}</h5>
                                 <small class="text-muted">Available</small>
                             </div>
                         </div>
                         
-                        @if($balance->last_movement_date)
+                        @if(isset($balance->last_movement_date) && $balance->last_movement_date)
                             <div class="mt-2">
                                 <small class="text-muted">
-                                    <i class="bi bi-clock me-1"></i>Last updated: {{ $balance->last_movement_date->format('M d, Y H:i') }}
+                                    <i class="bi bi-clock me-1"></i>Last updated: {{ \Carbon\Carbon::parse($balance->last_movement_date)->format('M d, Y H:i') }}
                                 </small>
                             </div>
                         @endif
@@ -134,7 +148,7 @@
         <h5 class="mb-0"><i class="bi bi-arrow-left-right me-2"></i>All Stock Movements</h5>
     </div>
     <div class="card-body">
-        @if($movements->count() > 0)
+        @if(isset($movements) && $movements && $movements->count() > 0)
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
@@ -153,23 +167,36 @@
                         @foreach($movements as $movement)
                         <tr>
                             <td>
-                                {{ $movement->movement_date->format('M d, Y') }}
-                                <br><small class="text-muted">{{ $movement->movement_date->format('H:i') }}</small>
+                                @if(isset($movement->movement_date) && $movement->movement_date)
+                                    @if(is_string($movement->movement_date))
+                                        {{ \Carbon\Carbon::parse($movement->movement_date)->format('M d, Y') }}
+                                        <br><small class="text-muted">{{ \Carbon\Carbon::parse($movement->movement_date)->format('H:i') }}</small>
+                                    @else
+                                        {{ $movement->movement_date->format('M d, Y') }}
+                                        <br><small class="text-muted">{{ $movement->movement_date->format('H:i') }}</small>
+                                    @endif
+                                @else
+                                    <span class="text-muted">Unknown</span>
+                                @endif
                             </td>
                             <td>
-                                <span class="badge bg-{{ $movement->movement_type === 'supply_in' ? 'success' : ($movement->movement_type === 'sale' ? 'danger' : ($movement->movement_type === 'transfer' ? 'warning' : 'info')) }}">
-                                    {{ ucfirst(str_replace('_', ' ', $movement->movement_type)) }}
-                                </span>
+                                @if(isset($movement->movement_type) && $movement->movement_type)
+                                    <span class="badge bg-{{ $movement->movement_type === 'supply_in' ? 'success' : ($movement->movement_type === 'sale' ? 'danger' : ($movement->movement_type === 'transfer' ? 'warning' : 'info')) }}">
+                                        {{ ucfirst(str_replace('_', ' ', $movement->movement_type)) }}
+                                    </span>
+                                @else
+                                    <span class="text-muted">Unknown</span>
+                                @endif
                             </td>
                             <td>
-                                @if($movement->fromLocation)
+                                @if(isset($movement->fromLocation) && $movement->fromLocation && isset($movement->fromLocation->name))
                                     <span class="badge bg-secondary">{{ $movement->fromLocation->name }}</span>
                                     @if(isset($movement->fromLocation->location_type))
                                         <br><small class="text-muted">{{ ucfirst($movement->fromLocation->location_type) }}</small>
                                     @endif
                                 @else
                                     <span class="text-muted">
-                                        @if($movement->movement_type === 'supply_in')
+                                        @if(isset($movement->movement_type) && $movement->movement_type === 'supply_in')
                                             <i class="bi bi-building me-1"></i>Vendor Supply
                                         @else
                                             -
@@ -178,14 +205,14 @@
                                 @endif
                             </td>
                             <td>
-                                @if($movement->toLocation)
+                                @if(isset($movement->toLocation) && $movement->toLocation && isset($movement->toLocation->name))
                                     <span class="badge bg-secondary">{{ $movement->toLocation->name }}</span>
                                     @if(isset($movement->toLocation->location_type))
                                         <br><small class="text-muted">{{ ucfirst($movement->toLocation->location_type) }}</small>
                                     @endif
                                 @else
                                     <span class="text-muted">
-                                        @if($movement->movement_type === 'sale')
+                                        @if(isset($movement->movement_type) && $movement->movement_type === 'sale')
                                             <i class="bi bi-people me-1"></i>Customer
                                         @else
                                             -
@@ -194,12 +221,16 @@
                                 @endif
                             </td>
                             <td>
-                                <strong class="text-{{ $movement->direction === 'inbound' ? 'success' : 'danger' }}">
-                                    {{ $movement->direction === 'inbound' ? '+' : '-' }}{{ abs($movement->quantity) }}
-                                </strong>
+                                @if(isset($movement->direction) && isset($movement->quantity) && $movement->quantity !== null)
+                                    <strong class="text-{{ $movement->direction === 'inbound' ? 'success' : 'danger' }}">
+                                        {{ $movement->direction === 'inbound' ? '+' : '-' }}{{ abs($movement->quantity) }}
+                                    </strong>
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
                             </td>
                             <td>
-                                @if($movement->reference_type && $movement->reference_id)
+                                @if(isset($movement->reference_type) && isset($movement->reference_id) && $movement->reference_type && $movement->reference_id)
                                     <span class="badge bg-light text-dark">
                                         {{ ucfirst($movement->reference_type) }} #{{ $movement->reference_id }}
                                     </span>
@@ -208,12 +239,16 @@
                                 @endif
                             </td>
                             <td>
-                                <span class="badge bg-{{ $movement->status === 'completed' ? 'success' : ($movement->status === 'pending' ? 'warning' : 'danger') }}">
-                                    {{ ucfirst($movement->status) }}
-                                </span>
+                                @if(isset($movement->status) && $movement->status)
+                                    <span class="badge bg-{{ $movement->status === 'completed' ? 'success' : ($movement->status === 'pending' ? 'warning' : 'danger') }}">
+                                        {{ ucfirst($movement->status) }}
+                                    </span>
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
                             </td>
                             <td>
-                                @if($movement->notes)
+                                @if(isset($movement->notes) && $movement->notes)
                                     <small class="text-muted">{{ Str::limit($movement->notes, 30) }}</small>
                                 @else
                                     <span class="text-muted">-</span>
@@ -226,9 +261,15 @@
             </div>
             
             <!-- Pagination -->
-            <div class="d-flex justify-content-center mt-3">
-                {{ $movements->links() }}
-            </div>
+            @if(method_exists($movements, 'links'))
+                <div class="d-flex justify-content-center mt-3">
+                    {{ $movements->links() }}
+                </div>
+            @else
+                <div class="text-center mt-3">
+                    <small class="text-muted">Showing all {{ $movements->count() }} movements</small>
+                </div>
+            @endif
         @else
             <div class="text-center py-4">
                 <i class="bi bi-clock-history display-4 text-muted mb-3"></i>
@@ -240,7 +281,7 @@
 </div>
 
 <!-- Related Picking Lists -->
-@if($pickingLists->count() > 0)
+@if(isset($pickingLists) && $pickingLists->count() > 0)
 <div class="card">
     <div class="card-header">
         <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Recent Picking Lists</h5>
@@ -262,20 +303,38 @@
                 <tbody>
                     @foreach($pickingLists as $picking)
                     <tr>
-                        <td>{{ $picking->picking_number }}</td>
+                        <td>{{ $picking->picking_number ?? 'PL-' . str_pad($picking->id, 6, '0', STR_PAD_LEFT) }}</td>
                         <td>
-                            <span class="badge bg-{{ $picking->picking_type === 'order_fulfillment' ? 'danger' : ($picking->picking_type === 'retailer_distribution' ? 'info' : 'warning') }}">
-                                {{ ucfirst(str_replace('_', ' ', $picking->picking_type)) }}
-                            </span>
+                            @if(isset($picking->picking_type))
+                                <span class="badge bg-{{ $picking->picking_type === 'order_fulfillment' ? 'danger' : ($picking->picking_type === 'retailer_distribution' ? 'info' : 'warning') }}">
+                                    {{ ucfirst(str_replace('_', ' ', $picking->picking_type)) }}
+                                </span>
+                            @else
+                                <span class="text-muted">Unknown</span>
+                            @endif
                         </td>
-                        <td>{{ $picking->fromLocation ? $picking->fromLocation->name : 'Location Deleted' }}</td>
-                        <td>{{ $picking->toLocation ? $picking->toLocation->name : 'Customer' }}</td>
+                        <td>{{ isset($picking->fromLocation) && $picking->fromLocation ? $picking->fromLocation->name : 'Location Deleted' }}</td>
+                        <td>{{ isset($picking->toLocation) && $picking->toLocation ? $picking->toLocation->name : 'Customer' }}</td>
                         <td>
-                            <span class="badge bg-{{ $picking->status === 'completed' ? 'success' : ($picking->status === 'pending' ? 'warning' : 'primary') }}">
-                                {{ ucfirst(str_replace('_', ' ', $picking->status)) }}
-                            </span>
+                            @if(isset($picking->status))
+                                <span class="badge bg-{{ $picking->status === 'completed' ? 'success' : ($picking->status === 'pending' ? 'warning' : 'primary') }}">
+                                    {{ ucfirst(str_replace('_', ' ', $picking->status)) }}
+                                </span>
+                            @else
+                                <span class="text-muted">Unknown</span>
+                            @endif
                         </td>
-                        <td>{{ $picking->picking_date->format('M d, Y') }}</td>
+                        <td>
+                            @if(isset($picking->picking_date) && $picking->picking_date)
+                                @if(is_string($picking->picking_date))
+                                    {{ \Carbon\Carbon::parse($picking->picking_date)->format('M d, Y') }}
+                                @else
+                                    {{ $picking->picking_date->format('M d, Y') }}
+                                @endif
+                            @else
+                                <span class="text-muted">Unknown</span>
+                            @endif
+                        </td>
                         <td>
                             <a href="{{ route('picking.show', $picking) }}" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-eye"></i>

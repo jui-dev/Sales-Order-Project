@@ -236,11 +236,8 @@ function debounce(func, wait) {
 
 async function calculateAvailableStock(productId, warehouseId) {
     try {
-        console.log('Calculating stock for:', { productId, warehouseId });
-        
         const product = products.find(p => p.id === parseInt(productId));
         if (!product || !product.warehouse_stocks) {
-            console.log('No product or warehouse stocks found');
             return 0;
         }
 
@@ -250,18 +247,10 @@ async function calculateAvailableStock(productId, warehouseId) {
 
         const stock = warehouseStocksArray.find(s => parseInt(s.warehouse_id) === parseInt(warehouseId));
         if (!stock) {
-            console.log('No stock found for warehouse');
             return 0;
         }
 
         const availableStock = parseInt(stock.available_stock) || 0;
-        console.log('Stock details:', {
-            product: product.name,
-            warehouse: warehouseId,
-            available: availableStock,
-            raw_stock: stock
-        });
-
         return availableStock;
     } catch (error) {
         console.error('Error calculating available stock:', error);
@@ -301,11 +290,6 @@ async function addItem() {
         // Filter products based on warehouse stock
         const availableProducts = await Promise.all(products.map(async product => {
             const availableStock = await calculateAvailableStock(product.id, warehouseId);
-            console.log('Filtering product:', {
-                name: product.name,
-                id: product.id,
-                stock: availableStock
-            });
             return { product, availableStock };
         }));
         
@@ -318,12 +302,6 @@ async function addItem() {
 
             const stock = warehouseStocksArray.find(s => parseInt(s.warehouse_id) === parseInt(warehouseId));
             const unitPrice = stock ? parseFloat(stock.unit_cost) || 0 : 0;
-            
-            console.log('Creating option for:', {
-                product: product.name,
-                stock: availableStock,
-                raw_stock: stock
-            });
             
             return `<option value="${product.id}" data-stock="${availableStock}" data-price="${unitPrice.toFixed(2)}">
                 ${product.name} (Available: ${availableStock})
@@ -389,16 +367,9 @@ async function addItem() {
 const validateQuantity = debounce(function(input) {
     try {
         const quantity = parseInt(input.value) || 0;
-        const availableStock = parseInt(input.getAttribute('data-available-stock')) || 0;
         const errorDiv = input.closest('.item-row').querySelector('.quantity-error');
         
-        if (quantity > availableStock) {
-            errorDiv.textContent = `Cannot exceed available stock (${availableStock})`;
-            input.classList.add('is-invalid');
-            input.value = availableStock;
-            updateItemTotals(input);
-            return false;
-        } else if (quantity <= 0) {
+        if (quantity <= 0) {
             errorDiv.textContent = 'Quantity must be greater than 0';
             input.classList.add('is-invalid');
             return false;
@@ -434,13 +405,6 @@ async function updateProductDetails(select) {
 
             const stock = warehouseStocksArray.find(s => parseInt(s.warehouse_id) === parseInt(warehouseId));
             const unitPrice = stock ? parseFloat(stock.unit_cost) || 0 : 0;
-            
-            console.log('Updating product details:', {
-                product: product.name,
-                availableStock,
-                unitPrice,
-                raw_stock: stock
-            });
             
             quantityInput.setAttribute('max', availableStock);
             quantityInput.setAttribute('data-available-stock', availableStock);
@@ -520,7 +484,6 @@ document.getElementById('transferForm').addEventListener('submit', async functio
         items.forEach(item => {
             const productId = item.querySelector('select[name$="[product_id]"]').value;
             const quantity = parseInt(item.querySelector('input[name$="[quantity]"]').value) || 0;
-            const availableStock = parseInt(item.querySelector('input[name$="[quantity]"]').getAttribute('data-available-stock')) || 0;
             
             if (!productId) {
                 isValid = false;
@@ -530,11 +493,6 @@ document.getElementById('transferForm').addEventListener('submit', async functio
             if (quantity <= 0) {
                 isValid = false;
                 errors.push('Quantity must be greater than 0.');
-            }
-            
-            if (quantity > availableStock) {
-                isValid = false;
-                errors.push(`Quantity exceeds available stock (${availableStock}) for one or more products.`);
             }
         });
         
@@ -561,19 +519,23 @@ document.getElementById('transferForm').addEventListener('submit', async functio
                 }
             });
             
+            // Check if response is ok before trying to parse JSON
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Server error: ${response.status} - ${errorText}`);
+            }
+            
             const result = await response.json();
             
             if (result.success) {
-                // Show success message
-                alert(result.message);
-                
-                // Redirect to the warehouse to retailer page
+                // Redirect immediately without showing alert
                 if (result.redirect_url) {
                     window.location.href = result.redirect_url;
                 } else {
                     window.location.href = '{{ route("stock-transfers.warehouse-to-retailer") }}';
                 }
             } else {
+                // Show error message from server
                 alert(result.message || 'An error occurred while processing the transfer.');
             }
         } catch (error) {

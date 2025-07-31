@@ -15,11 +15,14 @@ class Payment extends Model
         'invoice_id',
         'amount',
         'method',
-        'paid_at',
+        'payment_date',
+        'reference_number',
+        'notes',
+        'status',
     ];
 
     protected $casts = [
-        'paid_at' => 'datetime',
+        'payment_date' => 'datetime',
         'amount'  => 'decimal:2',
     ];
 

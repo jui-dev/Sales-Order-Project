@@ -56,7 +56,7 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Active Vendors</h6>
-                        <h3>{{ $totalVendors }}</h3>
+                        <h3>{{ $statistics['total_vendors'] }}</h3>
                     </div>
                     <i class="bi bi-building" style="font-size: 2rem; opacity: 0.7;"></i>
                 </div>
@@ -74,7 +74,7 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Warehouses</h6>
-                        <h3>{{ $totalWarehouses }}</h3>
+                        <h3>{{ $statistics['total_warehouses'] }}</h3>
                     </div>
                     <i class="bi bi-house-fill" style="font-size: 2rem; opacity: 0.7;"></i>
                 </div>
@@ -92,7 +92,7 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h6 class="card-title">Recent Supplies</h6>
-                        <h3>{{ $recentSupplies->count() }}</h3>
+                        <h3>{{ $statistics['recent_supplies']->count() }}</h3>
                     </div>
                     <i class="bi bi-truck" style="font-size: 2rem; opacity: 0.7;"></i>
                 </div>
@@ -279,7 +279,7 @@
                                                 <br><small class="text-muted">
                                                     Supply Date: {{ $pickingList->supply->supply_date->format('M d, Y') }}
                                                 </small>
-                                                @if($pickingList->supply->total_cost)
+                                                @if($pickingList->supply && isset($pickingList->supply->total_cost) && $pickingList->supply->total_cost)
                                                     <br><small class="text-success">
                                                         Total: ${{ number_format($pickingList->supply->total_cost, 2) }}
                                                     </small>
@@ -315,11 +315,11 @@
                                             <span class="badge bg-info">{{ $pickingList->pickingItems->count() }} items</span>
                                             @if($pickingList->pickingItems->count() > 0)
                                                 <br><small class="text-muted">
-                                                    Total Qty: {{ $pickingList->pickingItems->sum('quantity_requested') }}
+                                                    Total Qty: {{ $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_requested') : 0 }}
                                                 </small>
                                                 @if($pickingList->status === 'completed')
                                                     <br><small class="text-success">
-                                                        Picked: {{ $pickingList->pickingItems->sum('quantity_picked') }}
+                                                        Picked: {{ $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_picked') : 0 }}
                                                     </small>
                                                 @endif
                                             @endif
@@ -618,7 +618,7 @@
                             <i class="bi bi-truck me-2 text-warning"></i>
                             <div class="flex-grow-1">
                                 <strong>{{ $supply->vendor->name }}</strong>
-                                <br><small class="text-muted">{{ $supply->items->count() }} items - ${{ number_format($supply->total_cost, 2) }}</small>
+                                <br><small class="text-muted">{{ $supply->items->count() }} items - ${{ number_format($supply->total_cost ?? 0, 2) }}</small>
                             </div>
                             <div class="text-end">
                                 <a href="{{ route('supplies.show', $supply) }}" class="btn btn-sm btn-outline-primary">

@@ -10,7 +10,7 @@
     <div class="card-body">
         <div class="alert alert-info mb-4">
             <i class="bi bi-info-circle"></i>
-                            Product purchase prices, GP%, and stock levels are automatically updated through supply and order transactions.
+            Product purchase prices and stock levels are automatically updated through supply and order transactions. GP (Gross Profit) is calculated when orders are confirmed.
         </div>
 
         <form action="{{ route('products.store') }}" method="POST">

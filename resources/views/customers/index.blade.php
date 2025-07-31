@@ -15,20 +15,30 @@
         </a>
     </div>
 
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle me-2"></i>
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
 <div class="card">
     <div class="card-body">
-        <!-- Sorting Controls -->
-        <div class="d-flex justify-content-end mb-3">
-            <div class="input-group input-group-sm" style="max-width: 260px;">
-                <label class="input-group-text bg-light" for="sort-by">Sort&nbsp;By</label>
-                <select id="sort-by" class="form-select">
-                    <option value="0">ID</option>
-                    <option value="1">Name</option>
-                    <option value="2">Email</option>
-                </select>
-                <button class="btn btn-outline-secondary" id="sort-direction" data-dir="asc"><i class="bi bi-sort-alpha-down"></i></button>
-            </div>
-        </div>
+        <!-- Unified Search Component -->
+        <x-unified-search 
+            :filterOptions="$filterOptions"
+            :searchUrl="route('customers.index')"
+            :sortOptions="$sortOptions"
+        />
 
         <div class="table-responsive">
             <table id="data-table" class="table table-striped table-hover">
@@ -44,11 +54,11 @@
                 <tbody>
                     @forelse ($customers as $customer)
                     <tr>
-                        <td data-label="ID">{{ $customer->id }}</td>
-                        <td data-label="Name">{{ $customer->name }}</td>
-                        <td data-label="Email">{{ $customer->email ?? 'N/A' }}</td>
-                        <td data-label="Phone">{{ $customer->phone ?? 'N/A' }}</td>
-                        <td data-label="Actions">
+                        <td>{{ $customer->id }}</td>
+                        <td>{{ $customer->name }}</td>
+                        <td>{{ $customer->email ?? 'N/A' }}</td>
+                        <td>{{ $customer->phone ?? 'N/A' }}</td>
+                        <td>
                             <div class="d-flex flex-wrap gap-1">
                                 <a href="{{ route('customers.show', $customer) }}" class="btn btn-sm btn-info d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Details">
                                     <i class="bi bi-eye"></i>
@@ -75,7 +85,16 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="5" class="text-center">No customers found</td>
+                        <td colspan="5" class="text-center py-4">
+                            <div class="text-muted">
+                                <i class="bi bi-people display-1 d-block mb-3"></i>
+                                <h5>No Customers Found</h5>
+                                <p class="mb-0">No customers have been added to the system yet.</p>
+                                <a href="{{ route('customers.create') }}" class="btn btn-primary mt-3">
+                                    <i class="bi bi-plus-circle me-1"></i>Add First Customer
+                                </a>
+                            </div>
+                        </td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -87,34 +106,102 @@
 
 @section('scripts')
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="{{ asset('js/datatables-utils.js') }}"></script>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const table = $('#data-table').DataTable({
-            paging: true,
-            ordering: true,
-            info: true,
-            lengthMenu: [10, 25, 50, 100],
-            language: {
-                search: 'Filter:',
-                lengthMenu: 'Show _MENU_ entries',
-                info: 'Showing _START_ to _END_ of _TOTAL_ customers',
+    // Wait for both DOM and all resources to be loaded
+    window.addEventListener('load', function() {
+        // Additional delay to ensure everything is ready
+        setTimeout(function() {
+            initializeDataTables();
+        }, 100);
+    });
+
+    function initializeDataTables() {
+        try {
+            // Clean up any existing DataTables instances
+            DataTablesUtils.cleanupForDataTables();
+            
+            // Check if jQuery and DataTables are available
+            if (typeof jQuery === 'undefined' || !jQuery.fn.DataTable) {
+                console.warn('jQuery or DataTables not available');
+                return;
             }
-        });
 
-        $('#sort-by').on('change', function(){
-            table.order([parseInt(this.value,10), $('#sort-direction').data('dir')]).draw();
-        });
+            // Check if table exists
+            const table = jQuery('#data-table');
+            if (table.length === 0) {
+                console.warn('Data table not found');
+                return;
+            }
 
-        $('#sort-direction').on('click', function(){
-            const dir = $(this).data('dir') === 'asc' ? 'desc' : 'asc';
-            $(this).data('dir', dir);
-            $(this).find('i').toggleClass('bi-sort-alpha-down bi-sort-alpha-up');
-            $('#sort-by').trigger('change');
-        });
+            // Initialize DataTables with safe initialization
+            const result = DataTablesUtils.safeInit('#data-table', {
+                pageLength: 25,
+                order: [[0, 'desc']],
+                language: {
+                    emptyTable: "No customers found",
+                    zeroRecords: "No customers match your search criteria"
+                },
+                columnDefs: [
+                    {
+                        targets: -1, // Actions column
+                        orderable: false,
+                        searchable: false
+                    }
+                ]
+            });
+
+            if (result) {
+                console.log('DataTables initialized successfully for customers');
+            } else {
+                console.warn('DataTables initialization returned null, trying direct initialization...');
+                
+                // Fallback to direct DataTables initialization
+                try {
+                    jQuery('#data-table').DataTable({
+                        pageLength: 25,
+                        order: [[0, 'desc']],
+                        language: {
+                            emptyTable: "No customers found",
+                            zeroRecords: "No customers match your search criteria"
+                        },
+                        columnDefs: [
+                            {
+                                targets: -1, // Actions column
+                                orderable: false,
+                                searchable: false
+                            }
+                        ]
+                    });
+                    console.log('DataTables initialized successfully with direct initialization');
+                } catch (directError) {
+                    console.error('Direct DataTables initialization error:', directError);
+                }
+            }
+        } catch (error) {
+            console.error('Error initializing DataTables:', error);
+            // Try to fix common issues and retry
+            try {
+                DataTablesUtils.fixCommonIssues();
+                setTimeout(function() {
+                    initializeDataTables();
+                }, 500);
+            } catch (retryError) {
+                console.error('Failed to retry DataTables initialization:', retryError);
+            }
+        }
+    }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        try {
+            DataTablesUtils.cleanupForDataTables();
+        } catch (error) {
+            console.warn('Error during cleanup:', error);
+        }
     });
 </script>
 @endsection 

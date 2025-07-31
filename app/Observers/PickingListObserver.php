@@ -75,6 +75,7 @@ class PickingListObserver
                     'reference_type'   => PickingList::class,
                     'reference_id'     => $list->id,
                     'transaction_date' => now(),
+                    'status'           => 'completed', // Stock movement is finalized
                 ]);
 
                 /* -------------------------------------------------------
@@ -102,6 +103,7 @@ class PickingListObserver
                         'reference_type'   => PickingList::class,
                         'reference_id'     => $list->id,
                         'transaction_date' => now(),
+                        'status'           => 'completed', // Stock movement is finalized
                     ]);
                 }
             }
@@ -121,7 +123,8 @@ class PickingListObserver
 
                     // Auto-generate invoice upon completion
                     try {
-                        app(\App\Services\InvoiceService::class)->generateFromOrder($order);
+                        $invoice = app(\App\Services\InvoiceService::class)->generateFromOrder($order);
+                        \Log::info('Invoice generated successfully for Order '.$order->id.': Invoice #'.$invoice->invoice_number);
                     } catch (\Throwable $e) {
                         \Log::error('Failed to auto-generate invoice for Order '.$order->id.' after picking completion: '.$e->getMessage());
                     }

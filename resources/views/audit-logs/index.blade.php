@@ -23,8 +23,8 @@
             <label class="form-label">Action</label>
             <select name="action" class="form-select">
                 <option value="">-- Any --</option>
-                @foreach($actions as $act)
-                    <option value="{{ $act }}" {{ request('action') == $act ? 'selected' : '' }}>{{ ucwords(str_replace('_', ' ', $act)) }}</option>
+                @foreach($filterOptions['action']['options'] as $value => $label)
+                    <option value="{{ $value }}" {{ request('action') == $value ? 'selected' : '' }}>{{ ucwords(str_replace('_', ' ', $label)) }}</option>
                 @endforeach
             </select>
         </div>
@@ -32,8 +32,8 @@
             <label class="form-label">User</label>
             <select name="user_id" class="form-select">
                 <option value="">-- Any --</option>
-                @foreach($users as $u)
-                    <option value="{{ $u->id }}" {{ request('user_id') == $u->id ? 'selected' : '' }}>{{ $u->name }}</option>
+                @foreach($filterOptions['user_id']['options'] as $id => $name)
+                    <option value="{{ $id }}" {{ request('user_id') == $id ? 'selected' : '' }}>{{ $name }}</option>
                 @endforeach
             </select>
         </div>
@@ -84,7 +84,6 @@
         </table>
     </div>
 
-        <x-pagination :paginator="$auditLogs" />
-    </div>
+    <x-pagination :paginator="$auditLogs" />
 </div>
 @endsection 

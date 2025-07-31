@@ -13,7 +13,10 @@ return new class extends Migration
             $table->foreignId('invoice_id')->constrained('invoices')->cascadeOnDelete();
             $table->decimal('amount', 10, 2);
             $table->string('method', 50)->default('cash');
-            $table->timestamp('paid_at')->nullable();
+            $table->timestamp('payment_date')->nullable();
+            $table->string('reference_number', 100)->nullable();
+            $table->text('notes')->nullable();
+            $table->string('status', 20)->default('completed');
             $table->timestamps();
         });
     }

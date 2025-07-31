@@ -70,7 +70,7 @@ class GrnObserver
 
         // Audit trail for bill creation (draft)
         AuditLog::create([
-            'user_id'      => auth()->id(),
+            'user_id'      => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
             'action'       => 'supplier_bill_created',
             'description'  => 'Supplier Bill '.$bill->formatted_id.' created from GRN '.$grn->id.'.',
             'subject_type' => $bill->getMorphClass(),

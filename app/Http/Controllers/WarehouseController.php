@@ -3,18 +3,51 @@
 namespace App\Http\Controllers;
 
 use App\Services\WarehouseService;
+use App\Traits\HasApiResponses;
+use App\Exceptions\DataNotFoundException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class WarehouseController extends Controller
 {
+    use HasApiResponses;
+
     public function __construct(private readonly WarehouseService $service) {}
 
     public function index(): View
     {
         $warehouses = $this->service->list();
         return view('stock_locations.index', compact('warehouses'));
+    }
+
+    /**
+     * API endpoint to get all warehouses
+     */
+    public function apiIndex(): JsonResponse
+    {
+        return $this->handleApiOperation(
+            function() {
+                return $this->service->list();
+            },
+            'warehouses',
+            'Warehouses retrieved successfully'
+        );
+    }
+
+    /**
+     * API endpoint to get a specific warehouse
+     */
+    public function apiShow(int $id): JsonResponse
+    {
+        return $this->handleSingleItemApiOperation(
+            function() use ($id) {
+                return $this->service->get($id);
+            },
+            'warehouse',
+            'Warehouse retrieved successfully'
+        );
     }
 
     public function create(): View

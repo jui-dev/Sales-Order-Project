@@ -187,10 +187,10 @@ thead.table-green-header th,
                                     <small class="text-muted">ID: {{ $transaction->product->id }}</small>
                                 @endif
                             </td>
-                            <td>
+                                                        <td>
                                 <div class="fw-medium">{{ $transaction->stockLocation->name ?? 'Location Not Found' }}</div>
                                 @if($transaction->stockLocation)
-                                    <small class="text-muted">{{ ucfirst($transaction->stockLocation->location_type ?? '') }}</small>
+                                <small class="text-muted">{{ ucfirst($transaction->stockLocation->type ?? '') }}</small>
                                 @endif
                             </td>
                             <td>
@@ -212,7 +212,8 @@ thead.table-green-header th,
                                 <span class="badge bg-{{ $transaction->effect > 0 ? 'success' : 'danger' }} fs-6">
                                     {{ $transaction->getFormattedQuantity() }}
                                 </span>
-                                <div class="small text-muted mt-1">{{ $transaction->getEffectDescription() }}</div>
+                                <div class="small text-muted mt-1">{{ $transaction->getDetailedEffectDescription() }}</div>
+                                <div class="small text-muted">{{ $transaction->getEffectDescription() }}</div>
                             </td>
                             <td class="text-end font-monospace">
                                 ${{ number_format($transaction->unit_cost, 2) }}
@@ -318,9 +319,9 @@ thead.table-green-header th,
                             <label class="form-label fw-semibold">Specific Location</label>
                             <select class="form-select" name="location_id">
                                 <option value="">All Locations</option>
-                                @foreach($stockLocations as $location)
+                                @foreach($locations as $location)
                                     <option value="{{ $location->id }}" {{ request('location_id') == $location->id ? 'selected' : '' }}>
-                                        {{ $location->name }} ({{ ucfirst($location->location_type) }})
+                                        {{ $location->name }} ({{ ucfirst($location->location_type ?? 'location') }})
                                     </option>
                                 @endforeach
                             </select>

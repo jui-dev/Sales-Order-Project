@@ -23,4 +23,22 @@ class StockLocation extends Model
         'status',
         'is_default',
     ];
+
+    public function stockBalances()
+    {
+        return $this->hasMany(ProductStock::class, 'location_id')
+                    ->where('location_type', self::class);
+    }
+
+    public function stockTransactions()
+    {
+        return $this->hasMany(StockTransaction::class, 'location_id')
+                    ->where('location_type', self::class);
+    }
+
+    public function productStocks()
+    {
+        return $this->hasMany(ProductStock::class, 'location_id')
+                    ->where('location_type', self::class);
+    }
 } 

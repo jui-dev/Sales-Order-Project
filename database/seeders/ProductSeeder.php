@@ -28,7 +28,7 @@ class ProductSeeder extends Seeder
                     'sku'                  => $sku,
                     'description'          => $data['description'],
                     'purchase_price'       => 0,
-                    'profit_margin'        => 25,
+                    'markup'               => 25,
                     'auto_pricing_enabled' => true,
                 ]
             );

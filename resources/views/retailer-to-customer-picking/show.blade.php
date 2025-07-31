@@ -87,7 +87,7 @@
                                                     </div>
                                                 </div>
                                                 <small class="text-muted">
-                                                    {{ $pickingList->pickingItems->sum('quantity_picked') }} of {{ $pickingList->pickingItems->sum('quantity_requested') }} items picked
+                                                    {{ $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_picked') : 0 }} of {{ $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_requested') : 0 }} items picked
                                                 </small>
                                             </td>
                                         </tr>

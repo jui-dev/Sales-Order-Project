@@ -40,7 +40,7 @@
                             <th>Selling Price</th>
                             <th>Available Stocks</th>
                             <th>Purchase Price</th>
-                            <th>GP%</th>
+                            <th>GP</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -69,7 +69,7 @@
                                     <small class="text-muted">${{ $product->purchase_price ? number_format($product->purchase_price, 2) : '-' }}</small>
                                 </td>
                                 <td>
-                                    <small class="text-info">{{ $product->gp ? number_format($product->gp, 1) . '%' : '-' }}</small>
+                                    <small class="text-info">{{ $product->gp ? '$' . number_format($product->gp, 2) : '-' }}</small>
                                 </td>
                                 <td>
                                     <div class="d-flex flex-wrap gap-1">

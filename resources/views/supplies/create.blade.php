@@ -12,11 +12,15 @@
             <i class="bi bi-info-circle"></i> New supplies will be created with a <strong>pending</strong> status. The product stock will only be updated when you mark the supply as <strong>completed</strong>.
         </div>
         
+        <div class="alert alert-light mb-4">
+            <i class="bi bi-exclamation-circle text-danger"></i> Fields marked with <span class="text-danger">*</span> are required and must be filled before submitting the form.
+        </div>
+        
         <form action="{{ route('supplies.store') }}" method="POST">
             @csrf
             
             <div class="mb-3">
-                <label for="vendor_id" class="form-label">Vendor</label>
+                <label for="vendor_id" class="form-label">Vendor <span class="text-danger">*</span></label>
                 <select name="vendor_id" id="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror" required>
                     <option value="">Select Vendor</option>
                     @foreach($vendors as $vendor)
@@ -31,7 +35,7 @@
             </div>
             
             <div class="mb-3">
-                <label for="warehouse_id" class="form-label">Receiving Warehouse</label>
+                <label for="warehouse_id" class="form-label">Receiving Warehouse <span class="text-danger">*</span></label>
                 <select name="warehouse_id" id="warehouse_id" class="form-select @error('warehouse_id') is-invalid @enderror" required>
                     <option value="">Select Warehouse</option>
                     @foreach($warehouses as $warehouse)
@@ -46,7 +50,7 @@
             </div>
             
             <div class="mb-3">
-                <label for="supply_date" class="form-label">Supply Date</label>
+                <label for="supply_date" class="form-label">Supply Date <span class="text-danger">*</span></label>
                 <input type="date" name="supply_date" id="supply_date" class="form-control @error('supply_date') is-invalid @enderror" 
                     value="{{ old('supply_date', date('Y-m-d')) }}" required>
                 @error('supply_date')
@@ -62,7 +66,7 @@
                 @enderror
             </div>
             
-            <h3 class="mt-4 mb-3">Supply Items</h3>
+            <h3 class="mt-4 mb-3">Supply Items <span class="text-danger">*</span></h3>
             
             <!-- Cleaner type-ahead add-product field -->
             <div class="mb-3">
@@ -79,7 +83,7 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-lg-4 col-md-4 mb-3">
-                                <label class="form-label">Product</label>
+                                <label class="form-label">Product <span class="text-danger">*</span></label>
                                 <select name="products[0][product_id]" class="form-select product-select" required>
                                     <option value="">Select Product</option>
                                     @foreach($products as $product)
@@ -91,11 +95,11 @@
                                 <div class="stock-info form-text mt-1"></div>
                             </div>
                             <div class="col-lg-2 col-md-2 col-sm-6 mb-3">
-                                <label class="form-label">Quantity</label>
+                                <label class="form-label">Quantity <span class="text-danger">*</span></label>
                                 <input type="number" name="products[0][quantity]" class="form-control item-quantity" min="1" value="1" required>
                             </div>
                             <div class="col-lg-2 col-md-3 col-sm-6 mb-3">
-                                <label class="form-label">Unit Cost</label>
+                                <label class="form-label">Unit Cost <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text">$</span>
                                     <input type="number" name="products[0][unit_cost]" class="form-control item-unit-cost" min="0" step="0.01" placeholder="0.00" required>
@@ -319,6 +323,9 @@
             template.querySelector('.item-unit-cost').value = '';
             template.querySelector('.stock-info').innerHTML = '';
             
+            // Ensure required field indicators are preserved in cloned template
+            // The template already contains the required field indicators from the original HTML
+            
             document.getElementById('supply-items').appendChild(template);
             setupEventListeners();
             
@@ -425,6 +432,8 @@
             template.querySelector('.item-subtotal').value = '';
             template.querySelector('.stock-info').innerHTML = '';
 
+            // Required field indicators are preserved in the cloned template
+
             document.getElementById('supply-items').appendChild(template);
 
             setupEventListeners();
@@ -463,6 +472,30 @@
         transition: opacity 0.3s ease;
     }
     
+    /* Required field indicator styling */
+    .text-danger {
+        color: var(--danger) !important;
+    }
+    
+    .form-label .text-danger {
+        font-weight: 600;
+        margin-left: 2px;
+    }
+    
+    /* Enhanced focus states for required fields */
+    .form-control:required:focus,
+    .form-select:required:focus {
+        border-color: var(--danger);
+        box-shadow: 0 0 0 0.2rem rgba(231, 111, 81, 0.25);
+    }
+    
+    /* Subtle indicator for required field groups */
+    h3 .text-danger {
+        font-size: 0.8em;
+        vertical-align: super;
+        margin-left: 4px;
+    }
+    
     @media (max-width: 768px) {
         .col-lg-3.col-md-2.col-sm-8 {
             order: -1;
@@ -472,6 +505,11 @@
         .subtotal-highlight {
             font-size: 1.1em;
             text-align: center;
+        }
+        
+        /* Ensure required indicators are visible on mobile */
+        .form-label .text-danger {
+            font-size: 0.9em;
         }
     }
 </style>

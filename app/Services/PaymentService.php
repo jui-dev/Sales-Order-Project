@@ -2,56 +2,182 @@
 
 namespace App\Services;
 
-use App\Models\Invoice;
 use App\Models\Payment;
-use Illuminate\Support\Facades\DB;
-use App\Services\AccountingService;
-use App\Models\AuditLog;
+use App\Traits\HasErrorHandling;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class PaymentService
 {
-    public function __construct(private readonly AccountingService $accountingService)
+    use HasErrorHandling;
+
+    public function list(): Collection
     {
+        return $this->getCollectionOrEmpty(Payment::class, 'payments');
     }
 
-    public function recordPayment(Invoice $invoice, float $amount, string $method = 'cash'): Payment
+    public function getFilteredPayments(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
-        return DB::transaction(function () use ($invoice, $amount, $method) {
-            // Create payment record
-            $payment = Payment::create([
-                'invoice_id' => $invoice->id,
-                'amount'     => $amount,
-                'method'     => $method,
-                'paid_at'    => now(),
-            ]);
+        return $this->getPaginatedOrEmpty(
+            function() use ($filters, $perPage) {
+                $query = Payment::with(['invoice.customer', 'paymentMethod'])
+                    ->latest();
 
-            // Calculate total paid to determine status
-            $totalPaid = $invoice->payments()->sum('amount');
-            if ($totalPaid >= $invoice->total) {
-                $invoice->payment_status = 'paid';
-            } elseif ($totalPaid > 0) {
-                $invoice->payment_status = 'partially_paid';
-            }
-            $invoice->paid_at = $payment->paid_at;
-            $invoice->save();
+                // Apply filters
+                if (!empty($filters['search'])) {
+                    $search = $filters['search'];
+                    $query->where(function($q) use ($search) {
+                        $q->where('payment_number', 'like', "%{$search}%")
+                          ->orWhere('reference_number', 'like', "%{$search}%")
+                          ->orWhereHas('invoice.customer', function($customerQuery) use ($search) {
+                              $customerQuery->where('name', 'like', "%{$search}%");
+                          });
+                    });
+                }
 
-            // Post journal entry (Debit Cash / Credit Accounts Receivable)
-            $description = 'Payment for Invoice ' . $invoice->invoice_number;
-            $this->accountingService->post([
-                ['account_code' => '1000', 'debit' => $amount, 'credit' => 0, 'description' => $description], // Cash
-                ['account_code' => '1100', 'debit' => 0, 'credit' => $amount, 'description' => $description], // Accounts Receivable
-            ], now(), $description, $payment, 'draft');
+                if (!empty($filters['payment_method'])) {
+                    $query->where('payment_method', $filters['payment_method']);
+                }
 
-            // Audit log
-            AuditLog::create([
-                'user_id'      => auth()->id(),
-                'action'       => 'payment_recorded',
-                'description'  => $description,
-                'subject_type' => $payment->getMorphClass(),
-                'subject_id'   => $payment->getKey(),
-            ]);
+                if (!empty($filters['status'])) {
+                    $query->where('status', $filters['status']);
+                }
 
-            return $payment;
-        });
+                if (!empty($filters['date_from'])) {
+                    $query->where('payment_date', '>=', $filters['date_from']);
+                }
+
+                if (!empty($filters['date_to'])) {
+                    $query->where('payment_date', '<=', $filters['date_to']);
+                }
+
+                return $query->paginate($perPage);
+            },
+            'payments',
+            $perPage,
+            $filters
+        );
+    }
+
+    public function get(int $id): Payment
+    {
+        return $this->handleServiceOperation(
+            function() use ($id) {
+                $payment = Payment::with(['invoice.customer', 'paymentMethod'])->find($id);
+                
+                if (!$payment) {
+                    $this->logMissingData('payment', $id);
+                    throw new \App\Exceptions\DataNotFoundException('payment', $id);
+                }
+                
+                return $payment;
+            },
+            'payment',
+            $id
+        );
+    }
+
+    public function create(array $data): Payment
+    {
+        return $this->handleServiceOperation(
+            fn() => Payment::create($data),
+            'payment'
+        );
+    }
+
+    public function update(int $id, array $data): Payment
+    {
+        return $this->handleServiceOperation(
+            function() use ($id, $data) {
+                $payment = $this->findOrFail(Payment::class, $id, 'payment');
+                $payment->update($data);
+                return $payment;
+            },
+            'payment',
+            $id
+        );
+    }
+
+    public function delete(int $id): void
+    {
+        $this->handleServiceOperation(
+            function() use ($id) {
+                $payment = $this->findOrFail(Payment::class, $id, 'payment');
+                $payment->delete();
+            },
+            'payment',
+            $id
+        );
+    }
+
+    /**
+     * Record a payment for an invoice
+     */
+    public function recordPayment(\App\Models\Invoice $invoice, float $amount, string $method, array $additionalData = []): Payment
+    {
+        return $this->handleServiceOperation(
+            function() use ($invoice, $amount, $method, $additionalData) {
+                // Create payment record
+                $payment = Payment::create([
+                    'invoice_id' => $invoice->id,
+                    'amount' => $amount,
+                    'method' => $method,
+                    'payment_date' => now(),
+                    'reference_number' => $additionalData['reference'] ?? null,
+                    'notes' => $additionalData['notes'] ?? null,
+                    'status' => 'completed',
+                ]);
+
+                // Update invoice payment status
+                $totalPaid = $invoice->payments()->sum('amount');
+                $paymentStatus = $totalPaid >= $invoice->total ? 'paid' : 'partially_paid';
+                
+                $invoice->update([
+                    'payment_status' => $paymentStatus,
+                    'paid_at' => $paymentStatus === 'paid' ? now() : null,
+                ]);
+
+                return $payment;
+            },
+            'payment'
+        );
+    }
+
+    /**
+     * Get filter options for payments
+     */
+    public function getFilterOptions(): array
+    {
+        return [
+            'payment_methods' => [
+                'cash' => 'Cash',
+                'check' => 'Check',
+                'bank_transfer' => 'Bank Transfer',
+                'credit_card' => 'Credit Card',
+                'debit_card' => 'Debit Card',
+                'online_payment' => 'Online Payment',
+            ],
+            'statuses' => [
+                'pending' => 'Pending',
+                'completed' => 'Completed',
+                'failed' => 'Failed',
+                'cancelled' => 'Cancelled',
+            ],
+        ];
+    }
+
+    /**
+     * Get sort options for payments
+     */
+    public function getSortOptions(): array
+    {
+        return [
+            'payment_date' => 'Payment Date',
+            'payment_number' => 'Payment Number',
+            'amount' => 'Amount',
+            'payment_method' => 'Payment Method',
+            'status' => 'Status',
+            'customer_name' => 'Customer Name',
+        ];
     }
 } 

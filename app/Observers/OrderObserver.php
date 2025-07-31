@@ -25,6 +25,9 @@ class OrderObserver
          --------------------------------------------------------------*/
 
         if ($order->status === 'confirmed') {
+            // Calculate gross profit for each product in the order
+            $this->calculateGrossProfitForOrder($order);
+
             // ----------------------------------------------------------
             // Picking list only for retailer fulfilment
             // ----------------------------------------------------------
@@ -85,6 +88,42 @@ class OrderObserver
                 app(\App\Services\InvoiceService::class)->generateFromOrder($order);
             } catch (\Throwable $e) {
                 \Log::error('Failed to auto-generate invoice for Order '.$order->id.': '.$e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Calculate gross profit for each product in the order when order is confirmed.
+     * Formula: Gross Profit = Revenue (Sales) - Cost of Goods Sold (COGS)
+     */
+    private function calculateGrossProfitForOrder(Order $order): void
+    {
+        // Load order items with products to get purchase prices
+        $order->load('orderItems.product');
+
+        foreach ($order->orderItems as $item) {
+            $product = $item->product;
+            
+            if (!$product) {
+                continue; // Skip if product not found
+            }
+
+            // Calculate Revenue (Sales) for this item
+            $revenue = $item->unit_price * $item->quantity;
+            
+            // Calculate Cost of Goods Sold (COGS) for this item
+            $unitCost = $product->purchase_price ?? 0;
+            $cogs = $unitCost * $item->quantity;
+            
+            // Calculate Gross Profit for this item
+            $grossProfit = $revenue - $cogs;
+            
+            // Update the product's gross_profit field
+            // Note: This will be the gross profit per unit, not total
+            if ($item->quantity > 0) {
+                $grossProfitPerUnit = $grossProfit / $item->quantity;
+                $product->gross_profit = round($grossProfitPerUnit, 2);
+                $product->saveQuietly(); // Use saveQuietly to avoid triggering observers
             }
         }
     }

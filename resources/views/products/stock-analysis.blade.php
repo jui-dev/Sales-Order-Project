@@ -16,7 +16,7 @@
 
 <!-- Stock Summary Cards -->
 <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-primary">Current Stock</h5>
@@ -25,7 +25,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-success">Total Supplied</h5>
@@ -34,7 +34,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-warning">Total Ordered</h5>
@@ -43,12 +43,86 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card text-center">
             <div class="card-body">
                 <h5 class="card-title text-info">Projected Stock</h5>
                 <h2 class="text-{{ $stockData['projected_stock'] > 0 ? 'success' : 'danger' }}">{{ $stockData['projected_stock'] }}</h2>
                 <small class="text-muted">Including pending</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-danger">
+                    <i class="bi bi-arrow-return-left me-1"></i>Customer Returns
+                </h5>
+                <h2 class="text-success">{{ $stockData['total_customer_returns'] }}</h2>
+                <small class="text-muted">Items returned by customers</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info">
+                    <i class="bi bi-arrow-return-right me-1"></i>Vendor Returns
+                </h5>
+                <h2 class="text-warning">{{ $stockData['total_vendor_returns'] }}</h2>
+                <small class="text-muted">Items returned to vendors</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Return Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning">
+                    <i class="bi bi-arrow-return-left me-1"></i>Retailer Returns
+                </h5>
+                <h2 class="text-success">{{ $stockData['total_retailer_returns'] }}</h2>
+                <small class="text-muted">Items returned by retailers</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-secondary">
+                    <i class="bi bi-clock me-1"></i>Pending Returns
+                </h5>
+                <h2 class="text-warning">{{ $stockData['pending_returns'] }}</h2>
+                <small class="text-muted">Awaiting approval</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">
+                    <i class="bi bi-plus-circle me-1"></i>Net Returns
+                </h5>
+                <h2 class="text-{{ ($stockData['total_customer_returns'] + $stockData['total_retailer_returns'] - $stockData['total_vendor_returns']) >= 0 ? 'success' : 'danger' }}">
+                    {{ $stockData['total_customer_returns'] + $stockData['total_retailer_returns'] - $stockData['total_vendor_returns'] }}
+                </h2>
+                <small class="text-muted">Net inbound returns</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary">
+                    <i class="bi bi-calculator me-1"></i>Return Rate
+                </h5>
+                <h2 class="text-{{ ($stockData['total_ordered'] > 0 ? round((($stockData['total_customer_returns'] / $stockData['total_ordered']) * 100), 1) : 0) <= 5 ? 'success' : 'warning' }}">
+                    {{ $stockData['total_ordered'] > 0 ? round((($stockData['total_customer_returns'] / $stockData['total_ordered']) * 100), 1) : 0 }}%
+                </h2>
+                <small class="text-muted">Customer return rate</small>
             </div>
         </div>
     </div>
@@ -67,9 +141,9 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h6 class="card-title mb-0">{{ $stockBalance->stockLocation->name }}</h6>
-                                                            <span class="badge bg-{{ $stockBalance->stockLocation->location_type === 'warehouse' ? 'success' : 'info' }}">
-                                    {{ ucfirst($stockBalance->stockLocation->location_type) }}
+                            <h6 class="card-title mb-0">{{ $stockBalance->location_name ?? 'Unknown Location' }}</h6>
+                            <span class="badge bg-{{ $stockBalance->location_type === 'warehouse' ? 'success' : 'info' }}">
+                                {{ ucfirst($stockBalance->location_type ?? 'unknown') }}
                             </span>
                         </div>
                         
@@ -95,7 +169,7 @@
                         @if($stockBalance->last_movement_date)
                             <div class="mt-2">
                                 <small class="text-muted">
-                                    <i class="bi bi-clock me-1"></i>Last updated: {{ $stockBalance->last_movement_date->format('M d, Y H:i') }}
+                                    <i class="bi bi-clock me-1"></i>Last updated: {{ \Carbon\Carbon::parse($stockBalance->last_movement_date)->format('M d, Y H:i') }}
                                 </small>
                             </div>
                         @endif
@@ -121,6 +195,8 @@
                     <strong>{{ $stockData['current_stock'] }}</strong> = 
                     <span class="text-success">{{ $stockData['total_supplied'] }} (supplied)</span> - 
                     <span class="text-warning">{{ $stockData['total_ordered'] }} (ordered)</span>
+                    <span class="text-danger">+ {{ $stockData['total_customer_returns'] + $stockData['total_retailer_returns'] }} (returns in)</span>
+                    <span class="text-info">- {{ $stockData['total_vendor_returns'] }} (returns out)</span>
                 </p>
                 @if($stockData['current_stock'] <= 0)
                     <div class="alert alert-danger">
@@ -134,6 +210,7 @@
                 <h6>Pending Items:</h6>
                 <p class="mb-1">Pending Supplies: <span class="text-info">{{ $stockData['pending_supplies'] }}</span></p>
                 <p class="mb-1">Pending Orders: <span class="text-info">{{ $stockData['pending_orders'] }}</span></p>
+                <p class="mb-1">Pending Returns: <span class="text-warning">{{ $stockData['pending_returns'] }}</span></p>
                 @if($stockData['pending_supplies'] > 0)
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle"></i>
@@ -150,6 +227,13 @@
                         </div>
                     </div>
                 @endif
+                @if($stockData['pending_returns'] > 0)
+                    <div class="alert alert-warning">
+                        <i class="bi bi-arrow-return-left"></i>
+                        <strong>Note:</strong> {{ $stockData['pending_returns'] }} return units are pending approval. 
+                        <a href="{{ route('returns.index') }}" class="alert-link">Review pending returns</a> to process them.
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -159,7 +243,9 @@
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Supply History</h5>
-        <a href="{{ route('supplies.create') }}" class="btn btn-success btn-sm">Add New Supply</a>
+        <a href="{{ route('supplies.create') }}" class="btn btn-success btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Create New Supply
+        </a>
     </div>
     <div class="card-body">
         @if($stockData['supplies']->count() > 0)
@@ -210,10 +296,12 @@
 </div>
 
 <!-- Orders History -->
-<div class="card">
+<div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Order History</h5>
-        <a href="{{ route('orders.create') }}" class="btn btn-primary btn-sm">Create New Order</a>
+        <a href="{{ route('orders.create') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Create New Order
+        </a>
     </div>
     <div class="card-body">
         @if($stockData['orders']->count() > 0)
@@ -249,6 +337,107 @@
             </div>
         @else
             <p class="text-muted">No orders found for this product.</p>
+        @endif
+    </div>
+</div>
+
+<!-- Return History -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-arrow-return-left me-2"></i>Return History
+        </h5>
+        <a href="{{ route('returns.create') }}" class="btn btn-warning btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>Create New Return
+        </a>
+    </div>
+    <div class="card-body">
+        @if($stockData['returns']->count() > 0)
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Return ID</th>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Direction</th>
+                            <th>Quantity</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($stockData['returns'] as $return)
+                        <tr>
+                            <td>
+                                <a href="{{ route('returns.show', $return->id) }}" class="text-decoration-none">
+                                    #{{ $return->id }}
+                                </a>
+                            </td>
+                            <td>{{ \Carbon\Carbon::parse($return->transaction_date)->format('M d, Y') }}</td>
+                            <td>
+                                @if($return->transaction_type === 'customer_return')
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-arrow-return-left me-1"></i>Customer Return
+                                    </span>
+                                @elseif($return->transaction_type === 'vendor_return')
+                                    <span class="badge bg-info">
+                                        <i class="bi bi-arrow-return-right me-1"></i>Vendor Return
+                                    </span>
+                                @elseif($return->transaction_type === 'retailer_return')
+                                    <span class="badge bg-warning">
+                                        <i class="bi bi-arrow-return-left me-1"></i>Retailer Return
+                                    </span>
+                                @endif
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ $return->direction === 'inbound' ? 'success' : 'danger' }}">
+                                    <i class="bi bi-arrow-{{ $return->direction === 'inbound' ? 'down' : 'up' }} me-1"></i>
+                                    {{ ucfirst($return->direction) }}
+                                </span>
+                            </td>
+                            <td>{{ $return->quantity }}</td>
+                            <td>
+                                <span class="badge bg-{{ $return->status === 'pending' ? 'warning' : ($return->status === 'approved' ? 'info' : ($return->status === 'completed' ? 'success' : ($return->status === 'rejected' ? 'danger' : 'secondary'))) }}">
+                                    {{ ucfirst($return->status) }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ route('returns.show', $return->id) }}" class="btn btn-sm btn-outline-primary" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    @if($return->status === 'pending')
+                                                                                    <form action="{{ route('returns.approve', $return->id) }}" method="POST" class="d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Approve Return">
+                                                    <i class="bi bi-check-circle"></i>
+                                                </button>
+                                            </form>
+                                        <form action="{{ route('returns.reject', $return->id) }}" method="POST" class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject Return" onclick="return confirm('Are you sure you want to reject this return?')">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        </form>
+                                    @endif
+                                    @if($return->status === 'approved')
+                                        <form action="{{ route('returns.complete', $return->id) }}" method="POST" class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-outline-success" title="Complete Return" onclick="return confirm('Are you sure you want to complete this return?')">
+                                                <i class="bi bi-check2-all"></i>
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @else
+            <p class="text-muted">No return transactions found for this product.</p>
         @endif
     </div>
 </div>
