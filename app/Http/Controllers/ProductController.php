@@ -26,6 +26,8 @@ class ProductController extends Controller
         try {
             $filters = [
                 'search' => $request->search,
+                'category_id' => $request->category_id,
+                'subcategory_id' => $request->subcategory_id,
                 'price_min' => $request->price_min,
                 'price_max' => $request->price_max,
                 'stock_min' => $request->stock_min,
@@ -128,6 +130,36 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             return redirect()->route('products.index')
                 ->with('error', 'Unable to delete product. Please try again.');
+        }
+    }
+
+    /**
+     * Get subcategories for a selected category (AJAX endpoint)
+     */
+    public function getSubcategories(Request $request): JsonResponse
+    {
+        try {
+            $categoryId = $request->input('category_id');
+            
+            \Log::info('getSubcategories called with category_id: ' . $categoryId);
+            
+            if (!$categoryId) {
+                \Log::info('No category_id provided, returning empty options');
+                return response()->json(['options' => ['' => 'All Subcategories']]);
+            }
+
+            $subcategories = \App\Models\ProductCategory::getSubcategories($categoryId);
+            $options = ['' => 'All Subcategories'];
+            
+            foreach ($subcategories as $subcategory) {
+                $options[$subcategory->id] = $subcategory->name;
+            }
+
+            \Log::info('Returning subcategories for category ' . $categoryId . ': ' . count($options) . ' options');
+            return response()->json(['options' => $options]);
+        } catch (\Exception $e) {
+            \Log::error('Error in getSubcategories: ' . $e->getMessage());
+            return response()->json(['error' => 'Unable to load subcategories'], 500);
         }
     }
 

@@ -129,7 +129,7 @@ class ProductService
     {
         return $this->getPaginatedOrEmpty(
             function() use ($filters, $perPage) {
-                $query = Product::query();
+                $query = Product::with('category');
 
                 // Apply search filter
                 if (!empty($filters['search'])) {
@@ -139,6 +139,16 @@ class ProductService
                           ->orWhere('sku', 'like', "%{$search}%")
                           ->orWhere('description', 'like', "%{$search}%");
                     });
+                }
+
+                // Apply category filter
+                if (!empty($filters['category_id'])) {
+                    $query->where('category_id', $filters['category_id']);
+                }
+
+                // Apply subcategory filter
+                if (!empty($filters['subcategory_id'])) {
+                    $query->where('category_id', $filters['subcategory_id']);
                 }
 
                 // Apply price filters
@@ -430,6 +440,18 @@ class ProductService
                 'label' => 'Search',
                 'placeholder' => 'Search by name, SKU, or description'
             ],
+            'category_id' => [
+                'type' => 'select',
+                'label' => 'Category',
+                'placeholder' => 'Select category',
+                'options' => $this->getCategoryOptions()
+            ],
+            'subcategory_id' => [
+                'type' => 'select',
+                'label' => 'Subcategory',
+                'placeholder' => 'Select subcategory',
+                'options' => []
+            ],
             'price_min' => [
                 'type' => 'number',
                 'label' => 'Min Price',
@@ -451,6 +473,36 @@ class ProductService
                 'placeholder' => 'Maximum stock level'
             ]
         ];
+    }
+
+    /**
+     * Get category options for filter dropdown
+     */
+    public function getCategoryOptions(): array
+    {
+        $categories = \App\Models\ProductCategory::getMainCategories();
+        $options = ['' => 'All Categories'];
+        
+        foreach ($categories as $category) {
+            $options[$category->id] = $category->name;
+        }
+        
+        return $options;
+    }
+
+    /**
+     * Get subcategory options for a given category
+     */
+    public function getSubcategoryOptions(int $categoryId): array
+    {
+        $subcategories = \App\Models\ProductCategory::getSubcategories($categoryId);
+        $options = ['' => 'All Subcategories'];
+        
+        foreach ($subcategories as $subcategory) {
+            $options[$subcategory->id] = $subcategory->name;
+        }
+        
+        return $options;
     }
 
     /**

@@ -11,6 +11,7 @@ class DatabaseSeeder extends Seeder
         // Add individual seeders here
         $this->call([
             UserSeeder::class,
+            ProductCategorySeeder::class,
             ProductSeeder::class,
             CustomerSeeder::class,
             VendorSeeder::class,
@@ -18,6 +19,7 @@ class DatabaseSeeder extends Seeder
             RetailerSeeder::class,
             ChartOfAccountsSeeder::class,
             StockLocationSeeder::class,
+            IdSequenceTrackerSeeder::class,
         ]);
     }
 } 

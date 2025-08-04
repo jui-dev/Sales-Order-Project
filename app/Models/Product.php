@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Traits\HasFormattedId;
 
@@ -18,6 +19,7 @@ class Product extends Model
         'name',
         'sku',
         'description',
+        'category_id',
         'selling_price',
         'purchase_price',
         'gross_profit',
@@ -63,6 +65,11 @@ class Product extends Model
     public function stockTransactions(): HasMany
     {
         return $this->hasMany(\App\Models\StockTransaction::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\ProductCategory::class, 'category_id');
     }
 
     /* ---------------------------------------------------------------------

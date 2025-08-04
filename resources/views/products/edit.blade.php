@@ -18,21 +18,21 @@
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label for="name" class="form-label">Name</label>
-                    <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $product->name) }}" required>
-                    @error('name')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
+                    <input type="text" class="form-control @if($errors && $errors->has('name')) is-invalid @endif" id="name" name="name" value="{{ old('name', $product->name) }}" required>
+                    @if($errors && $errors->has('name'))
+                        <div class="invalid-feedback">{{ $errors->first('name') }}</div>
+                    @endif
                 </div>
                 
                 <div class="col-md-4 mb-3">
                     <label for="selling_price" class="form-label">Selling Price</label>
                     <div class="input-group">
                         <span class="input-group-text">$</span>
-                        <input type="number" class="form-control @error('selling_price') is-invalid @enderror" id="selling_price" name="selling_price" value="{{ old('selling_price', $product->selling_price) }}" min="0" step="0.01" required>
+                        <input type="number" class="form-control @if($errors && $errors->has('selling_price')) is-invalid @endif" id="selling_price" name="selling_price" value="{{ old('selling_price', $product->selling_price) }}" min="0" step="0.01" required>
                     </div>
-                    @error('selling_price')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
+                    @if($errors && $errors->has('selling_price'))
+                        <div class="invalid-feedback">{{ $errors->first('selling_price') }}</div>
+                    @endif
                 </div>
 
                 <div class="col-md-4 mb-3">
@@ -49,6 +49,38 @@
                     @error('retailer_stock')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label for="category_id" class="form-label">Category</label>
+                    <select class="form-select @if($errors && $errors->has('category_id')) is-invalid @endif" id="category_id" name="category_id">
+                        <option value="">Select Category</option>
+                        @foreach(\App\Models\ProductCategory::getMainCategories() as $category)
+                            <option value="{{ $category->id }}" {{ old('category_id', $product->category_id) == $category->id ? 'selected' : '' }}>
+                                {{ $category->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @if($errors && $errors->has('category_id'))
+                        <div class="invalid-feedback">{{ $errors->first('category_id') }}</div>
+                    @endif
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label for="subcategory_id" class="form-label">Subcategory</label>
+                    <select class="form-select @if($errors && $errors->has('subcategory_id')) is-invalid @endif" id="subcategory_id" name="subcategory_id">
+                        <option value="">Select Subcategory</option>
+                        @if($product->category && $product->category->parent_id)
+                            @foreach(\App\Models\ProductCategory::getSubcategories($product->category->parent_id) as $subcategory)
+                                <option value="{{ $subcategory->id }}" {{ old('subcategory_id', $product->category_id) == $subcategory->id ? 'selected' : '' }}>
+                                    {{ $subcategory->name }}
+                                </option>
+                            @endforeach
+                        @endif
+                    </select>
+                    @if($errors && $errors->has('subcategory_id'))
+                        <div class="invalid-feedback">{{ $errors->first('subcategory_id') }}</div>
+                    @endif
                 </div>
             </div>
             
@@ -153,5 +185,55 @@ document.addEventListener('DOMContentLoaded', function() {
     
     warehouseInput.addEventListener('input', updateTotal);
     retailerInput.addEventListener('input', updateTotal);
+
+    // Category and subcategory handling
+    const categorySelect = document.getElementById('category_id');
+    const subcategorySelect = document.getElementById('subcategory_id');
+    
+    if (categorySelect && subcategorySelect) {
+        categorySelect.addEventListener('change', function() {
+            const categoryId = this.value;
+            
+            // Clear subcategory options
+            subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+            
+            if (categoryId) {
+                // Fetch subcategories for the selected category
+                fetch(`{{ route('products.get-subcategories') }}?category_id=${categoryId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.options) {
+                            Object.entries(data.options).forEach(([value, text]) => {
+                                if (value !== '') { // Skip the "All Subcategories" option
+                                    const option = document.createElement('option');
+                                    option.value = value;
+                                    option.textContent = text;
+                                    subcategorySelect.appendChild(option);
+                                }
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading subcategories:', error);
+                    });
+            }
+        });
+        
+        // Handle subcategory selection
+        subcategorySelect.addEventListener('change', function() {
+            const subcategoryId = this.value;
+            
+            if (subcategoryId) {
+                // If a subcategory is selected, update the category_id to the subcategory_id
+                categorySelect.value = subcategoryId;
+            }
+            // If no subcategory is selected, the category_id will remain as the main category
+        });
+    }
 });
 </script> 

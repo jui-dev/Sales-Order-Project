@@ -37,6 +37,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Name</th>
+                            <th>Category</th>
                             <th>Selling Price</th>
                             <th>Available Stocks</th>
                             <th>Purchase Price</th>
@@ -52,6 +53,13 @@
                                     <strong>{{ $product->name }}</strong>
                                     @if($product->sku)
                                         <br><small class="text-muted">SKU: {{ $product->sku }}</small>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if($product->category)
+                                        <span class="badge bg-info">{{ $product->category->full_path }}</span>
+                                    @else
+                                        <span class="text-muted">No Category</span>
                                     @endif
                                 </td>
                                 <td>
@@ -104,7 +112,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center py-4">
+                                <td colspan="8" class="text-center py-4">
                                     <div class="text-muted">
                                         <i class="bi bi-inbox display-1 d-block mb-3"></i>
                                         <h5>No Products Found</h5>

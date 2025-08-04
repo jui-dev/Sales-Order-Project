@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\StockTransaction;
 use App\Models\Customer;
 use App\Models\Vendor;
+
 use App\Models\Payment;
 use App\Models\ProductStock;
 use Illuminate\Support\Facades\DB;

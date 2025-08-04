@@ -8,6 +8,7 @@
     use App\Models\StockTransaction;
     use App\Models\Customer;
     use App\Models\Vendor;
+    
     use App\Models\Payment;
     use App\Models\ProductStock;
     
@@ -105,6 +106,8 @@
         <p>Manage your business operations efficiently</p>
     </div>
 </div>
+
+
 
 <!-- KPI Cards -->
 <div class="row mb-4">
@@ -457,6 +460,8 @@
     max-height: 400px;
     overflow-y: auto;
 }
+
+
 
 .activity-item {
     display: flex;

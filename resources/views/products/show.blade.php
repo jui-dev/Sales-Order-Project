@@ -14,6 +14,12 @@
                     <p class="text-muted mb-0">
                         <i class="bi bi-tag me-1"></i>
                         SKU: {{ $product->sku ?: 'Not set' }}
+                        @if($product->category)
+                            <span class="ms-3">
+                                <i class="bi bi-folder me-1"></i>
+                                {{ $product->category->full_path }}
+                            </span>
+                        @endif
                     </p>
                 </div>
             </div>
