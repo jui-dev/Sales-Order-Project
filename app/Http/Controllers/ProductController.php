@@ -142,6 +142,9 @@ class ProductController extends Controller
             $categoryId = $request->input('category_id');
             
             \Log::info('getSubcategories called with category_id: ' . $categoryId);
+            \Log::info('Request headers: ' . json_encode($request->headers->all()));
+            \Log::info('Request method: ' . $request->method());
+            \Log::info('Request URL: ' . $request->url());
             
             if (!$categoryId) {
                 \Log::info('No category_id provided, returning empty options');
@@ -156,7 +159,14 @@ class ProductController extends Controller
             }
 
             \Log::info('Returning subcategories for category ' . $categoryId . ': ' . count($options) . ' options');
-            return response()->json(['options' => $options]);
+            \Log::info('Response data: ' . json_encode(['options' => $options]));
+            
+            // Create response manually to bypass any trait formatting
+            $response = new \Illuminate\Http\JsonResponse(['options' => $options], 200);
+            $response->header('Content-Type', 'application/json');
+            $response->header('Cache-Control', 'no-cache');
+            
+            return $response;
         } catch (\Exception $e) {
             \Log::error('Error in getSubcategories: ' . $e->getMessage());
             return response()->json(['error' => 'Unable to load subcategories'], 500);

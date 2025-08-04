@@ -50,10 +50,10 @@ Route::prefix('dashboard')->name('dashboard.')->group(function () {
 });
 
 // Products Routes (Controller ➜ Service ➜ Model)
+Route::get('products/ajax/subcategories', [ProductController::class, 'getSubcategories'])->name('products.get-subcategories');
 Route::resource('products', ProductController::class);
 Route::get('products/{id}/transaction-history', [ProductController::class, 'transactionHistory'])->name('products.transaction-history');
 Route::get('products/{id}/stock-analysis', [ProductController::class, 'stockAnalysis'])->name('products.stock-analysis')->whereNumber('id');
-Route::get('products/ajax/subcategories', [ProductController::class, 'getSubcategories'])->name('products.get-subcategories');
 Route::patch('products/{product}/complete-supplies', function (Product $product) {
     // Complete all pending supplies for this product
     $pendingSupplies = \App\Models\Supply::whereHas('supplyItems', function($query) use ($product) {

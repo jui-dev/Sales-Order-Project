@@ -141,13 +141,22 @@ class ProductService
                     });
                 }
 
-                // Apply category filter
-                if (!empty($filters['category_id'])) {
-                    $query->where('category_id', $filters['category_id']);
-                }
-
-                // Apply subcategory filter
-                if (!empty($filters['subcategory_id'])) {
+                // Apply category and subcategory filters
+                if (!empty($filters['category_id']) && !empty($filters['subcategory_id'])) {
+                    // If both category and subcategory are selected, filter by subcategory
+                    $query->where('category_id', $filters['subcategory_id']);
+                } elseif (!empty($filters['category_id'])) {
+                    // If only category is selected, filter by category and its subcategories
+                    $category = \App\Models\ProductCategory::find($filters['category_id']);
+                    if ($category) {
+                        $subcategoryIds = $category->subcategories->pluck('id')->toArray();
+                        $categoryIds = array_merge([$category->id], $subcategoryIds);
+                        $query->whereIn('category_id', $categoryIds);
+                    } else {
+                        $query->where('category_id', $filters['category_id']);
+                    }
+                } elseif (!empty($filters['subcategory_id'])) {
+                    // If only subcategory is selected, filter by that subcategory
                     $query->where('category_id', $filters['subcategory_id']);
                 }
 

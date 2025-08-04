@@ -264,4 +264,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
+<!-- Include products filter script if on products page -->
+@if(request()->routeIs('products.*'))
+<script src="{{ asset('js/products-filter.js') }}"></script>
+@endif
 @endpush 

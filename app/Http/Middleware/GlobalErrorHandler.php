@@ -23,6 +23,11 @@ class GlobalErrorHandler
             
             // Handle empty data responses for API requests
             if ($request->expectsJson() && $response instanceof JsonResponse) {
+                // Skip standardization for specific endpoints that have their own response format
+                if ($request->is('products/ajax/subcategories')) {
+                    return $response;
+                }
+                
                 $data = $response->getData(true);
                 
                 // If the response is empty or contains empty data, standardize it
