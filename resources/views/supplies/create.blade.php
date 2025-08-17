@@ -82,12 +82,30 @@
                 <div class="supply-item card mb-3">
                     <div class="card-body">
                         <div class="row">
+                            <div class="col-lg-3 col-md-3 mb-3">
+                                <label class="form-label">Category</label>
+                                <select name="products[0][category_id]" class="form-select category-select">
+                                    <option value="">All Categories</option>
+                                    @foreach($categories as $category)
+                                        <option value="{{ $category->id }}">{{ $category->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-lg-3 col-md-3 mb-3">
+                                <label class="form-label">Subcategory</label>
+                                <select name="products[0][subcategory_id]" class="form-select subcategory-select" disabled>
+                                    <option value="">All Subcategories</option>
+                                </select>
+                            </div>
                             <div class="col-lg-4 col-md-4 mb-3">
                                 <label class="form-label">Product <span class="text-danger">*</span></label>
                                 <select name="products[0][product_id]" class="form-select product-select" required>
                                     <option value="">Select Product</option>
                                     @foreach($products as $product)
-                                        <option value="{{ $product->id }}" data-stock="{{ $product->available_stocks }}">
+                                        <option value="{{ $product->id }}" 
+                                            data-stock="{{ $product->available_stocks }}"
+                                            data-category="{{ $product->category_id }}"
+                                            data-parent-category="{{ $product->category->parent_id ?? $product->category_id }}">
                                             {{ $product->name }} ({{ $product->available_stocks }})
                                         </option>
                                     @endforeach
@@ -139,12 +157,14 @@
         let calculateTimeout;
         let locationStockData = {};
         
-        // Pre-load products for fast filtering (id, name, initial stock)
+        // Pre-load products for fast filtering (id, name, initial stock, category)
         const allProducts = {!! $products->map(function ($p) {
             return [
-                'id'    => $p->id,
-                'name'  => $p->name,
-                'stock' => $p->available_stocks,
+                'id'              => $p->id,
+                'name'            => $p->name,
+                'stock'           => $p->available_stocks,
+                'category_id'     => $p->category_id,
+                'parent_category' => $p->category->parent_id ?? $p->category_id,
             ];
         })->values()->toJson() !!};
 
@@ -152,9 +172,24 @@
         const searchInput      = document.getElementById('product-search-input');
         const suggestionBox    = document.getElementById('product-suggestions');
 
-        function renderSuggestions(term = '') {
+        function renderSuggestions(term = '', categoryId = '', subcategoryId = '') {
             const needle = term.toLowerCase();
-            const matches = !needle ? [] : allProducts.filter(p => p.name.toLowerCase().includes(needle)).slice(0, 10);
+            let matches = !needle ? [] : allProducts.filter(p => p.name.toLowerCase().includes(needle));
+
+            // Filter by category if selected
+            if (categoryId) {
+                matches = matches.filter(p => {
+                    if (subcategoryId) {
+                        // If subcategory is selected, show only products from that subcategory
+                        return p.category_id === parseInt(subcategoryId);
+                    } else {
+                        // If only category is selected, show products from category and its subcategories
+                        return p.parent_category === parseInt(categoryId) || p.category_id === parseInt(categoryId);
+                    }
+                });
+            }
+
+            matches = matches.slice(0, 10);
 
             if (!matches.length) {
                 suggestionBox.style.display = 'none';
@@ -172,7 +207,12 @@
         }
 
         // Filter as the user types
-        searchInput.addEventListener('input', () => renderSuggestions(searchInput.value));
+        searchInput.addEventListener('input', () => {
+            const item = searchInput.closest('.supply-item') || document.querySelector('.supply-item');
+            const categoryId = item.querySelector('.category-select').value;
+            const subcategoryId = item.querySelector('.subcategory-select').value;
+            renderSuggestions(searchInput.value, categoryId, subcategoryId);
+        });
 
         // Handle click on a suggestion
         suggestionBox.addEventListener('click', function(e) {
@@ -333,6 +373,72 @@
             template.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
         
+        // Load subcategories for a category
+        async function loadSubcategories(categoryId, subcategorySelect) {
+            if (!categoryId) {
+                subcategorySelect.innerHTML = '<option value="">All Subcategories</option>';
+                subcategorySelect.disabled = true;
+                return;
+            }
+
+            try {
+                const response = await fetch(`/products/ajax/subcategories?category_id=${categoryId}`, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    }
+                });
+
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const data = await response.json();
+                const options = data.options || {};
+                
+                subcategorySelect.innerHTML = Object.entries(options)
+                    .map(([value, text]) => `<option value="${value}">${text}</option>`)
+                    .join('');
+                
+                subcategorySelect.disabled = false;
+            } catch (error) {
+                console.error('Error loading subcategories:', error);
+                subcategorySelect.innerHTML = '<option value="">Error loading subcategories</option>';
+                subcategorySelect.disabled = true;
+            }
+        }
+
+        // Filter products based on category/subcategory
+        function filterProducts(item) {
+            const categoryId = item.querySelector('.category-select').value;
+            const subcategoryId = item.querySelector('.subcategory-select').value;
+            const productSelect = item.querySelector('.product-select');
+            
+            // Show/hide options based on category selection
+            Array.from(productSelect.options).forEach(option => {
+                if (!option.value) return; // Skip placeholder option
+                
+                const productCategoryId = option.getAttribute('data-category');
+                const productParentCategory = option.getAttribute('data-parent-category');
+                
+                let shouldShow = true;
+                if (categoryId) {
+                    if (subcategoryId) {
+                        shouldShow = productCategoryId === subcategoryId;
+                    } else {
+                        shouldShow = productParentCategory === categoryId || productCategoryId === categoryId;
+                    }
+                }
+                
+                option.style.display = shouldShow ? '' : 'none';
+            });
+            
+            // If current selection is hidden, clear it
+            if (productSelect.selectedOptions[0]?.style.display === 'none') {
+                productSelect.value = '';
+                updateProductStockInfo(productSelect);
+            }
+        }
+
         // Setup event listeners for all items
         function setupEventListeners() {
             // Remove item button
@@ -348,10 +454,50 @@
                     }
                 };
             });
+
+            // Category selection change
+            document.querySelectorAll('.category-select').forEach(select => {
+                select.addEventListener('change', function() {
+                    const item = this.closest('.supply-item');
+                    const subcategorySelect = item.querySelector('.subcategory-select');
+                    loadSubcategories(this.value, subcategorySelect);
+                    filterProducts(item);
+                });
+            });
+
+            // Subcategory selection change
+            document.querySelectorAll('.subcategory-select').forEach(select => {
+                select.addEventListener('change', function() {
+                    const item = this.closest('.supply-item');
+                    filterProducts(item);
+                });
+            });
             
             // Product selection change
             document.querySelectorAll('.product-select').forEach(select => {
-                select.addEventListener('change', function() {
+                select.addEventListener('change', async function() {
+                    const item = this.closest('.supply-item');
+                    const categorySelect = item.querySelector('.category-select');
+                    const subcategorySelect = item.querySelector('.subcategory-select');
+                    
+                    if (this.value) {
+                        const option = this.selectedOptions[0];
+                        const productCategoryId = option.getAttribute('data-category');
+                        const productParentCategory = option.getAttribute('data-parent-category');
+                        
+                        // Set the main category
+                        categorySelect.value = productParentCategory;
+                        
+                        // Load and set subcategory if applicable
+                        if (productParentCategory !== productCategoryId) {
+                            await loadSubcategories(productParentCategory, subcategorySelect);
+                            subcategorySelect.value = productCategoryId;
+                        } else {
+                            subcategorySelect.innerHTML = '<option value="">All Subcategories</option>';
+                            subcategorySelect.disabled = true;
+                        }
+                    }
+                    
                     updateProductStockInfo(this);
                 });
             });

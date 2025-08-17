@@ -43,4 +43,9 @@ class Warehouse extends Model
     {
         return $this->morphMany(\App\Models\StockTransfer::class, 'to_location');
     }
+
+    public function stockTransactions(): MorphMany
+    {
+        return $this->morphMany(\App\Models\StockTransaction::class, 'location');
+    }
 } 

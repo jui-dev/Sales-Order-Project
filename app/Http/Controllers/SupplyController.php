@@ -95,15 +95,17 @@ class SupplyController extends Controller
         try {
             $vendors = \App\Models\Vendor::orderBy('name')->get();
             $warehouses = \App\Models\Warehouse::orderBy('name')->get();
-            $products = \App\Models\Product::orderBy('name')->get();
+            $products = \App\Models\Product::with('category')->orderBy('name')->get();
+            $categories = \App\Models\ProductCategory::getMainCategories();
 
-            return view('supplies.create', compact('vendors', 'warehouses', 'products'));
+            return view('supplies.create', compact('vendors', 'warehouses', 'products', 'categories'));
         } catch (\Exception $e) {
             \Log::error('Error loading supply creation form: ' . $e->getMessage());
             return view('supplies.create', [
                 'vendors' => collect(),
                 'warehouses' => collect(),
-                'products' => collect()
+                'products' => collect(),
+                'categories' => collect()
             ])->with('error', 'Unable to load form data. Please try again later.');
         }
     }

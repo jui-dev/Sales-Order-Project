@@ -106,20 +106,51 @@ class ProductService
     /**
      * Recalculate available_stocks for a specific product
      * Only considers internal locations (warehouses and retailers)
+     * Uses stock_transactions to ensure accurate stock levels
      */
     public function recalculateProductStock(Product $product): void
     {
-        // Get base stock from product_stocks table (internal locations only)
-        $baseStock = DB::table('product_stocks')
-            ->where('product_id', $product->id)
-            ->whereIn('location_type', [
-                'App\\Models\\Warehouse',
-                'App\\Models\\Retailer'
-            ])
-            ->sum('quantity');
+        // Start a transaction to ensure data consistency
+        DB::transaction(function() use ($product) {
+            // First, reset all product_stocks to 0
+            DB::table('product_stocks')
+                ->where('product_id', $product->id)
+                ->update(['quantity' => 0]);
 
-        // Update the product's available_stocks
-        $product->update(['available_stocks' => max(0, $baseStock)]);
+            // Get all completed stock transactions
+            $transactions = DB::table('stock_transactions')
+                ->where('product_id', $product->id)
+                ->where('status', 'completed')
+                ->orderBy('transaction_date')
+                ->get();
+
+            // Process each transaction to rebuild stock levels
+            foreach ($transactions as $transaction) {
+                $quantity = $transaction->quantity;
+                if ($transaction->direction === 'outbound') {
+                    $quantity = -$quantity;
+                }
+
+                // Update stock for the location
+                DB::table('product_stocks')
+                    ->where('product_id', $product->id)
+                    ->where('location_id', $transaction->location_id)
+                    ->where('location_type', $transaction->location_type)
+                    ->increment('quantity', $quantity);
+            }
+
+            // Calculate total available stock from product_stocks
+            $baseStock = DB::table('product_stocks')
+                ->where('product_id', $product->id)
+                ->whereIn('location_type', [
+                    'App\\Models\\Warehouse',
+                    'App\\Models\\Retailer'
+                ])
+                ->sum('quantity');
+
+            // Update the product's available_stocks
+            $product->update(['available_stocks' => max(0, $baseStock)]);
+        });
     }
 
     /**

@@ -76,9 +76,24 @@ class GrnService
                 'product_id'    => $item->product_id,
                 'location_id'   => $supply->warehouse_id,
                 'location_type' => get_class($warehouse),
+            ], [
+                'quantity' => 0, // Set initial quantity to 0 for new records
             ]);
-            $stock->quantity += $item->quantity;
-            $stock->save();
+
+            // Check if this GRN's stock has already been posted
+            $existingTransaction = \App\Models\StockTransaction::where([
+                'product_id'       => $item->product_id,
+                'location_id'      => $supply->warehouse_id,
+                'location_type'    => get_class($warehouse),
+                'reference_type'   => Grn::class,
+                'reference_id'     => $grn->id,
+            ])->exists();
+
+            // Only update stock if this GRN hasn't been posted before
+            if (!$existingTransaction) {
+                $stock->quantity += $item->quantity;
+                $stock->save();
+            }
 
             // Create stock transaction ledger
             \App\Models\StockTransaction::create([

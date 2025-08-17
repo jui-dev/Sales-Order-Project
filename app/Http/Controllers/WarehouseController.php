@@ -19,7 +19,7 @@ class WarehouseController extends Controller
     public function index(): View
     {
         $warehouses = $this->service->list();
-        return view('stock_locations.index', compact('warehouses'));
+        return view('stock-locations.index', compact('warehouses'));
     }
 
     /**
@@ -52,7 +52,7 @@ class WarehouseController extends Controller
 
     public function create(): View
     {
-        return view('stock_locations.create');
+        return view('stock-locations.create');
     }
 
     public function store(Request $request): RedirectResponse
@@ -68,7 +68,7 @@ class WarehouseController extends Controller
     public function show(int $id): View
     {
         $warehouse = $this->service->get($id);
-        return view('stock_locations.show', compact('warehouse'));
+        return view('stock-locations.show', compact('warehouse'));
     }
 
     public function edit(int $id): View

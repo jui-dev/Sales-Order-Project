@@ -16,8 +16,8 @@ class StockLocationService
     public function getAllLocationsWithComputedData(): Collection
     {
         // Only use warehouses and retailers tables - no stock_locations table
-        $warehouses = Warehouse::all();
-        $retailers = Retailer::all();
+        $warehouses = Warehouse::with(['stockBalances.product', 'stockTransactions.product'])->get();
+        $retailers = Retailer::with(['stockBalances.product', 'stockTransactions.product'])->get();
 
         $warehouses = $warehouses->map(fn($w) => $this->appendComputedData($w, 'warehouse'));
         $retailers = $retailers->map(fn($r) => $this->appendComputedData($r, 'retailer'));
@@ -31,7 +31,8 @@ class StockLocationService
     public function getLocationWithComputedData(int $id): mixed
     {
         // Only check warehouses and retailers tables - no stock_locations table
-        $location = Warehouse::find($id) ?? Retailer::find($id);
+        $location = Warehouse::with(['stockBalances.product', 'stockTransactions.product'])->find($id) 
+            ?? Retailer::with(['stockBalances.product', 'stockTransactions.product'])->find($id);
         
         if (!$location) {
             abort(404);
@@ -61,14 +62,11 @@ class StockLocationService
         // Stock balances & transactions
         $modelClass = get_class($model);
 
-        $model->stockBalances = ProductStock::with(['product'])
-            ->where('location_type', $modelClass)
-            ->where('location_id', $model->id)
-            ->get();
+        // Use the stockBalances relationship directly
+        $model->productStocks = $model->stockBalances;
 
-        $model->stockTransactions = StockTransaction::with(['product'])
-            ->where('location_type', $modelClass)
-            ->where('location_id', $model->id)
+        // Use the stockTransactions relationship directly
+        $model->stockTransactions = $model->stockTransactions()->with(['product'])
             ->latest('transaction_date')
             ->get();
 
