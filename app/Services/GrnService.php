@@ -17,8 +17,8 @@ class GrnService
     {
         return DB::transaction(function () use ($grnId, $toStatus) {
             /** @var Grn $grn */
-            $grn   = Grn::with(['supply.vendor', 'supply.warehouse', 'supply.items'])->findOrFail($grnId);
-            $from  = $grn->status;
+            $grn = Grn::with(['supply.vendor', 'supply.warehouse', 'supply.items'])->findOrFail($grnId);
+            $from = $grn->status;
 
             // Early-out if already at desired state
             if ($from === $toStatus) {
@@ -51,7 +51,7 @@ class GrnService
             return;
         }
 
-        $supply    = $grn->supply;
+        $supply = $grn->supply;
         $warehouse = $supply->warehouse;
 
         /* ------------------------------------------------------------
@@ -60,59 +60,47 @@ class GrnService
          * to avoid running firstOrCreate inside the loop.
          * ------------------------------------------------------------ */
         $transfer = \App\Models\StockTransfer::firstOrCreate([
-            'from_location_id'   => $supply->vendor_id,
+            'from_location_id' => $supply->vendor_id,
             'from_location_type' => \App\Models\Vendor::class,
-            'to_location_id'     => $supply->warehouse_id,
-            'to_location_type'   => get_class($warehouse),
-            'transfer_date'      => $grn->received_date ?? now(),
+            'to_location_id' => $supply->warehouse_id,
+            'to_location_type' => get_class($warehouse),
+            'transfer_date' => $grn->received_date ?? now(),
         ], [
             'status' => 'completed',
-            'notes'  => 'Auto-generated from GRN #'.$grn->id,
+            'notes' => 'Auto-generated from GRN #'.$grn->id,
         ]);
 
         foreach ($supply->items as $item) {
-            // Update / create product stock for the warehouse
-            $stock = \App\Models\ProductStock::firstOrCreate([
-                'product_id'    => $item->product_id,
-                'location_id'   => $supply->warehouse_id,
-                'location_type' => get_class($warehouse),
-            ], [
-                'quantity' => 0, // Set initial quantity to 0 for new records
-            ]);
-
             // Check if this GRN's stock has already been posted
             $existingTransaction = \App\Models\StockTransaction::where([
-                'product_id'       => $item->product_id,
-                'location_id'      => $supply->warehouse_id,
-                'location_type'    => get_class($warehouse),
-                'reference_type'   => Grn::class,
-                'reference_id'     => $grn->id,
+                'product_id' => $item->product_id,
+                'location_id' => $supply->warehouse_id,
+                'location_type' => get_class($warehouse),
+                'reference_type' => Grn::class,
+                'reference_id' => $grn->id,
             ])->exists();
 
-            // Only update stock if this GRN hasn't been posted before
-            if (!$existingTransaction) {
-                $stock->quantity += $item->quantity;
-                $stock->save();
+            // Only create transaction if it doesn't exist
+            if (! $existingTransaction) {
+                // Create stock transaction ledger - stock will be updated by the transaction
+                \App\Models\StockTransaction::create([
+                    'product_id' => $item->product_id,
+                    'location_id' => $supply->warehouse_id,
+                    'location_type' => get_class($warehouse),
+                    'quantity' => $item->quantity,
+                    'direction' => 'inbound',
+                    'transaction_type' => \App\Models\StockTransaction::TYPE_STOCK_IN,
+                    'reference_type' => Grn::class,
+                    'reference_id' => $grn->id,
+                    'transaction_date' => now(),
+                    'status' => 'completed', // Stock is actually received when GRN is posted
+                ]);
             }
-
-            // Create stock transaction ledger
-            \App\Models\StockTransaction::create([
-                'product_id'       => $item->product_id,
-                'location_id'      => $supply->warehouse_id,
-                'location_type'    => get_class($warehouse),
-                'quantity'         => $item->quantity,
-                'direction'        => 'inbound',
-                'transaction_type' => \App\Models\StockTransaction::TYPE_STOCK_IN,
-                'reference_type'   => Grn::class,
-                'reference_id'     => $grn->id,
-                'transaction_date' => now(),
-                'status'           => 'completed', // Stock is actually received when GRN is posted
-            ]);
 
             // Persist transfer item row (linked to the transfer created above)
             $transfer->items()->create([
                 'product_id' => $item->product_id,
-                'quantity'   => $item->quantity,
+                'quantity' => $item->quantity,
             ]);
         }
 
@@ -128,4 +116,4 @@ class GrnService
             $grn->forceFill(['posted_at' => now()])->saveQuietly();
         }
     }
-} 
+}

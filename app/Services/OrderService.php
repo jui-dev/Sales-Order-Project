@@ -30,12 +30,12 @@ class OrderService
         return $this->handleServiceOperation(
             function() use ($id) {
                 $order = Order::with(['customer', 'items', 'invoice'])->find($id);
-                
+
                 if (!$order) {
                     $this->logMissingData('order', $id);
                     throw new \App\Exceptions\DataNotFoundException('order', $id);
                 }
-                
+
                 return $order;
             },
             'order',
@@ -95,7 +95,7 @@ class OrderService
                 if (!empty($products)) {
                     $firstProduct = $products[0];
                     $fulfillmentLocationId = $firstProduct['fulfillment_location_id'] ?? null;
-                    
+
                     // Map location type string to full class name for polymorphic relationship
                     $locationTypeString = $firstProduct['fulfillment_location_type'] ?? null;
                     $fulfillmentLocationType = match ($locationTypeString) {
@@ -124,7 +124,7 @@ class OrderService
                         'retailer' => \App\Models\Retailer::class,
                         default => null,
                     };
-                    
+
                     $order->items()->create([
                         'product_id' => $product['product_id'],
                         'location_id' => $product['fulfillment_location_id'],
@@ -170,13 +170,24 @@ class OrderService
                     'status' => 'pending',
                 ]);
 
-                // Create picking list items
+                // Create picking list items and reserve stock
                 foreach ($order->items as $item) {
                     $pickingList->items()->create([
                         'product_id' => $item->product_id,
                         'quantity_requested' => $item->quantity,
                         'quantity_picked' => 0,
                     ]);
+
+                    // Reserve stock at the fulfillment location
+                    $stock = \App\Models\ProductStock::firstOrNew([
+                        'product_id' => $item->product_id,
+                        'location_id' => $order->fulfillment_location_id,
+                        'location_type' => $order->fulfillment_location_type,
+                    ], ['quantity' => 0, 'reserved_quantity' => 0]);
+
+                    // Increment reserved quantity
+                    $stock->reserved_quantity = ($stock->reserved_quantity ?? 0) + $item->quantity;
+                    $stock->save();
                 }
 
                 // Update order status
@@ -287,4 +298,62 @@ class OrderService
             'status' => 'Status',
         ];
     }
-} 
+
+    /**
+     * Deduct stock for a completed order by creating/completing a picking list
+     * This ensures consistent stock transaction handling via PickingList reference only
+     */
+    public function deductOrderStock(Order $order): void
+    {
+        $this->handleServiceOperation(
+            function() use ($order) {
+                // Ensure order is completed
+                if ($order->status !== 'completed') {
+                    throw new \Exception('Cannot deduct stock: Order is not completed');
+                }
+
+                // Check if picking list already exists
+                $pickingList = \App\Models\PickingList::where('reference_type', \App\Models\Order::class)
+                    ->where('reference_id', $order->id)
+                    ->first();
+
+                if (!$pickingList) {
+                    // Create picking list for this order (for manual completion)
+                    $pickingList = \App\Models\PickingList::create([
+                        'reference_type' => \App\Models\Order::class,
+                        'reference_id' => $order->id,
+                        'from_location_type' => $order->fulfillment_location_type,
+                        'from_location_id' => $order->fulfillment_location_id,
+                        'to_location_type' => null, // Customer delivery
+                        'to_location_id' => null,
+                        'status' => 'pending',
+                        'picking_type' => 'order_fulfillment',
+                        'notes' => 'Auto-generated for manual order completion'
+                    ]);
+
+                    // Create picking list items from order items
+                    foreach ($order->items as $orderItem) {
+                        \App\Models\PickingListItem::create([
+                            'picking_list_id' => $pickingList->id,
+                            'product_id' => $orderItem->product_id,
+                            'quantity_requested' => $orderItem->quantity,
+                            'quantity_picked' => $orderItem->quantity,
+                            'status' => 'picked'
+                        ]);
+                    }
+                }
+
+                // Mark picking list as completed to trigger stock deduction via observer
+                // This ensures all stock transactions use PickingList reference consistently
+                if (!in_array($pickingList->status, ['completed', 'closed', 'verified'])) {
+                    $pickingList->update([
+                        'status' => 'completed',
+                        'completed_at' => now()
+                    ]);
+                }
+            },
+            'stock deduction via picking list',
+            $order->id
+        );
+    }
+}

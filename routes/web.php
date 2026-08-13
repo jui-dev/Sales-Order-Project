@@ -59,11 +59,11 @@ Route::patch('products/{product}/complete-supplies', function (Product $product)
     $pendingSupplies = \App\Models\Supply::whereHas('supplyItems', function($query) use ($product) {
         $query->where('product_id', $product->id);
     })->whereIn('status', ['pending', 'processing'])->get();
-    
+
     foreach ($pendingSupplies as $supply) {
         $supply->update(['status' => 'completed']);
     }
-    
+
     return redirect()->back()->with('success', 'All pending supplies have been completed.');
 })->name('products.complete-supplies');
 
@@ -134,9 +134,8 @@ Route::get('/grns', [GrnController::class, 'index'])->name('grns.index');
 Route::get('/grns/{grn}', [GrnController::class, 'show'])->whereNumber('grn')->name('grns.show');
 Route::patch('/grns/{grn}/status', [GrnController::class, 'updateStatus'])->name('grns.update-status');
 
-// Additional GRN routes for edit, update, destroy
+// Additional GRN routes for edit and destroy
 Route::get('/grns/{grn}/edit', [GrnController::class, 'edit'])->whereNumber('grn')->name('grns.edit');
-Route::put('/grns/{grn}', [GrnController::class, 'update'])->whereNumber('grn')->name('grns.update');
 Route::delete('/grns/{grn}', [GrnController::class, 'destroy'])->whereNumber('grn')->name('grns.destroy');
 
 // Stock Locations UI Routes
@@ -180,15 +179,15 @@ Route::get('debug/invoice/{invoice}', function(\App\Models\Invoice $invoice) {
 Route::get('debug/fulfillment-location/{invoice}', function(\App\Models\Invoice $invoice) {
     try {
         $invoice->load(['order.fulfillmentLocation']);
-        
+
         if (!$invoice->order) {
             return response()->json(['error' => 'No order found for this invoice'], 404);
         }
-        
+
         $order = $invoice->order;
         $fulfillmentLocationId = $order->fulfillment_location_id;
         $fulfillmentLocationType = $order->fulfillment_location_type;
-        
+
         // Try to load the fulfillment location manually
         if ($fulfillmentLocationType === 'App\\Models\\Warehouse') {
             $fulfillmentLocation = \App\Models\Warehouse::find($fulfillmentLocationId);
@@ -197,7 +196,7 @@ Route::get('debug/fulfillment-location/{invoice}', function(\App\Models\Invoice 
         } else {
             $fulfillmentLocation = null;
         }
-        
+
         return response()->json([
             'invoice_id' => $invoice->id,
             'order_id' => $order->id,
@@ -256,7 +255,19 @@ Route::get('/picking/product-transaction-history/{product}', function (Product $
     $service = new ProductService();
     $data    = $service->transactionHistory($product);
 
-    return view('picking.product-transaction-history', $data);
+    // Extract variables for the view - the service returns an array with keys
+    return view('picking.product-transaction-history', [
+        'product' => $data['product'],
+        'totalSupplied' => $data['totalSupplied'],
+        'totalSold' => $data['totalSold'],
+        'totalTransferred' => $data['totalTransferred'],
+        'currentTotalStock' => $data['currentTotalStock'],
+        'currentAvailableStock' => $data['currentAvailableStock'],
+        'currentReservedStock' => $data['currentReservedStock'],
+        'stockBalances' => $data['stockBalances'],
+        'movements' => $data['movements'],
+        'pickingLists' => $data['pickingLists'],
+    ]);
 })->name('picking.product-transaction-history');
 
 Route::get('/transaction-flow', [\App\Http\Controllers\TransactionFlowController::class, 'index'])->name('picking.transaction-flow');
@@ -372,18 +383,18 @@ Route::get('/stock-transfers/warehouse-to-retailer/pending', function () {
 Route::get('/stock-transfers/warehouse-to-retailer/{id}', function ($id) {
     // First try to find the StockTransfer
     $stockTransfer = \App\Models\StockTransfer::with(['items.product', 'fromLocation', 'toLocation'])->find($id);
-    
+
     if (!$stockTransfer) {
         // Return a 404 error if StockTransfer not found
         abort(404, 'Warehouse-to-retailer transfer not found');
     }
-    
+
     // Find the associated PickingList
     $pickingList = \App\Models\PickingList::with(['items.product', 'fromLocation', 'toLocation'])
         ->where('reference_type', \App\Models\StockTransfer::class)
         ->where('reference_id', $stockTransfer->id)
         ->first();
-    
+
     if (!$pickingList) {
         // If no PickingList found, create a fallback using StockTransfer data
         $pickingList = new \App\Models\PickingList([
@@ -396,11 +407,11 @@ Route::get('/stock-transfers/warehouse-to-retailer/{id}', function ($id) {
             'picking_date' => $stockTransfer->transfer_date,
             'notes' => $stockTransfer->notes,
         ]);
-        
+
         // Set the items from StockTransfer
         $pickingList->setRelation('items', $stockTransfer->items);
         $pickingList->setRelation('pickingItems', $stockTransfer->items);
-        
+
         // Set the locations
         $pickingList->setRelation('fromLocation', $stockTransfer->fromLocation);
         $pickingList->setRelation('toLocation', $stockTransfer->toLocation);
@@ -575,15 +586,19 @@ Route::get('/warehouse-to-customer-picking', function () {
 
 // Warehouse to Customer Picking (show)
 Route::get('/warehouse-to-customer-picking/{id}', function ($id) {
-    $pickingList = \App\Models\PickingList::with(['items.product'])->find($id) ?? new \App\Models\PickingList([
-        'id'           => $id,
-        'status'       => 'pending',
-        'picking_date' => now(),
-    ]);
-    $pickingList->setRelation('pickingItems', $pickingList->items ?? collect());
-    $pickingList->fromLocation = (object) ['name' => 'Warehouse', 'address' => null];
-    $pickingList->toLocation   = (object) ['name' => 'Customer',  'address' => null];
+    $pickingList = \App\Models\PickingList::with([
+        'items.product',
+        'fromLocation.productStocks',
+        'toLocation',
+        'order.customer',
+        'order.orderItems.product'
+    ])->findOrFail($id);
+
+    // Set up picking number if not set
     $pickingList->picking_number ??= 'PL-' . str_pad($pickingList->id, 6, '0', STR_PAD_LEFT);
+
+    // Create alias relation for backward compatibility with the view
+    $pickingList->setRelation('pickingItems', $pickingList->items);
 
     return view('warehouse-to-customer-picking.show', compact('pickingList'));
 })->whereNumber('id')->name('warehouse-to-customer-picking.show');
@@ -894,7 +909,7 @@ Route::post('/stock-transfers/warehouse-to-retailer', function () {
                 'message' => 'Error creating transfer: ' . $e->getMessage(),
             ], 500);
         }
-        
+
         return redirect()->route('stock-transfers.warehouse-to-retailer.create')
             ->with('error', 'Error creating transfer: ' . $e->getMessage());
     }
@@ -907,7 +922,7 @@ Route::post('/stock-transfers/warehouse-to-retailer', function () {
                 'message' => 'Failed to create picking list. Please try again.',
             ], 500);
         }
-        
+
         return redirect()->route('stock-transfers.warehouse-to-retailer.create')
             ->with('error', 'Failed to create picking list. Please try again.');
     }
@@ -997,7 +1012,7 @@ Route::prefix('stock-transfers/warehouse-to-retailer')->name('stock-transfers.wa
                     $stock->reserved_quantity = max(0, $stock->reserved_quantity - $item->quantity_requested);
                     $stock->save();
                 }
-                
+
                 // Update item status to cancelled
                 $item->update([
                     'status' => 'cancelled',
@@ -1010,7 +1025,7 @@ Route::prefix('stock-transfers/warehouse-to-retailer')->name('stock-transfers.wa
                 \App\Models\StockTransfer::where('id', $pickingList->reference_id)->update(['status' => 'cancelled']);
             }
         });
-        
+
         return back()->with('success', 'Transfer cancelled.');
     })->whereNumber('pickingList')->name('cancel');
 });

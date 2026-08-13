@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Customer;
 use App\Models\Invoice;
 use App\Traits\HasErrorHandling;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -71,12 +72,12 @@ class InvoiceService
         return $this->handleServiceOperation(
             function() use ($id) {
                 $invoice = Invoice::with(['items', 'customer', 'order', 'payments'])->find($id);
-                
+
                 if (!$invoice) {
                     $this->logMissingData('invoice', $id);
                     throw new \App\Exceptions\DataNotFoundException('invoice', $id);
                 }
-                
+
                 return $invoice;
             },
             'invoice',
@@ -169,19 +170,17 @@ class InvoiceService
             ],
             'status' => [
                 'type' => 'select',
-                'label' => 'Status',
+                'label' => 'Payment Status',
                 'options' => [
-                    'draft' => 'Draft',
-                    'sent' => 'Sent',
+                    'unpaid' => 'Unpaid',
+                    'partially_paid' => 'Partially Paid',
                     'paid' => 'Paid',
-                    'overdue' => 'Overdue',
-                    'cancelled' => 'Cancelled',
                 ]
             ],
             'customer_id' => [
                 'type' => 'select',
                 'label' => 'Customer',
-                'options' => \App\Models\Customer::orderBy('name')->pluck('name', 'id')->toArray()
+                'options' => Customer::orderBy('name')->pluck('name', 'id')->toArray()
             ],
             'date_from' => [
                 'type' => 'date',
@@ -205,9 +204,9 @@ class InvoiceService
             'id' => 'ID',
             'invoice_number' => 'Invoice Number',
             'invoice_date' => 'Invoice Date',
-            'total_amount' => 'Total Amount',
-            'status' => 'Status',
+            'total' => 'Total Amount',
+            'payment_status' => 'Payment Status',
             'created_at' => 'Created Date',
         ];
     }
-} 
+}

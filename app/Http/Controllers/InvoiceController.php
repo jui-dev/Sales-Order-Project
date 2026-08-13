@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
-use App\Models\Customer;
 use App\Services\InvoiceService;
 use App\Traits\HasApiResponses;
 use App\Exceptions\DataNotFoundException;
@@ -22,16 +21,22 @@ class InvoiceController extends Controller
     public function index(Request $request): View
     {
         $filters = [
+            'search' => $request->search,
             'status' => $request->status,
             'customer_id' => $request->customer_id,
-            'from' => $request->from,
-            'to' => $request->to,
+            // The unified search component names its date range date_from/date_to;
+            // from/to are kept so older bookmarked links still filter.
+            'from' => $request->date_from ?? $request->from,
+            'to' => $request->date_to ?? $request->to,
+            'sort' => $request->sort,
+            'direction' => $request->direction,
         ];
 
         $invoices = $this->invoiceService->getFilteredInvoices($filters, 20);
-        $customers = Customer::orderBy('name')->get();
+        $filterOptions = $this->invoiceService->getFilterOptions();
+        $sortOptions = $this->invoiceService->getSortOptions();
 
-        return view('invoices.index', compact('invoices', 'customers'));
+        return view('invoices.index', compact('invoices', 'filterOptions', 'sortOptions'));
     }
 
     /**
@@ -81,4 +86,4 @@ class InvoiceController extends Controller
         $pdf = $this->invoiceService->renderPdf($invoice);
         return $pdf->download($invoice->invoice_number.'.pdf');
     }
-} 
+}

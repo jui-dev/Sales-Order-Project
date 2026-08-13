@@ -15,17 +15,25 @@ class VendorPickingController extends Controller
     public function index(Request $request): View
     {
         $filters = [
+            'search' => $request->search,
             'warehouse_id' => $request->warehouse_id,
+            'vendor_id' => $request->vendor_id,
             'vendor' => $request->vendor,
             'status' => $request->status,
+            'date_from' => $request->date_from,
+            'date_to' => $request->date_to,
+            'sort' => $request->sort,
+            'direction' => $request->direction,
         ];
 
         $supplies = $this->vendorPickingService->getFilteredSupplies($filters);
         $supplies = $this->vendorPickingService->enrichSupplyData($supplies);
-        
+
         $stockTransactions = $this->vendorPickingService->getStockTransactions();
         $statistics = $this->vendorPickingService->getVendorPickingStatistics();
         $warehouses = $this->vendorPickingService->getWarehousesForFilter();
+        $filterOptions = $this->vendorPickingService->getFilterOptions();
+        $sortOptions = $this->vendorPickingService->getSortOptions();
 
         // We don't have dedicated PickingList model; reuse supplies as picking lists for the view
         $pickingLists = $supplies;
@@ -43,9 +51,11 @@ class VendorPickingController extends Controller
             'statistics',
             'warehouses',
             'vendors',
+            'filterOptions',
+            'sortOptions',
             'totalVendors',
             'totalWarehouses',
             'recentSupplies',
         ));
     }
-} 
+}

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Services\ProductService;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
@@ -43,11 +44,11 @@ class ProductController extends Controller
             return view('products.index', compact('products', 'filterOptions', 'sortOptions'));
         } catch (\Exception $e) {
             \Log::error('Error loading products: ' . $e->getMessage());
-            
+
             // Return empty paginated result with proper structure
             $emptyProducts = \App\Models\Product::paginate(20);
             $emptyProducts->setCollection(collect());
-            
+
             return view('products.index', [
                 'products' => $emptyProducts,
                 'filterOptions' => $this->service->getFilterOptions(),
@@ -58,7 +59,9 @@ class ProductController extends Controller
 
     public function create(): View
     {
-        return view('products.create');
+        return view('products.create', [
+            'mainCategories' => ProductCategory::getMainCategories(),
+        ]);
     }
 
     public function store(StoreProductRequest $request): RedirectResponse
@@ -76,9 +79,13 @@ class ProductController extends Controller
     {
         try {
             $product = $this->service->get($id);
+
+            // Load stock balances for the product with proper location relationships
+            $product->load(['stockBalances.location']);
+
             $transactionHistory = $this->service->transactionHistory($product);
             $stockAnalysis = $this->service->stockAnalysis($product);
-            
+
             return view('products.show', compact('product', 'transactionHistory', 'stockAnalysis'));
         } catch (DataNotFoundException $e) {
             return redirect()->route('products.index')
@@ -94,7 +101,21 @@ class ProductController extends Controller
     {
         try {
             $product = $this->service->get($id);
-            return view('products.edit', compact('product'));
+
+            // A product stores a single category_id which may point at either a
+            // main category or a subcategory. Split it back into the two selects
+            // so both render with the correct value preselected.
+            $parentId = $product->category?->parent_id;
+
+            return view('products.edit', [
+                'product' => $product,
+                'mainCategories' => ProductCategory::getMainCategories(),
+                'subcategories' => $parentId
+                    ? ProductCategory::getSubcategories($parentId)
+                    : collect(),
+                'selectedCategoryId' => $parentId ?? $product->category_id,
+                'selectedSubcategoryId' => $parentId ? $product->category_id : null,
+            ]);
         } catch (DataNotFoundException $e) {
             return redirect()->route('products.index')
                 ->with('error', $e->getMessage());
@@ -140,12 +161,12 @@ class ProductController extends Controller
     {
         try {
             $categoryId = $request->input('category_id');
-            
+
             \Log::info('getSubcategories called with category_id: ' . $categoryId);
             \Log::info('Request headers: ' . json_encode($request->headers->all()));
             \Log::info('Request method: ' . $request->method());
             \Log::info('Request URL: ' . $request->url());
-            
+
             if (!$categoryId) {
                 \Log::info('No category_id provided, returning empty options');
                 return response()->json(['options' => ['' => 'All Subcategories']]);
@@ -153,19 +174,19 @@ class ProductController extends Controller
 
             $subcategories = \App\Models\ProductCategory::getSubcategories($categoryId);
             $options = ['' => 'All Subcategories'];
-            
+
             foreach ($subcategories as $subcategory) {
                 $options[$subcategory->id] = $subcategory->name;
             }
 
             \Log::info('Returning subcategories for category ' . $categoryId . ': ' . count($options) . ' options');
             \Log::info('Response data: ' . json_encode(['options' => $options]));
-            
+
             // Create response manually to bypass any trait formatting
             $response = new \Illuminate\Http\JsonResponse(['options' => $options], 200);
             $response->header('Content-Type', 'application/json');
             $response->header('Cache-Control', 'no-cache');
-            
+
             return $response;
         } catch (\Exception $e) {
             \Log::error('Error in getSubcategories: ' . $e->getMessage());
@@ -189,7 +210,7 @@ class ProductController extends Controller
                     'sort' => $request->sort,
                     'direction' => $request->direction,
                 ];
-                
+
                 $perPage = $request->get('per_page', 20);
                 return $this->service->getFilteredProducts($filters, $perPage);
             },
@@ -234,6 +255,8 @@ class ProductController extends Controller
         try {
             $product = $this->service->get($id);
             $stockData = $this->service->stockAnalysis($product);
+
+            // Pass stockData as expected by the view
             return view('products.stock-analysis', compact('stockData'));
         } catch (DataNotFoundException $e) {
             return redirect()->route('products.index')
@@ -244,4 +267,4 @@ class ProductController extends Controller
                 ->with('error', 'Unable to load stock analysis. Please try again later.');
         }
     }
-} 
+}

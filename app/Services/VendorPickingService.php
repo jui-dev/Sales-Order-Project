@@ -13,14 +13,44 @@ class VendorPickingService
     /**
      * Get filtered supplies for vendor picking
      */
+    /**
+     * Columns that may be used for sorting. Anything else falls back to `id`.
+     */
+    private const SORTABLE = ['id', 'supply_date', 'total_cost', 'status', 'created_at'];
+
     public function getFilteredSupplies(array $filters = []): Collection
     {
         $query = Supply::query()->with(['vendor', 'warehouse', 'items.product', 'grn']);
+
+        // Global search: supply number, vendor name, warehouse name, product name/SKU
+        if (!empty($filters['search'])) {
+            $search = trim($filters['search']);
+
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('vendor', fn ($v) => $v->where('name', 'like', "%{$search}%"))
+                  ->orWhereHas('warehouse', fn ($w) => $w->where('name', 'like', "%{$search}%"))
+                  ->orWhereHas('items.product', fn ($p) => $p->where(
+                      fn ($inner) => $inner->where('name', 'like', "%{$search}%")
+                                           ->orWhere('sku', 'like', "%{$search}%")
+                  ));
+
+                // Supply numbers render as SUP-000012, so match on the digits only
+                $digits = preg_replace('/\D/', '', $search);
+                if ($digits !== '') {
+                    $q->orWhere('id', (int) $digits);
+                }
+            });
+        }
 
         if (!empty($filters['warehouse_id'])) {
             $query->where('warehouse_id', $filters['warehouse_id']);
         }
 
+        if (!empty($filters['vendor_id'])) {
+            $query->where('vendor_id', $filters['vendor_id']);
+        }
+
+        // Kept for links/bookmarks that still pass a vendor name
         if (!empty($filters['vendor'])) {
             $keyword = trim($filters['vendor']);
             $query->whereHas('vendor', fn ($q) => $q->where('name', 'like', "%{$keyword}%"));
@@ -30,7 +60,20 @@ class VendorPickingService
             $query->where('status', $filters['status']);
         }
 
-        return $query->latest('supply_date')->get();
+        if (!empty($filters['date_from'])) {
+            $query->whereDate('supply_date', '>=', $filters['date_from']);
+        }
+
+        if (!empty($filters['date_to'])) {
+            $query->whereDate('supply_date', '<=', $filters['date_to']);
+        }
+
+        $sortField = in_array($filters['sort'] ?? null, self::SORTABLE, true)
+            ? $filters['sort']
+            : 'id';
+        $sortDirection = strtolower($filters['direction'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+
+        return $query->orderBy($sortField, $sortDirection)->get();
     }
 
     /**
@@ -109,15 +152,68 @@ class VendorPickingService
     }
 
     /**
+     * Get filter options for the unified search component
+     */
+    public function getFilterOptions(): array
+    {
+        return [
+            'warehouse_id' => [
+                'type' => 'select',
+                'label' => 'Warehouse',
+                'options' => Warehouse::orderBy('name')->pluck('name', 'id')->toArray(),
+            ],
+            'vendor_id' => [
+                'type' => 'select',
+                'label' => 'Vendor',
+                'options' => Vendor::orderBy('name')->pluck('name', 'id')->toArray(),
+            ],
+            'status' => [
+                'type' => 'select',
+                'label' => 'Status',
+                'options' => [
+                    'pending' => 'Pending',
+                    'confirmed' => 'Confirmed',
+                    'completed' => 'Completed',
+                    'cancelled' => 'Cancelled',
+                ],
+            ],
+            'date_from' => [
+                'type' => 'date',
+                'label' => 'From Date',
+                'placeholder' => 'Select start date',
+            ],
+            'date_to' => [
+                'type' => 'date',
+                'label' => 'To Date',
+                'placeholder' => 'Select end date',
+            ],
+        ];
+    }
+
+    /**
+     * Get sort options for the unified search component
+     */
+    public function getSortOptions(): array
+    {
+        return [
+            'id' => 'ID',
+            'supply_date' => 'Supply Date',
+            'total_cost' => 'Total Cost',
+            'status' => 'Status',
+            'created_at' => 'Created Date',
+        ];
+    }
+
+    /**
      * Get supply with all related data
      */
     public function getSupplyWithDetails(int $id): Supply
     {
         return Supply::with([
-            'vendor', 
-            'warehouse', 
-            'items.product', 
+            'vendor',
+            'warehouse',
+            'items.product',
             'grn'
         ])->findOrFail($id);
     }
-} 
+}
