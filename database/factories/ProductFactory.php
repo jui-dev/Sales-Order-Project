@@ -21,6 +21,8 @@ class ProductFactory extends Factory
             'sku'  => strtoupper($this->faker->bothify('SKU-####')),
             'purchase_price' => $purchase,
             'selling_price'  => $selling,
+            // gross_profit is NOT NULL from 2025_07_27_084804_fix_products_pricing_defaults.
+            'gross_profit' => round($selling - $purchase, 2),
             'available_stocks' => 100,
         ];
     }

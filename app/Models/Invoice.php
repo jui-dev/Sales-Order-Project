@@ -5,12 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Traits\HasFormattedId;
 use App\Models\Payment;
 
 class Invoice extends Model
 {
-    use HasFormattedId;
+    use HasFactory, HasFormattedId;
 
     protected static string $idPrefix = 'INV';
 

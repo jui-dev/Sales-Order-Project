@@ -62,13 +62,12 @@ class UnifiedReturnManagementTest extends TestCase
         // Create test invoice
         $this->invoice = Invoice::factory()->create([
             'customer_id' => $this->customer->id,
-            'status' => 'paid',
+            'payment_status' => 'paid',
         ]);
-        
+
         // Create test supplier bill
         $this->supplierBill = SupplierBill::factory()->create([
             'vendor_id' => $this->vendor->id,
-            'warehouse_id' => $this->warehouse->id,
             'status' => 'posted',
         ]);
         

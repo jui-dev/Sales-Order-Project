@@ -30,12 +30,18 @@ class ReturnFormSubmissionTest extends TestCase
             'purchase_price' => 80.00,
         ]);
         
+        // Fulfillment location lives on the order, not the invoice.
+        $this->order = \App\Models\Order::factory()->create([
+            'customer_id' => $this->customer->id,
+            'fulfillment_location_type' => Warehouse::class,
+            'fulfillment_location_id' => $this->warehouse->id,
+        ]);
+
         $this->invoice = Invoice::factory()->create([
+            'order_id' => $this->order->id,
             'customer_id' => $this->customer->id,
             'invoice_number' => 'INV-001',
             'total' => 200.00,
-            'fulfillment_location_type' => 'App\Models\Warehouse',
-            'fulfillment_location_id' => $this->warehouse->id,
         ]);
         
         $this->invoiceItem = InvoiceItem::factory()->create([
