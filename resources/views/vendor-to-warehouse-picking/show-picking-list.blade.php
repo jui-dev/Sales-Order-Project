@@ -1,9 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1><i class="bi bi-list-check me-2"></i>Vendor to Warehouse Picking List</h1>
             <nav aria-label="breadcrumb">
@@ -24,6 +21,12 @@
             @endif
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    <!-- Header -->
+    
 
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">

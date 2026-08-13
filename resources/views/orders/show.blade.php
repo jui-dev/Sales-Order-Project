@@ -1,6 +1,5 @@
 @extends('layouts.app')
-
-@section('content')
+@section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Order #{{ $order->id }}</h1>
     <div>
@@ -11,6 +10,10 @@
         <a href="{{ route('orders.index') }}" class="btn btn-secondary">Back to Orders</a>
     </div>
 </div>
+@endsection
+
+@section('content')
+
 
 @if(session('success'))
     <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -26,70 +29,58 @@
     </div>
 @endif
 
+<!-- Order Actions -->
+@if($order->status == 'pending')
 <div class="row">
     <div class="col-md-12 mb-4">
         <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Order Status</h5>
-            </div>
-            <div class="card-body">
-                <div class="order-status-track">
-                    <ul class="list-inline d-flex justify-content-around position-relative">
-                        <li class="list-inline-item position-relative text-center {{ $order->status == 'pending' || $order->status == 'processing' || $order->status == 'completed' ? 'active' : '' }}">
-                            <div class="status-icon bg-{{ $order->status == 'pending' || $order->status == 'processing' || $order->status == 'completed' ? 'primary' : 'secondary' }} rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2" style="width:50px;height:50px;">
-                                <i class="bi bi-hourglass-split text-white"></i>
-                            </div>
-                            <span>Pending</span>
-                        </li>
-                        <li class="list-inline-item position-relative text-center {{ $order->status == 'processing' || $order->status == 'completed' ? 'active' : '' }}">
-                            <div class="status-icon bg-{{ $order->status == 'processing' || $order->status == 'completed' ? 'primary' : 'secondary' }} rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2" style="width:50px;height:50px;">
-                                <i class="bi bi-gear text-white"></i>
-                            </div>
-                            <span>Processing</span>
-                        </li>
-                        <li class="list-inline-item position-relative text-center {{ $order->status == 'completed' ? 'active' : '' }}">
-                            <div class="status-icon bg-{{ $order->status == 'completed' ? 'success' : 'secondary' }} rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2" style="width:50px;height:50px;">
-                                <i class="bi bi-check-lg text-white"></i>
-                            </div>
-                            <span>Completed</span>
-                        </li>
-                    </ul>
-                    <div class="progress mx-auto" style="height: 5px; width: 75%; margin-top: -40px;">
-                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ $order->status == 'pending' ? '0%' : ($order->status == 'processing' ? '50%' : '100%') }};" aria-valuenow="{{ $order->status == 'pending' ? '0' : ($order->status == 'processing' ? '50' : '100') }}" aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
-                </div>
-                
-                @if(! in_array($order->status, ['confirmed', 'completed', 'cancelled']))
-                <div class="d-flex justify-content-center mt-4">
-                    @if($order->status == 'pending')
-                    <form action="{{ route('orders.update-status', $order) }}" method="POST" class="mx-2">
-                        @csrf
-                        @method('PATCH')
-                        <input type="hidden" name="status" value="processing">
-                        <button type="submit" class="btn btn-primary">Start Processing</button>
-                    </form>
-                    @endif
-                    
-                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#completeOrderModal">
-                        Mark as Confirmed
-                    </button>
-                </div>
-                @endif
-                
-                @if($order->status == 'confirmed' && !$order->invoice)
-                <div class="d-flex justify-content-center mt-4">
-                    <form action="{{ route('orders.update-status', $order) }}" method="POST" class="mx-2">
-                        @csrf
-                        @method('PATCH')
-                        <input type="hidden" name="status" value="completed">
-                        <button type="submit" class="btn btn-warning">Mark as Completed</button>
-                    </form>
-                </div>
-                @endif
+            <div class="card-body text-center">
+                <h5 class="card-title">Order Confirmation</h5>
+                <p class="card-text text-muted">This order is ready to be confirmed. Once confirmed, stock will be reserved and a picking list will be generated.</p>
+                <button type="button" class="btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#completeOrderModal">
+                    <i class="bi bi-check-circle me-2"></i> Mark as Confirmed
+                </button>
             </div>
         </div>
     </div>
-    
+</div>
+@elseif($order->status == 'confirmed' && !$order->invoice)
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="alert alert-success mb-3">
+                    <i class="bi bi-check-circle me-2"></i>
+                    <strong>Order Confirmed</strong> - Stock has been reserved and picking list generated.
+                </div>
+                <form action="{{ route('orders.update-status', $order) }}" method="POST" class="d-inline">
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="status" value="completed">
+                    <button type="submit" class="btn btn-warning btn-lg">
+                        <i class="bi bi-box-seam me-2"></i> Mark as Completed
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+@elseif($order->status == 'completed')
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    <strong>Order Completed</strong> - This order has been fulfilled and completed.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
+<div class="row">
     <div class="col-md-4">
         <div class="card mb-4">
             <div class="card-header">

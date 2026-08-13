@@ -1,12 +1,12 @@
 @extends('layouts.app')
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Invoices</h1>
+    </div>
+@endsection
 
 @section('content')
 <div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Sales', 'url' => '#'],
-        ['label' => 'Invoices', 'url' => '#']
-    ]" />
     
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -22,29 +22,18 @@
         </div>
     @endif
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Invoices</h1>
-        <form method="GET" class="d-flex gap-2">
-            <select name="status" class="form-select form-select-sm" style="width:auto;">
-                <option value="">All Statuses</option>
-                @foreach(['unpaid','partially_paid','paid'] as $status)
-                    <option value="{{ $status }}" @selected(request('status')===$status)>{{ ucfirst(str_replace('_',' ', $status)) }}</option>
-                @endforeach
-            </select>
-            <select name="customer_id" class="form-select form-select-sm" style="width:auto;">
-                <option value="">All Customers</option>
-                @foreach($customers as $customer)
-                    <option value="{{ $customer->id }}" @selected(request('customer_id')==$customer->id)>{{ $customer->name }}</option>
-                @endforeach
-            </select>
-            <input type="date" name="from" value="{{ request('from') }}" class="form-control form-control-sm" />
-            <input type="date" name="to" value="{{ request('to') }}" class="form-control form-control-sm" />
-            <button class="btn btn-sm btn-outline-secondary" type="submit">Filter</button>
-        </form>
-    </div>
+    <!-- Unified Search Component -->
+    <x-unified-search
+        :searchPlaceholder="'Search invoices by number, ID, or customer...'"
+        :filterOptions="$filterOptions"
+        :sortOptions="$sortOptions"
+        :defaultSort="'id'"
+        :defaultDirection="'desc'"
+    />
 
 <div class="card">
-    <div class="card-body table-responsive">
+    <div class="card-body">
+        <div class="table-responsive">
         <table class="table table-hover">
             <thead>
             <tr>
@@ -114,12 +103,28 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="7" class="text-center">No invoices found</td></tr>
+                <tr>
+                    <td colspan="7" class="text-center py-4">
+                        <div class="text-muted">
+                            <i class="bi bi-inbox display-1 d-block mb-3"></i>
+                            <h5>No Invoices Found</h5>
+                            <p class="mb-0">No invoices match your current search criteria.</p>
+                            @if(request()->hasAny(['search', 'status', 'customer_id', 'date_from', 'date_to']))
+                                <a href="{{ route('invoices.index') }}" class="btn btn-outline-primary mt-2">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Clear Filters
+                                </a>
+                            @endif
+                        </div>
+                    </td>
+                </tr>
             @endforelse
             </tbody>
         </table>
+        </div>
+
         <x-pagination :paginator="$invoices" />
     </div>
+</div>
 </div>
 @endsection
 

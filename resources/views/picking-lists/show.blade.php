@@ -1,12 +1,15 @@
 @extends('layouts.app')
-
-@section('content')
+@section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1><i class="bi bi-arrow-left-right me-2"></i>Stock Transfer Details</h1>
     <a href="{{ route('picking-lists.index') }}" class="btn btn-secondary">
         <i class="bi bi-arrow-left me-1"></i> Back to Transfers
     </a>
 </div>
+@endsection
+
+@section('content')
+
 
 @if(session('success'))
 <div class="alert alert-success alert-dismissible fade show" role="alert">

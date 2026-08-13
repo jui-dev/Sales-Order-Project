@@ -1,14 +1,11 @@
 @extends('layouts.app')
 
+@section('page-header')
+<h1 class="mb-4">Journal Entries</h1>
+@endsection
+
 @section('content')
 <div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Accounting', 'url' => '#'],
-        ['label' => 'Journal Entries', 'url' => '#']
-    ]" />
-    
-    <h1 class="mb-4">Journal Entries</h1>
 
     <div class="d-flex flex-wrap justify-content-between mb-3">
         <div class="btn-group mb-2" role="group">

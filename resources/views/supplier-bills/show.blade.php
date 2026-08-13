@@ -1,8 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Supplier Bill {{ $supplierBill->formatted_id }}</h1>
         <div>
             <a href="{{ route('supplier-bills.index') }}" class="btn btn-secondary">
@@ -30,6 +28,11 @@
             @endif
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
 
     <!-- Bill Status Alert -->
     @if($supplierBill->status === 'draft')
@@ -208,80 +211,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Handle Mark as Paid button protection
+    // Handle Mark as Paid button - prevent double submission only
     const markAsPaidForm = document.getElementById('markAsPaidForm');
     const markAsPaidBtn = document.getElementById('markAsPaidBtn');
     
-    console.log('Mark as Paid form found:', !!markAsPaidForm);
-    console.log('Mark as Paid button found:', !!markAsPaidBtn);
-    
     if (markAsPaidForm && markAsPaidBtn) {
-        // Temporarily disable JavaScript protection for testing
-        const disableProtection = false; // Set to true to disable protection
-        
         markAsPaidForm.addEventListener('submit', function(e) {
-            console.log('Mark as Paid form submitted');
-            console.log('Form action:', markAsPaidForm.action);
-            console.log('Form method:', markAsPaidForm.method);
-            console.log('CSRF token present:', !!markAsPaidForm.querySelector('input[name="_token"]'));
-            
-            if (disableProtection) {
-                console.log('JavaScript protection disabled, allowing submission');
-                return true;
-            }
-            
+            // Only prevent double submission, no visual feedback
             if (isProcessing) {
-                console.log('Already processing, preventing submission');
                 e.preventDefault();
                 return false;
             }
             
-            console.log('Starting payment processing...');
+            // Set processing flag to prevent double clicks
             isProcessing = true;
             
-            // Disable the button immediately
+            // Disable the button to prevent multiple clicks
             markAsPaidBtn.disabled = true;
-            markAsPaidBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Processing...';
-            markAsPaidBtn.classList.remove('btn-primary');
-            markAsPaidBtn.classList.add('btn-secondary');
             
-            // Prevent multiple submissions
-            markAsPaidForm.style.pointerEvents = 'none';
-            
-            // Show processing indicator
-            showProcessingIndicator('Processing payment...');
-            
-            // Add a timeout to reset if form submission takes too long
-            setTimeout(function() {
-                if (isProcessing) {
-                    console.log('Form submission timeout, resetting state');
-                    isProcessing = false;
-                    markAsPaidBtn.disabled = false;
-                    markAsPaidBtn.innerHTML = '<i class="bi bi-cash-coin me-1"></i> Mark as Paid';
-                    markAsPaidBtn.classList.remove('btn-secondary');
-                    markAsPaidBtn.classList.add('btn-primary');
-                    markAsPaidForm.style.pointerEvents = 'auto';
-                    
-                    // Hide processing indicator
-                    const overlay = document.getElementById('processingOverlay');
-                    if (overlay) {
-                        overlay.style.display = 'none';
-                    }
-                    
-                    alert('Payment processing timed out. Please try again.');
-                }
-            }, 10000); // 10 seconds timeout
-            
-            // Also listen for page unload to reset state
-            window.addEventListener('beforeunload', function(e) {
-                if (isProcessing) {
-                    console.log('Page unloading, resetting processing state');
-                    // Only show warning if user is trying to navigate away during processing
-                    e.preventDefault();
-                    e.returnValue = 'Payment is being processed. Are you sure you want to leave?';
-                    return e.returnValue;
-                }
-            });
+            // Allow form to submit normally without any processing overlay
         });
     }
     

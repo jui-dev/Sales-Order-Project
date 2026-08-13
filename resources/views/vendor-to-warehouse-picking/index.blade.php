@@ -1,14 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Picking & Transfers', 'url' => '#'],
-        ['label' => 'Vendors to Warehouse', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="bi bi-truck-arrow-right me-2"></i>Vendors to Warehouse Picking</h1>
         <div>
             <a href="{{ route('supplies.index') }}" class="btn btn-outline-primary me-2">
@@ -25,6 +17,12 @@
             </button>
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
 @if(session('success'))
 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -49,19 +47,20 @@
 </div>
 
 <!-- System Overview Cards -->
-<div class="row mb-4">
+<div class="summary-panel mb-4">
+    <div class="row g-3">
     <div class="col-md-3">
-        <div class="card bg-primary text-white">
+        <div class="card border-0 shadow-sm summary-card summary-card--blue">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Active Vendors</h6>
+                        <h6 class="card-title text-primary">Active Vendors</h6>
                         <h3>{{ $statistics['total_vendors'] }}</h3>
                     </div>
-                    <i class="bi bi-building" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-building text-primary summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
-                <small class="text-light">
-                    <a href="{{ route('vendors.index') }}" class="text-light text-decoration-none">
+                <small>
+                    <a href="{{ route('vendors.index') }}" class="text-primary text-decoration-none">
                         <i class="bi bi-arrow-right me-1"></i>Manage Vendors
                     </a>
                 </small>
@@ -69,17 +68,17 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-success text-white">
+        <div class="card border-0 shadow-sm summary-card summary-card--green">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Warehouses</h6>
+                        <h6 class="card-title text-success">Warehouses</h6>
                         <h3>{{ $statistics['total_warehouses'] }}</h3>
                     </div>
-                    <i class="bi bi-house-fill" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-house-fill text-success summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
-                <small class="text-light">
-                    <a href="{{ route('stock-locations.index') }}" class="text-light text-decoration-none">
+                <small>
+                    <a href="{{ route('stock-locations.index') }}" class="text-success text-decoration-none">
                         <i class="bi bi-arrow-right me-1"></i>Manage Locations
                     </a>
                 </small>
@@ -87,17 +86,17 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-warning text-dark">
+        <div class="card border-0 shadow-sm summary-card summary-card--amber">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Recent Supplies</h6>
+                        <h6 class="card-title text-warning-emphasis">Recent Supplies</h6>
                         <h3>{{ $statistics['recent_supplies']->count() }}</h3>
                     </div>
-                    <i class="bi bi-truck" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-truck text-warning-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
-                <small class="text-dark">
-                    <a href="{{ route('supplies.index') }}" class="text-dark text-decoration-none">
+                <small>
+                    <a href="{{ route('supplies.index') }}" class="text-warning-emphasis text-decoration-none">
                         <i class="bi bi-arrow-right me-1"></i>View All Supplies
                     </a>
                 </small>
@@ -105,142 +104,116 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-info text-white">
+        <div class="card border-0 shadow-sm summary-card summary-card--cyan">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Stock Transactions</h6>
+                        <h6 class="card-title text-info-emphasis">Stock Transactions</h6>
                         <h3>{{ $stockTransactions->count() }}</h3>
                     </div>
-                    <i class="bi bi-list-check" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-list-check text-info-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
-                <small class="text-light">
+                <small class="text-muted">
                     Vendor to warehouse movements
                 </small>
             </div>
         </div>
+    </div>
     </div>
 </div>
 
 <!-- Statistics Cards (Hidden by default) -->
 <div class="row mb-4" id="statistics-cards" style="display: none;">
     <div class="col-md-3">
-        <div class="card bg-primary text-white">
+        <div class="card border-0 shadow-sm summary-card summary-card--blue">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Total Transactions</h6>
+                        <h6 class="card-title text-primary">Total Transactions</h6>
                         <h3 id="total-pickings">-</h3>
                     </div>
-                    <i class="bi bi-list-check" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-list-check text-primary summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-success text-white">
+        <div class="card border-0 shadow-sm summary-card summary-card--green">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Completed Today</h6>
+                        <h6 class="card-title text-success">Completed Today</h6>
                         <h3 id="completed-today">-</h3>
                     </div>
-                    <i class="bi bi-check-circle" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-check-circle text-success summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-warning text-dark">
+        <div class="card border-0 shadow-sm summary-card summary-card--amber">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Items Received</h6>
+                        <h6 class="card-title text-warning-emphasis">Items Received</h6>
                         <h3 id="total-items">-</h3>
                     </div>
-                    <i class="bi bi-box" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-box text-warning-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-info text-white">
+        <div class="card border-0 shadow-sm summary-card summary-card--cyan">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Active Warehouses</h6>
+                        <h6 class="card-title text-info-emphasis">Active Warehouses</h6>
                         <h3 id="active-warehouses">-</h3>
                     </div>
-                    <i class="bi bi-house-fill" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-house-fill text-info-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Filters Section -->
-<div class="card mb-4">
-    <div class="card-body">
-        <form method="GET" action="{{ route('vendor-to-warehouse-picking.index') }}">
-            <div class="row g-3">
-                <div class="col-md-3">
-                    <label for="warehouse_id" class="form-label">Filter by Warehouse</label>
-                    <select name="warehouse_id" id="warehouse_id" class="form-select">
-                        <option value="">All Warehouses</option>
-                        @foreach($warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}" {{ request('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
-                                {{ $warehouse->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label for="vendor" class="form-label">Filter by Vendor</label>
-                    <input type="text" name="vendor" id="vendor" class="form-control" 
-                           placeholder="Enter vendor name" value="{{ request('vendor') }}">
-                </div>
-                <div class="col-md-3">
-                    <label for="status" class="form-label">Filter by Status</label>
-                    <select name="status" id="status" class="form-select">
-                        <option value="">All Statuses</option>
-                        <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                        <option value="in_progress" {{ request('status') == 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                        <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed</option>
-                        <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                    </select>
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary me-2">
-                        <i class="bi bi-funnel me-1"></i> Filter
-                    </button>
-                    <a href="{{ route('vendor-to-warehouse-picking.index') }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-x-circle me-1"></i> Clear
-                    </a>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
+<!-- Unified Search Component -->
+<x-unified-search
+    :searchPlaceholder="'Search by supply number, vendor, warehouse, or product...'"
+    :filterOptions="$filterOptions"
+    :sortOptions="$sortOptions"
+    :defaultSort="'id'"
+    :defaultDirection="'desc'"
+/>
 
-@if($pickingLists->count() > 0 || $stockTransactions->count() > 0)
+@php
+    $hasActiveFilters = request()->hasAny(['search', 'warehouse_id', 'vendor_id', 'vendor', 'status', 'date_from', 'date_to']);
+@endphp
+
+{{-- While filtering, always keep the tabs on screen so an empty result reads as
+     "nothing matched" rather than "nothing exists yet". --}}
+@if($pickingLists->count() > 0 || $stockTransactions->count() > 0 || $hasActiveFilters)
 <!-- Tabbed Content -->
 <div class="card">
-    <div class="card-header">
-        <ul class="nav nav-tabs card-header-tabs" id="vendorPickingTabs" role="tablist">
+    <div class="card-header vp-tabs-header">
+        <ul class="nav vp-tabs" id="vendorPickingTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="picking-lists-tab" data-bs-toggle="tab" 
-                        data-bs-target="#picking-lists" type="button" role="tab" 
+                <button class="nav-link active" id="picking-lists-tab" data-bs-toggle="tab"
+                        data-bs-target="#picking-lists" type="button" role="tab"
                         aria-controls="picking-lists" aria-selected="true">
-                    <i class="bi bi-list-check me-2"></i>Picking Lists 
-                    <span class="badge bg-primary ms-1">{{ $pickingLists->count() }}</span>
+                    <i class="bi bi-list-check"></i>
+                    <span>Picking Lists</span>
+                    <span class="vp-tab-count">{{ $pickingLists->count() }}</span>
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="stock-transactions-tab" data-bs-toggle="tab" 
-                        data-bs-target="#stock-transactions" type="button" role="tab" 
+                <button class="nav-link" id="stock-transactions-tab" data-bs-toggle="tab"
+                        data-bs-target="#stock-transactions" type="button" role="tab"
                         aria-controls="stock-transactions" aria-selected="false">
-                    <i class="bi bi-arrow-repeat me-2"></i>Stock Transactions 
-                    <span class="badge bg-secondary ms-1">{{ $stockTransactions->count() }}</span>
+                    <i class="bi bi-arrow-repeat"></i>
+                    <span>Stock Transactions</span>
+                    <span class="vp-tab-count">{{ $stockTransactions->count() }}</span>
                 </button>
             </li>
         </ul>
@@ -379,6 +352,11 @@
                         <i class="bi bi-list-check text-muted" style="font-size: 3rem;"></i>
                         <h5 class="text-muted mt-3">No Picking Lists Found</h5>
                         <p class="text-muted">No vendor-to-warehouse picking lists match your current filters.</p>
+                        @if(request()->hasAny(['search', 'warehouse_id', 'vendor_id', 'vendor', 'status', 'date_from', 'date_to']))
+                            <a href="{{ route('vendor-to-warehouse-picking.index') }}" class="btn btn-outline-primary mt-2">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Clear Filters
+                            </a>
+                        @endif
                     </div>
                 @endif
             </div>
@@ -667,4 +645,140 @@ function loadStatistics() {
     }
 }
 </script>
-@endsection 
+</div>
+@endsection
+
+@push('styles')
+<style>
+/* White container holding the summary cards */
+.summary-panel {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: var(--card-shadow, 0 2px 15px rgba(0, 0, 0, 0.04));
+}
+
+/* Summary cards - soft gradient treatment */
+.summary-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+}
+
+.summary-card--blue  { background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%); }
+.summary-card--green { background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%); }
+.summary-card--amber { background: linear-gradient(135deg, #fff8e1 0%, #ffffff 100%); }
+.summary-card--cyan  { background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%); }
+
+.summary-card__icon {
+    opacity: 0.45;
+}
+
+/* ---- Tabs: segmented control ----------------------------------------
+   The global .nav-link rules in custom.css are written for the dark green
+   navbar and force a near-white colour with !important. Inside this white
+   card header that washes the active tab out, so the colours below have to
+   be !important too. */
+.vp-tabs-header {
+    padding: 0.75rem 1.25rem;
+    /* .card-header adds a bottom rule globally; the segmented tabs already
+       separate themselves from the table, so drop it here. */
+    border-bottom: none;
+}
+
+.vp-tabs {
+    display: inline-flex;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0.25rem;
+    border: none;
+    border-radius: 10px;
+    background-color: rgba(44, 110, 73, 0.07);
+}
+
+.vp-tabs .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 !important;
+    padding: 0.5rem 1rem !important;
+    border: none !important;
+    border-radius: 8px;
+    background-color: transparent;
+    color: var(--medium-text, #4f5d75) !important;
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.vp-tabs .nav-link i {
+    font-size: 1rem;
+    opacity: 0.75;
+}
+
+.vp-tabs .nav-link:hover:not(.active) {
+    background-color: rgba(44, 110, 73, 0.11) !important;
+    color: var(--primary-dark, #1a472a) !important;
+}
+
+.vp-tabs .nav-link.active {
+    background-color: #ffffff !important;
+    color: var(--primary, #2c6e49) !important;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(44, 110, 73, 0.12);
+}
+
+.vp-tabs .nav-link.active i {
+    opacity: 1;
+}
+
+.vp-tabs .nav-link:focus-visible {
+    outline: 2px solid var(--primary-light, #4c956c);
+    outline-offset: 2px;
+}
+
+/* Count chip */
+.vp-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    background-color: rgba(44, 110, 73, 0.13);
+    color: var(--primary-dark, #1a472a);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.vp-tabs .nav-link.active .vp-tab-count {
+    background-color: var(--primary, #2c6e49);
+    color: #ffffff;
+}
+
+/* On narrow screens let the two tabs share the full width */
+@media (max-width: 575.98px) {
+    .vp-tabs {
+        display: flex;
+        width: 100%;
+    }
+    .vp-tabs .nav-item {
+        flex: 1 1 0;
+    }
+    .vp-tabs .nav-link {
+        width: 100%;
+        justify-content: center;
+        gap: 0.35rem;
+        padding: 0.5rem 0.5rem !important;
+        font-size: 0.825rem;
+    }
+}
+</style>
+@endpush 

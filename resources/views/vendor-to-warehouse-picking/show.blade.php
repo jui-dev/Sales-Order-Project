@@ -2,12 +2,6 @@
 
 @section('content')
 <div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Picking & Transfers', 'url' => '#'],
-        ['label' => 'Vendors to Warehouse', 'url' => route('vendor-to-warehouse-picking.index')],
-        ['label' => $pickingList->picking_number, 'url' => '#']
-    ]" />
     
     <div class="mb-4">
         <a href="{{ route('vendor-to-warehouse-picking.index') }}" class="btn btn-outline-secondary">

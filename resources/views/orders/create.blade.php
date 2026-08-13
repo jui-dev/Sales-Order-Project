@@ -1,277 +1,458 @@
 @extends('layouts.app')
+@section('page-header')
+<div class="mb-4">
+    <h1>Create New Order</h1>
+</div>
+@endsection
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Create New Order</h1>
-    <a href="{{ route('orders.index') }}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left me-1"></i>Back to Orders
-    </a>
-</div>
 
-@if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle me-2"></i>{{ session('error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-@endif
+<div class="order-form">
 
-<!-- Info Banner for Warehouse to Retailer Logic -->
-<div class="alert alert-info">
-    <div class="d-flex align-items-start">
-        <i class="bi bi-info-circle-fill me-3 mt-1" style="font-size: 1.2rem;"></i>
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>{{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    <div class="order-notice">
+        <i class="bi bi-info-circle"></i>
         <div>
-            <h6 class="mb-1">Order Fulfillment Logic</h6>
-            <p class="mb-2"><strong>Warehouse Orders:</strong> Products will be picked directly from the warehouse and shipped to customers.</p>
-            <p class="mb-0"><strong>Retailer Orders:</strong> Only retailers with ALL selected products in stock will be available for selection. Products must be transferred from warehouse to retailer first.</p>
+            <strong>Warehouse orders</strong> are picked directly from the warehouse and shipped to the customer.
+            <strong>Retailer orders</strong> only list retailers holding every selected product — stock must be
+            transferred from a warehouse to the retailer first.
         </div>
     </div>
-</div>
 
-<div class="card">
-    <div class="card-body">
-        <div class="alert alert-light mb-4">
-            <i class="bi bi-exclamation-circle text-danger"></i> Fields marked with <span class="text-danger">*</span> are required and must be filled before submitting the form.
-        </div>
-        
-        <form action="{{ route('orders.store') }}" method="POST" id="orderForm">
-            @csrf
-            
-            <!-- Step 1: Customer Selection -->
-            <div class="card mb-4">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-1-circle me-2"></i>Step 1: Select Customer
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="customer_id" class="form-label">Customer <span class="text-danger">*</span></label>
-                                <select name="customer_id" id="customer_id" class="form-select @error('customer_id') is-invalid @enderror" required>
-                                    <option value="">Select Customer</option>
-                                    @foreach($customers as $customer)
-                                        <option value="{{ $customer->id }}" {{ old('customer_id') == $customer->id ? 'selected' : '' }}>
-                                            {{ $customer->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('customer_id')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="order_date" class="form-label">Order Date <span class="text-danger">*</span></label>
-                                <input type="date" name="order_date" id="order_date" class="form-control @error('order_date') is-invalid @enderror" 
-                                    value="{{ old('order_date', date('Y-m-d')) }}" required>
-                                @error('order_date')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-                    </div>
+    <form action="{{ route('orders.store') }}" method="POST" id="orderForm">
+        @csrf
+
+        {{-- Section 1: Customer --}}
+        <div class="card order-card mb-4">
+            <div class="card-header order-card__header">
+                <span class="order-card__step">1</span>
+                <div>
+                    <h2 class="order-card__title">Customer Details</h2>
+                    <p class="order-card__subtitle">Who the order is for, and when it was placed.</p>
                 </div>
             </div>
-
-            <!-- Step 2: Product Selection -->
-            <div class="card mb-4">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-2-circle me-2"></i>Step 2: Select Products <span class="text-danger">*</span>
-                    </h5>
-                    <button type="button" id="add-item" class="btn btn-primary btn-sm">
-                        <i class="bi bi-plus-circle me-1"></i>Add Item
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div id="order-items">
-                        <div class="order-item card mb-3">
-                            <div class="card-body">
-                                <!-- First Row: Product and Fulfillment Location -->
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-bold">Product <span class="text-danger">*</span></label>
-                                        <select name="products[0][product_id]" class="form-select product-select" required>
-                                            <option value="">Select Product</option>
-                                            @foreach($products as $product)
-                                                <option value="{{ $product->id }}"
-                                                        data-price="{{ $product->selling_price }}"
-                                                        data-stock="{{ $product->current_stock }}">
-                                                    {{ $product->name }} ({{ $product->current_stock }} in stock) - ${{ number_format($product->selling_price, 2) }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                        <div class="stock-info form-text mt-1"></div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-bold">Fulfillment Location <span class="text-danger">*</span></label>
-                                        <select name="products[0][fulfillment_location_id]" class="form-select fulfillment-location-select" required>
-                                            <option value="">Select product first</option>
-                                        </select>
-                                        <!-- Hidden input will be updated dynamically to store location type (warehouse / retailer / other) -->
-                                        <input type="hidden" name="products[0][fulfillment_location_type]" class="fulfillment-location-type">
-                                        <div class="location-stock-info form-text mt-1"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Second Row: Quantity, Unit Price, Subtotal, and Remove Button -->
-                                <div class="row">
-                                    <div class="col-md-3">
-                                        <label class="form-label fw-bold">Quantity <span class="text-danger">*</span></label>
-                                        <input type="number" name="products[0][quantity]" class="form-control item-quantity" min="1" value="1" required>
-                                        <div class="invalid-feedback quantity-error"></div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label fw-bold">Unit Price</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text">$</span>
-                                            <input type="text" name="products[0][unit_price]" class="form-control item-unit-price" placeholder="0.00" readonly>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label fw-bold">Subtotal</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text">$</span>
-                                            <input type="text" class="form-control item-subtotal" placeholder="0.00" readonly>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-2 d-flex align-items-end">
-                                        <button type="button" class="btn btn-danger remove-item w-100">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+            <div class="card-body">
+                <div class="order-panel">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="customer_id" class="form-label">Customer <span class="text-danger">*</span></label>
+                        <select name="customer_id" id="customer_id" class="form-select @error('customer_id') is-invalid @enderror" required>
+                            <option value="">Select Customer</option>
+                            @foreach($customers as $customer)
+                                <option value="{{ $customer->id }}" {{ old('customer_id') == $customer->id ? 'selected' : '' }}>
+                                    {{ $customer->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('customer_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
-                </div>
-            </div>
 
-            <!-- Step 3: Additional Information -->
-            <div class="card mb-4">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-3-circle me-2"></i>Step 3: Additional Information
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label for="notes" class="form-label">Order Notes</label>
-                        <textarea name="notes" id="notes" class="form-control @error('notes') is-invalid @enderror" rows="3" 
-                            placeholder="Add any special instructions or notes for this order...">{{ old('notes') }}</textarea>
-                        @error('notes')
+                    <div class="col-md-6">
+                        <label for="order_date" class="form-label">Order Date <span class="text-danger">*</span></label>
+                        <input type="date" name="order_date" id="order_date" class="form-control @error('order_date') is-invalid @enderror"
+                            value="{{ old('order_date', date('Y-m-d')) }}" required>
+                        @error('order_date')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
                 </div>
-            </div>
-            
-            <!-- Order Summary -->
-            <div class="card mb-4">
-                <div class="card-header bg-light">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-receipt me-2"></i>Order Summary
-                    </h5>
                 </div>
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0">Total: $<span id="order-total">0.00</span></h4>
-                        <button type="submit" class="btn btn-success" id="submitOrder">
-                            <i class="bi bi-check-circle me-1"></i>Create Order
+            </div>
+        </div>
+
+        {{-- Section 2: Products --}}
+        <div class="card order-card mb-4">
+            <div class="card-header order-card__header">
+                <span class="order-card__step">2</span>
+                <div>
+                    <h2 class="order-card__title">Order Items <span class="text-danger">*</span></h2>
+                    <p class="order-card__subtitle">Add each product being sold, with its fulfilment location and quantity.</p>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="order-panel">
+
+                <div id="order-items">
+                    <div class="order-item">
+                        <div class="order-item__bar">
+                            <span class="order-item__label">Item</span>
+                            <button type="button" class="remove-item" title="Remove this item" aria-label="Remove this item">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-lg-6">
+                                <label class="form-label">Product <span class="text-danger">*</span></label>
+                                <select name="products[0][product_id]" class="form-select product-select" required>
+                                    <option value="">Select Product</option>
+                                    @foreach($products as $product)
+                                        <option value="{{ $product->id }}"
+                                                data-price="{{ $product->selling_price }}"
+                                                data-stock="{{ $product->current_stock }}">
+                                            {{ $product->name }} ({{ $product->current_stock }} in stock) - ${{ number_format($product->selling_price, 2) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="stock-info form-text mt-1"></div>
+                            </div>
+                            <div class="col-lg-6">
+                                <label class="form-label">Fulfillment Location <span class="text-danger">*</span></label>
+                                <select name="products[0][fulfillment_location_id]" class="form-select fulfillment-location-select" required>
+                                    <option value="">Select product first</option>
+                                </select>
+                                {{-- Hidden input is updated dynamically to store location type (warehouse / retailer / other) --}}
+                                <input type="hidden" name="products[0][fulfillment_location_type]" class="fulfillment-location-type">
+                                <div class="location-stock-info form-text mt-1"></div>
+                            </div>
+                            <div class="col-lg-3 col-md-4 col-sm-6">
+                                <label class="form-label">Quantity <span class="text-danger">*</span></label>
+                                <input type="number" name="products[0][quantity]" class="form-control item-quantity" min="1" value="1" required>
+                                <div class="invalid-feedback quantity-error"></div>
+                            </div>
+                            <div class="col-lg-4 col-md-4 col-sm-6">
+                                <label class="form-label">Unit Price</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="text" name="products[0][unit_price]" class="form-control item-unit-price" placeholder="0.00" readonly>
+                                </div>
+                            </div>
+                            <div class="col-lg-5 col-md-4">
+                                <label class="form-label">Subtotal</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="text" class="form-control item-subtotal subtotal-highlight" placeholder="0.00" readonly>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" id="add-item" class="btn btn-outline-primary order-add-btn">
+                    <i class="bi bi-plus-lg"></i> Add Another Item
+                </button>
+                </div>
+            </div>
+        </div>
+
+        {{-- Section 3: Additional information --}}
+        <div class="card order-card mb-4">
+            <div class="card-header order-card__header">
+                <span class="order-card__step">3</span>
+                <div>
+                    <h2 class="order-card__title">Additional Information</h2>
+                    <p class="order-card__subtitle">Anything worth remembering about this order.</p>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="order-panel">
+                    <label for="notes" class="form-label">Order Notes</label>
+                    <textarea name="notes" id="notes" class="form-control @error('notes') is-invalid @enderror" rows="3"
+                        placeholder="Add any special instructions or notes for this order (optional)">{{ old('notes') }}</textarea>
+                    @error('notes')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+        </div>
+
+        {{-- Section 4: Review & submit --}}
+        <div class="card order-card order-summary mb-4">
+            <div class="card-body">
+                <div class="order-summary__inner">
+                    <div>
+                        <span class="order-summary__label">Order Total</span>
+                        <span class="order-summary__value">$<span id="order-total">0.00</span></span>
+                    </div>
+                    <div class="order-summary__actions">
+                        <a href="{{ route('orders.index') }}" class="btn btn-danger">Cancel</a>
+                        <button type="submit" class="btn btn-primary" id="submitOrder">
+                            <i class="bi bi-check2-circle"></i> Create Order
                         </button>
                     </div>
                 </div>
+                <p class="order-summary__hint">
+                    Fields marked <span class="text-danger">*</span> are required and must be filled before
+                    submitting the form.
+                </p>
             </div>
-        </form>
-    </div>
+        </div>
+    </form>
 </div>
 
 @endsection
 
 @section('styles')
 <style>
-    .card-header {
+    /* ---- Page shell ------------------------------------------------- */
+    .order-form {
+        width: 100%;
+    }
+
+    .order-notice {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+        padding: 0.85rem 1.1rem;
+        margin-bottom: 1.5rem;
+        border-radius: 6px;
+        border: 1px solid #e3e8e4;
         background-color: #f8f9fa;
-        border-bottom: 1px solid rgba(0,0,0,.125);
+        color: var(--dark-text);
+        font-size: 0.925rem;
+        line-height: 1.5;
     }
-    .card-title {
-        color: #495057;
-        font-size: 1.1rem;
+
+    .order-notice .bi {
+        color: #6c757d;
+        font-size: 1.05rem;
+        line-height: 1.4;
     }
-    .form-label {
-        color: #495057;
-        margin-bottom: 0.5rem;
+
+    /* ---- Section cards ---------------------------------------------- */
+    .order-card:hover {
+        /* keep sections calm; no lift on a form page */
+        box-shadow: var(--card-shadow);
     }
-    .stock-info {
-        font-size: 0.875rem;
-        margin-top: 0.25rem;
+
+    .order-card__header {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.85rem;
+        border-bottom: 0;
+        padding-bottom: 0.35rem;
     }
-    .btn-danger {
-        padding: 0.375rem 0.75rem;
+
+    /* Light inner surface for a section's main content */
+    .order-panel {
+        padding: 1.1rem;
+        border-radius: 6px;
+        background-color: #f5f8f6;
     }
-    .btn-danger i {
-        font-size: 1rem;
+
+    .order-card__step {
+        flex: 0 0 auto;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background-color: var(--primary);
+        color: #fff;
+        font-size: 0.8rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 1px;
     }
+
+    .order-card__title {
+        margin: 0;
+        font-size: 1.02rem;
+        font-weight: 600;
+        color: var(--dark-text);
+        letter-spacing: 0.01em;
+    }
+
+    .order-card__subtitle {
+        margin: 0.15rem 0 0;
+        font-size: 0.825rem;
+        font-weight: 400;
+        color: #6c757d;
+    }
+
+    /* ---- Item rows --------------------------------------------------- */
+    #order-items {
+        counter-reset: order-item;
+    }
+
     .order-item {
-        border: 1px solid #dee2e6;
-        border-radius: 0.5rem;
-        transition: all 0.2s ease-in-out;
+        position: relative;
+        padding: 1rem 1.1rem 1.1rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e3e8e4;
+        border-radius: 6px;
+        background-color: #fff;
+        transition: opacity 0.3s ease, border-color 0.2s ease;
     }
-    .order-item:hover {
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+
+    .order-item:focus-within {
+        border-color: var(--primary-light);
     }
+
+    .order-item__bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.85rem;
+    }
+
+    .order-item__label {
+        counter-increment: order-item;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--primary);
+    }
+
+    .order-item__label::after {
+        content: " " counter(order-item);
+    }
+
+    .order-item .remove-item {
+        border: 0;
+        background: transparent;
+        color: #9aa0a6;
+        line-height: 1;
+        padding: 0.3rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        transition: color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .order-item .remove-item:hover {
+        color: var(--danger);
+        background-color: rgba(231, 111, 81, 0.1);
+    }
+
+    .order-item .form-label {
+        font-size: 0.82rem;
+        font-weight: 500;
+        margin-bottom: 0.3rem;
+    }
+
+    .stock-info,
+    .location-stock-info {
+        font-size: 0.8rem;
+    }
+
     .input-group-text {
         background-color: #f8f9fa;
         border-color: #ced4da;
     }
+
     .form-control:read-only {
         background-color: #f8f9fa;
         cursor: default;
     }
-    .form-control.item-subtotal {
-        font-size: 1rem;
+
+    .subtotal-highlight {
         font-weight: 600;
-        text-align: right;
+        background-color: #f1f5f2;
     }
+
+    .item-subtotal {
+        transition: all 0.3s ease;
+    }
+
     .invalid-feedback {
-        font-size: 0.875rem;
+        font-size: 0.8rem;
     }
-    
-    /* Required field indicator styling - consistent with supply page */
+
+    .order-add-btn {
+        border-style: dashed;
+        width: 100%;
+        padding: 0.6rem 1rem;
+        font-weight: 500;
+        background-color: #fff;
+    }
+
+    .order-add-btn:hover {
+        background-color: var(--primary);
+    }
+
+    /* ---- Summary card ------------------------------------------------ */
+    .order-summary__inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .order-summary__label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: #6c757d;
+    }
+
+    .order-summary__value {
+        display: block;
+        margin-top: 0.15rem;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--dark-text);
+    }
+
+    #order-total {
+        transition: all 0.3s ease;
+    }
+
+    .order-summary__actions {
+        display: flex;
+        gap: 0.6rem;
+    }
+
+    .order-summary__hint {
+        margin: 0.9rem 0 0;
+        padding-top: 0.9rem;
+        border-top: 1px solid #e3e8e4;
+        font-size: 0.82rem;
+        color: #6c757d;
+    }
+
+    /* ---- Required-field cues ----------------------------------------- */
     .text-danger {
         color: var(--danger) !important;
     }
-    
+
     .form-label .text-danger {
         font-weight: 600;
         margin-left: 2px;
     }
-    
-    /* Enhanced focus states for required fields */
+
     .form-control:required:focus,
     .form-select:required:focus {
         border-color: var(--danger);
         box-shadow: 0 0 0 0.2rem rgba(231, 111, 81, 0.25);
     }
-    
-    /* Subtle indicator for required field groups */
-    h5 .text-danger {
+
+    .order-card__title .text-danger {
         font-size: 0.8em;
         vertical-align: super;
-        margin-left: 4px;
+        margin-left: 2px;
     }
-    
+
     @media (max-width: 768px) {
-        /* Ensure required indicators are visible on mobile */
+        .order-item {
+            padding: 0.9rem;
+        }
+
+        .order-summary__inner {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .order-summary__actions {
+            width: 100%;
+        }
+
+        .order-summary__actions .btn {
+            flex: 1;
+        }
+
         .form-label .text-danger {
             font-size: 0.9em;
-        }
-        
-        h5 .text-danger {
-            font-size: 0.7em;
         }
     }
 </style>

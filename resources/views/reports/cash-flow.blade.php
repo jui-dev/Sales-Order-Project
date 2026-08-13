@@ -1,6 +1,5 @@
 @extends('layouts.app')
-
-@section('content')
+@section('page-header')
 <div class="row">
     <div class="col-12 mb-4 d-flex justify-content-between align-items-center">
         <div>
@@ -20,6 +19,10 @@
         </div>
     </div>
 </div>
+@endsection
+
+@section('content')
+
 
 <div class="row mb-4">
     <div class="col-12">

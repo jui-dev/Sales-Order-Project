@@ -1,6 +1,5 @@
 @extends('layouts.app')
-
-@section('content')
+@section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Stock Analysis: {{ $stockData['product']->name }}</h1>
     <div>
@@ -13,6 +12,10 @@
         <a href="{{ route('products.index') }}" class="btn btn-secondary">Back to Products</a>
     </div>
 </div>
+@endsection
+
+@section('content')
+
 
 <!-- Stock Summary Cards -->
 <div class="row mb-4">

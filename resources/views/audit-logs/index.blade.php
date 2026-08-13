@@ -1,14 +1,11 @@
 @extends('layouts.app')
 
+@section('page-header')
+<h1 class="mb-4">Audit Trail</h1>
+@endsection
+
 @section('content')
 <div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Accounting', 'url' => '#'],
-        ['label' => 'Audit Trail', 'url' => '#']
-    ]" />
-    
-    <h1 class="mb-4">Audit Trail</h1>
 
     <form method="GET" class="row g-3 mb-4">
         <div class="col-md-2">

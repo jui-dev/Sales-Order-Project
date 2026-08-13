@@ -99,16 +99,16 @@
         ->latest()->limit(5)->get();
 @endphp
 
-@section('content')
+@section('page-header')
 <div class="row">
     <div class="col-12 mb-4 page-heading">
         <h1 class="h3">Welcome to Sales Order System</h1>
         <p>Manage your business operations efficiently</p>
     </div>
 </div>
+@endsection
 
-
-
+@section('content')
 <!-- KPI Cards -->
 <div class="row mb-4">
     <div class="col-md-2 col-sm-6 mb-3">
@@ -451,7 +451,7 @@
         </div>
     </div>
 </div>
-@endsection 
+@endsection
 
 @push('styles')
 <style>

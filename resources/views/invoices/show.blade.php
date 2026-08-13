@@ -1,6 +1,5 @@
 @extends('layouts.app')
-
-@section('content')
+@section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Invoice {{ $invoice->invoice_number }}</h1>
     <div>
@@ -8,6 +7,10 @@
         <a href="{{ route('invoices.index') }}" class="btn btn-secondary">Back</a>
     </div>
 </div>
+@endsection
+
+@section('content')
+
 
 <div class="card mb-4">
     <div class="card-body">

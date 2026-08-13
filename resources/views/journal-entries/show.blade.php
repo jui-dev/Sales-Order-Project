@@ -1,15 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Accounting', 'url' => '#'],
-        ['label' => 'Journal Entries', 'url' => route('journal-entries.index')],
-        ['label' => $journalEntry->formatted_id, 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Journal Entry #{{ $journalEntry->formatted_id }}</h1>
         <div class="d-flex gap-2">
             @if($journalEntry->status === 'draft')
@@ -41,6 +32,12 @@
             </a>
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     <!-- Status Alert -->
     @if($journalEntry->status === 'draft')

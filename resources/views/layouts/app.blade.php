@@ -69,6 +69,8 @@
 
         /* ===== Sidebar Navigation ===== */
         .sidebar-nav {
+            /* Bootstrap sizes .offcanvas-start from this custom property (default 400px) */
+            --bs-offcanvas-width: 250px;
             width: 250px;
             background: var(--primary);
         }
@@ -85,58 +87,75 @@
             padding-left: 2rem;
             font-size: 0.9rem;
         }
-        /* Ensure sidebar is visible and fixed on desktop */
+        .sidebar-brand {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            min-height: var(--navbar-height);
+        }
+        /* custom.css forces .btn { width: 100% } under 576px; keep the toggle compact */
+        .navbar .btn {
+            width: auto;
+        }
+        /* Content is full-width next to the sidebar; longhand so padding-top rules survive */
+        .main-content {
+            padding-left: 1.5rem;
+            padding-right: 1.5rem;
+        }
+        @media (max-width: 576px) {
+            .main-content {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+        }
+        /* Permanent full-height sidebar on desktop (no header bar there) */
         @media (min-width: 992px) {
             .sidebar-nav {
                 position: fixed;
-                top: var(--navbar-height);
+                top: 0;
                 left: 0;
+                width: 250px;
                 height: 100vh;
+                z-index: 1035; /* offcanvas-lg drops z-index at >=lg; set it explicitly */
                 transform: none !important;
                 visibility: visible !important;
                 overflow-y: auto;
+                background: var(--primary) !important;
+            }
+            .offcanvas-lg.sidebar-nav {
+                background: var(--primary) !important;
             }
             /* Hide backdrop when sidebar is static */
             .offcanvas-backdrop.show {
                 display: none;
             }
+            /* Bootstrap hides .offcanvas-header at >=lg; we need it for the brand */
+            .sidebar-nav .offcanvas-header.sidebar-brand {
+                display: flex;
+            }
 
             body {
-                padding-left: 250px; /* space for sidebar */
+                padding-left: 250px; /* sidebar is fixed / out of flow */
+                padding-top: 0;      /* overrides the old header offset in custom.css */
             }
-            footer {
-                margin-left: 250px;
-            }
+            /* footer needs no margin-left: body padding-left already shifts it */
             .main-content {
                 margin-left: 0;
-            }
-        }
-        /* Ensure same background when sidebar is fixed on desktop */
-        @media (min-width: 992px) {
-            .sidebar-nav {
-                background: var(--primary) !important;
-            }
-            .offcanvas-lg.sidebar-nav {
-                 background: var(--primary) !important;
+                padding-top: 1.5rem; /* overrides the old 80px header clearance */
             }
         }
         /* Prevent brand text wrapping on very small screens */
         .navbar-brand {
             white-space: nowrap;
         }
-        /* === Override: Hide sidebar on desktop & fix layout spacing === */
-        @media (min-width: 992px) {
-            .sidebar-nav { display: none !important; }
-            body { padding-left: 0 !important; }
-            /* Ensure navbar spans full width */
-            .navbar.fixed-top { width: 100% !important; left: 0 !important; }
-            /* Center main content */
-            .main-content { margin-left: auto !important; margin-right: auto !important; }
-        }
 
-        /* === Sticky footer setup === */
-        html, body { height: 100%; }
+        /* === Sticky footer setup ===
+           min-height, not height: a fixed height lets .main-content fill the
+           viewport and then pushes the footer's margin + height past it, so
+           short pages scroll for no reason. Appearance lives in custom.css —
+           this block is emitted after that stylesheet, so declaring colours
+           here would override it. */
+        html { height: 100%; }
         body {
+            min-height: 100%;
             display: flex;
             flex-direction: column;
         }
@@ -144,150 +163,30 @@
         footer {
             flex-shrink: 0;
             margin-left: 0 !important;
-            background: #f8f9fa;
-            color: #6c757d;
         }
     </style>
 </head>
 <body>
     <!-- BEGIN: Sidebar Navigation Layout -->
-    <nav class="navbar navbar-expand-lg navbar-dark shadow-sm fixed-top">
-        <div class="container-fluid">
-            <!-- Sidebar toggle: visible only on mobile -->
-            <button class="btn btn-outline-light d-lg-none me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar">
+    <!-- Mobile-only bar: hosts the sidebar toggle. Hidden on desktop, where the sidebar is permanent. -->
+    <nav class="navbar navbar-dark shadow-sm fixed-top d-lg-none">
+        <div class="container-fluid d-flex align-items-center">
+            <button class="btn btn-outline-light me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar">
                 <i class="bi bi-list"></i>
             </button>
-
-            <!-- Brand -->
-            <a class="navbar-brand fw-semibold" href="{{ route('dashboard') }}">
+            <a class="navbar-brand fw-semibold mb-0" href="{{ route('dashboard') }}">
                 <i class="bi bi-graph-up me-2"></i>Sales Order System
             </a>
-
-            <!-- Top-nav collapse toggle (aligned to the far right on mobile) -->
-            <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#topNav" aria-controls="topNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="topNav">
-                <ul class="navbar-nav ms-auto align-items-lg-center">
-                    <!-- Inventory Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="inventoryTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-box-seam me-1"></i>Inventory
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="inventoryTop">
-                            <li><a class="dropdown-item" href="{{ route('products.index') }}"><i class="bi bi-box me-1"></i> Products</a></li>
-                            <li><a class="dropdown-item" href="{{ route('supplies.index') }}"><i class="bi bi-truck me-1"></i> Supplies</a></li>
-                            <li><a class="dropdown-item" href="{{ route('vendors.index') }}"><i class="bi bi-building me-1"></i> Vendors</a></li>
-                            <li><a class="dropdown-item" href="{{ route('customers.index') }}"><i class="bi bi-people me-1"></i> Customers</a></li>
-                        </ul>
-                    </li>
-
-                    <!-- Purchases Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="purchasesTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-cart-check me-1"></i>Purchases
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="purchasesTop">
-                            <li><a class="dropdown-item" href="{{ route('grns.index') }}"><i class="bi bi-receipt me-1"></i> Good Receipt Notes (GRNs)</a></li>
-                            <li><a class="dropdown-item" href="{{ route('supplier-bills.index') }}"><i class="bi bi-file-earmark-text me-1"></i> Supplier Bills</a></li>
-                            <li><a class="dropdown-item" href="{{ route('supplier-bill-payments.index') }}"><i class="bi bi-credit-card me-1"></i> Supplier Bills Payment</a></li>
-                        </ul>
-                    </li>
-
-                    <!-- Picking & Transfers Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="pickingTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-list-check me-1"></i>Picking & Transfers
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="pickingTop">
-                            <li><a class="dropdown-item" href="{{ route('vendor-to-warehouse-picking.index') }}"><i class="bi bi-truck-arrow-right me-1"></i> Vendors → Warehouse</a></li>
-                            <li><a class="dropdown-item" href="{{ route('stock-transfers.warehouse-to-retailer') }}"><i class="bi bi-building-arrow-right me-1"></i> Warehouse → Retailers</a></li>
-                            <li><a class="dropdown-item" href="{{ route('warehouse-to-customer-picking.index') }}"><i class="bi bi-house-arrow-right me-1"></i> Warehouse → Customers</a></li>
-                            <li><a class="dropdown-item" href="{{ route('retailer-to-customer-picking.index') }}"><i class="bi bi-people-arrow-right me-1"></i> Retailers → Customers</a></li>
-                            <li><a class="dropdown-item" href="{{ route('picking-lists.index') }}"><i class="bi bi-list-ul me-1"></i> All Picking Lists</a></li>
-                            <li><a class="dropdown-item" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 me-1"></i> Transaction Flow</a></li>
-                        </ul>
-                    </li>
-
-                    <!-- Returns Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="returnsTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-arrow-return-left me-1"></i>Returns
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="returnsTop">
-                            <li><a class="dropdown-item" href="{{ route('returns.index') }}"><i class="bi bi-list me-1"></i> All Returns</a></li>
-                            <li><a class="dropdown-item" href="{{ route('credit-notes.index') }}"><i class="bi bi-receipt me-1"></i> Credit Notes</a></li>
-                            <li><a class="dropdown-item" href="{{ route('debit-notes.index') }}"><i class="bi bi-receipt me-1"></i> Debit Notes</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ route('returns.index', ['type' => 'customer_return']) }}"><i class="bi bi-arrow-return-left text-danger me-1"></i> Customer Returns</a></li>
-                            <li><a class="dropdown-item" href="{{ route('returns.index', ['type' => 'vendor_return']) }}"><i class="bi bi-arrow-return-right text-info me-1"></i> Vendor Returns</a></li>
-                            <li><a class="dropdown-item" href="{{ route('returns.index', ['type' => 'retailer_return']) }}"><i class="bi bi-arrow-return-left text-warning me-1"></i> Retailer Returns</a></li>
-                        </ul>
-                    </li>
-
-                    <!-- Stock Management Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="stockTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-boxes me-1"></i>Stock Management
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="stockTop">
-                            <li><a class="dropdown-item" href="{{ route('stock-management.index') }}"><i class="bi bi-boxes me-1"></i> Stock Management</a></li>
-                            <li><a class="dropdown-item" href="{{ route('stock-locations.index') }}"><i class="bi bi-geo-alt me-1"></i> Stock Locations</a></li>
-                            <li><a class="dropdown-item" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 me-1"></i> Transaction Flow</a></li>
-                        </ul>
-                    </li>
-
-                    <!-- Sales Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="salesTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-cash-stack me-1"></i>Sales
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="salesTop">
-                            <li><a class="dropdown-item" href="{{ route('orders.index') }}"><i class="bi bi-cart me-1"></i> Orders</a></li>
-                            <li><a class="dropdown-item" href="{{ route('invoices.index') }}"><i class="bi bi-receipt me-1"></i> Invoices</a></li>
-                            <li><a class="dropdown-item" href="{{ route('reports.daily-profit') }}"><i class="bi bi-graph-up me-1"></i> Daily Profit</a></li>
-                        </ul>
-                    </li>
-
-                    <!-- Accounting Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="accountingTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-journal-bookmark me-1"></i>Accounting
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="accountingTop">
-                            <li><a class="dropdown-item" href="{{ route('accounting.chart-of-accounts') }}"><i class="bi bi-journal me-1"></i> Chart of Accounts</a></li>
-                            <li><a class="dropdown-item" href="{{ route('reports.trial-balance') }}"><i class="bi bi-calculator me-1"></i> Trial Balance</a></li>
-                            <li><a class="dropdown-item" href="{{ route('reports.income-statement') }}"><i class="bi bi-clipboard-data me-1"></i> Income Statement</a></li>
-                            <li><a class="dropdown-item" href="{{ route('reports.balance-sheet') }}"><i class="bi bi-columns-gap me-1"></i> Balance Sheet</a></li>
-                            <li><a class="dropdown-item" href="{{ route('reports.cash-flow') }}"><i class="bi bi-cash-stack me-1"></i> Cash Flow Statement</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ route('journal-entries.index') }}"><i class="bi bi-journal-text me-1"></i> Journal Entries</a></li>
-                            <li><a class="dropdown-item" href="{{ route('audit-logs.index') }}"><i class="bi bi-shield-check me-1"></i> Audit Trail</a></li>
-                        </ul>
-                    </li>
-
-                    <!-- Reports Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="reportsTop" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-file-bar-graph me-1"></i>Reports
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="reportsTop">
-                            <li><a class="dropdown-item" href="{{ route('reports.daily-profit') }}">Daily Profit</a></li>
-                        </ul>
-                    </li>
-
-                    {{-- Profile section removed per latest requirements --}}
-                </ul>
-            </div>
         </div>
     </nav>
 
     <!-- Sidebar -->
     <div class="offcanvas offcanvas-start offcanvas-lg sidebar-nav text-white" tabindex="-1" id="sidebar">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title">Menu</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        <div class="offcanvas-header sidebar-brand">
+            <a class="navbar-brand fw-semibold text-white mb-0" href="{{ route('dashboard') }}">
+                <i class="bi bi-graph-up me-2"></i>Sales Order System
+            </a>
+            <button type="button" class="btn-close btn-close-white d-lg-none" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body p-0">
             <nav class="navbar-dark">
@@ -419,7 +318,7 @@
     </div>
     <!-- END: Sidebar Navigation Layout -->
 
-    <div class="container main-content">
+    <div class="container-fluid main-content">
         <!-- Toast notifications -->
         <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
             @if(session('success'))
@@ -456,12 +355,18 @@
             </div>
         @endif
 
-        @yield('content')
+        {{-- Page title/actions render above the panel, on the page background --}}
+        @yield('page-header')
+
+        <div class="page-panel">
+            @yield('content')
+        </div>
     </div>
 
-    <footer class="mt-5 py-4 text-center text-muted border-top">
-        <div class="container">
-            <p class="mb-0">&copy; {{ date('Y') }} Sales Order System | <span class="text-primary-custom">Premium Business Solution</span></p>
+    <footer class="site-footer">
+        <div class="site-footer__inner">
+            <span>&copy; {{ date('Y') }} Sales Order System</span>
+            <span class="text-primary-custom">Premium Business Solution</span>
         </div>
     </footer>
 
@@ -638,7 +543,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             try {
                 const currentPath = window.location.pathname;
-                document.querySelectorAll('#sidebar .nav-link, #topNav .nav-link').forEach(link => {
+                document.querySelectorAll('#sidebar .nav-link').forEach(link => {
                     const href = link.getAttribute('href');
                     if (href && currentPath.includes(href.split('/').filter(Boolean).pop())) {
                         link.classList.add('active');

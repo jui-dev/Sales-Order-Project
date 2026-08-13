@@ -1,16 +1,14 @@
 @extends('layouts.app')
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Supplier Bills</h1>
+    </div>
+@endsection
 
 @section('content')
 <div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Purchases', 'url' => '#'],
-        ['label' => 'Supplier Bills', 'url' => '#']
-    ]" />
     
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Supplier Bills</h1>
-    </div>
+    
 
 <div class="card">
     <div class="card-body">
@@ -96,8 +94,10 @@
                 </tbody>
             </table>
         </div>
+
         <x-pagination :paginator="$bills" />
     </div>
+</div>
 </div>
 @endsection
 

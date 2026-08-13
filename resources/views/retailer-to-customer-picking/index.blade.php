@@ -1,15 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Picking & Transfers', 'url' => '#'],
-        ['label' => 'Retailer to Customer', 'url' => '#']
-    ]" />
-    
-    <div class="retailer-customer-picking">
-        <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
             <h1><i class="bi bi-shop me-2"></i>Retailer to Customer Picking</h1>
             <div>
                 <a href="{{ route('orders.index') }}" class="btn btn-outline-primary me-2">
@@ -20,6 +11,13 @@
                 </button>
             </div>
         </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    <div class="retailer-customer-picking">
+        
 
     @if(session('success'))
     <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -44,58 +42,60 @@
     </div>
 
     <!-- System Overview Cards -->
-    <div class="row mb-4">
+    <div class="summary-panel mb-4">
+        <div class="row g-3">
         <div class="col-md-3">
-            <div class="card bg-primary text-white">
+            <div class="card border-0 shadow-sm summary-card summary-card--blue">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Total Pickings</h6>
+                            <h6 class="card-title text-primary">Total Pickings</h6>
                             <h3 id="total-pickings">-</h3>
                         </div>
-                        <i class="bi bi-list-check" style="font-size: 2rem; opacity: 0.7;"></i>
+                        <i class="bi bi-list-check text-primary summary-card__icon" style="font-size: 2rem;"></i>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success text-white">
+            <div class="card border-0 shadow-sm summary-card summary-card--green">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Completed</h6>
+                            <h6 class="card-title text-success">Completed</h6>
                             <h3 id="completed-pickings">-</h3>
                         </div>
-                        <i class="bi bi-check-circle" style="font-size: 2rem; opacity: 0.7;"></i>
+                        <i class="bi bi-check-circle text-success summary-card__icon" style="font-size: 2rem;"></i>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning text-white">
+            <div class="card border-0 shadow-sm summary-card summary-card--amber">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Pending</h6>
+                            <h6 class="card-title text-warning-emphasis">Pending</h6>
                             <h3 id="pending-pickings">-</h3>
                         </div>
-                        <i class="bi bi-clock" style="font-size: 2rem; opacity: 0.7;"></i>
+                        <i class="bi bi-clock text-warning-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info text-white">
+            <div class="card border-0 shadow-sm summary-card summary-card--cyan">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Items Shipped</h6>
+                            <h6 class="card-title text-info-emphasis">Items Shipped</h6>
                             <h3 id="total-items">-</h3>
                         </div>
-                        <i class="bi bi-box" style="font-size: 2rem; opacity: 0.7;"></i>
+                        <i class="bi bi-box text-info-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     </div>
 
@@ -313,4 +313,36 @@ document.addEventListener('DOMContentLoaded', loadStatistics);
 setInterval(loadStatistics, 30000);
 </script>
 @endpush
+
+@push('styles')
+<style>
+/* White container holding the summary cards */
+.summary-panel {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: var(--card-shadow, 0 2px 15px rgba(0, 0, 0, 0.04));
+}
+
+/* Summary cards - soft gradient treatment */
+.summary-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+}
+
+.summary-card--blue  { background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%); }
+.summary-card--green { background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%); }
+.summary-card--amber { background: linear-gradient(135deg, #fff8e1 0%, #ffffff 100%); }
+.summary-card--cyan  { background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%); }
+
+.summary-card__icon {
+    opacity: 0.45;
+}
+</style>
+@endpush
+</div>
 @endsection 

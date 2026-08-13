@@ -1,8 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Supplier Bill Payment {{ $supplierBillPayment->formatted_id }}</h1>
         <div>
             <a href="{{ route('supplier-bill-payments.index') }}" class="btn btn-secondary">
@@ -13,6 +11,11 @@
             </a>
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
 
     <!-- Payment Status Alert -->
     @if($supplierBillPayment->payment_status === 'unpaid')

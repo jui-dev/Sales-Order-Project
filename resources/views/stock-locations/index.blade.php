@@ -1,12 +1,17 @@
 @extends('layouts.app')
 
+@section('page-header')
+<div class="header-content">
+    <h1 class="page-title">Stock Locations</h1>
+    <a href="{{ route('stock-locations.create') }}" class="add-location-btn">
+        <i class="fas fa-plus"></i>
+        Add New Location
+    </a>
+</div>
+@endsection
+
 @section('content')
 <div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Stock Management', 'url' => '#'],
-        ['label' => 'Stock Locations', 'url' => '#']
-    ]" />
     
     <style>
     .page-container {
@@ -95,7 +100,6 @@
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         gap: 1.5rem;
-        margin-bottom: 2rem;
     }
 
     .section-title {
@@ -113,10 +117,12 @@
     }
 
     .location-card {
-        background: white;
-        border: 1px solid #e5e7eb;
+        background: #f0fdf4;  /* Light green */
+        border: 1px solid rgba(44, 110, 73, 0.12);
         border-radius: 0.75rem;
         overflow: hidden;
+        box-shadow: var(--card-shadow);
+        transition: box-shadow 0.3s ease;
     }
 
     .card-header {
@@ -357,6 +363,14 @@
             gap: 1rem;
         }
 
+        .section-nav {
+            padding: 1rem 1rem 0.75rem;
+        }
+
+        .section-content {
+            padding: 0 1rem 1rem;
+        }
+
         .card-actions {
             flex-direction: column;
         }
@@ -370,22 +384,26 @@
         .action-btn:hover {
             transform: translateY(-1px);
         }
+
+        .location-card:hover {
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        }
+    }
+
+    .location-section {
+        background: var(--light-panel);
+        border: 1px solid rgba(44, 110, 73, 0.12);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        margin-bottom: 2rem;
     }
 
     .section-nav {
-        background: #f8fafc;
-        padding: 1rem 1.5rem;
-        border-radius: 0.5rem;
-        margin-bottom: 2rem;
-        border: 1px solid #e5e7eb;
+        padding: 1.5rem 1.5rem 1rem;
     }
 
-    .warehouse-nav {
-        background: #f0fdf4;  /* Light green */
-    }
-
-    .retail-nav {
-        background: #f0fdf4;  /* Light green */
+    .section-content {
+        padding: 0 1.5rem 1.5rem;
     }
 
     .section-nav-title {
@@ -401,23 +419,15 @@
     .section-nav-subtitle {
         font-size: 0.875rem;
         color: #6b7280;
-        margin-bottom: 1rem;
     }
 
     .section-nav i {
-        color: #6b7280;
+        color: var(--primary);
     }
 </style>
 
 <div class="page-container">
     <div class="page-header">
-        <div class="header-content">
-            <h1 class="page-title">Stock Locations</h1>
-            <a href="{{ route('stock-locations.create') }}" class="add-location-btn">
-                <i class="fas fa-plus"></i>
-                Add New Location
-            </a>
-        </div>
         <div class="search-bar">
             <i class="fas fa-search"></i>
             <input type="text" id="locationSearch" class="search-input" placeholder="Search locations...">
@@ -435,171 +445,188 @@
             </a>
         </div>
     @else
+        @php
+            $warehouses = $locations->where('location_type', 'warehouse');
+            $retailers = $locations->where('location_type', 'retailer');
+        @endphp
+
         <!-- Warehouses Section -->
-        <div class="section-nav warehouse-nav">
-            <div class="section-nav-title">
-                <i class="fas fa-warehouse"></i>
-                Warehouses
-            </div>
-            <div class="section-nav-subtitle">
-                Central storage facilities and distribution centers
-            </div>
-        </div>
-        <div class="locations-grid">
-            @foreach($locations->where('location_type', 'warehouse') as $location)
-                <div class="location-card" data-location-name="{{ strtolower($location->name) }}">
-                    <div class="card-header">
-                        <div class="location-name">
-                            {{ $location->name }}
-                            <span class="badge bg-secondary ms-2">ID: {{ $location->id }}</span>
-                        </div>
-                        <div class="location-badge">
-                            <i class="fas fa-warehouse"></i>
-                            Warehouse
-                        </div>
-                        <div class="status-badge {{ $location->status === 'active' ? 'status-active' : 'status-inactive' }}">
-                            <i class="fas fa-circle"></i>
-                            {{ ucfirst($location->status) }}
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="info-list">
-                            <div class="info-item">
-                                <i class="fas fa-user"></i>
-                                {{ $location->contact_person ?: 'No contact person' }}
-                            </div>
-                            <div class="info-item">
-                                <i class="fas fa-phone"></i>
-                                {{ $location->contact_number ?: 'No phone number' }}
-                            </div>
-                            <div class="info-item">
-                                <i class="fas fa-envelope"></i>
-                                {{ $location->email ?: 'No email' }}
-                            </div>
-                        </div>
-
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->count() : 0 }}</div>
-                                <div class="stat-label">Products</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->sum('quantity') : 0 }}</div>
-                                <div class="stat-label">Stock</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockTransactions ? $location->stockTransactions->count() : 0 }}</div>
-                                <div class="stat-label">Transactions</div>
-                            </div>
-                        </div>
-
-                        <div class="card-actions">
-                            <a href="{{ route('stock-locations.show', $location) }}" class="action-btn btn-view">
-                                <i class="fas fa-eye"></i>
-                                View
-                            </a>
-                            <a href="{{ route('stock-locations.edit', $location) }}" class="action-btn btn-edit">
-                                <i class="fas fa-edit"></i>
-                                Edit
-                            </a>
-                            @if(!$location->is_default)
-                                <form action="{{ route('stock-locations.destroy', $location) }}" method="POST" style="flex: 1">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="action-btn btn-delete" onclick="return confirm('Are you sure you want to delete this location? This action cannot be undone.')">
-                                        <i class="fas fa-trash"></i>
-                                        Delete
-                                    </button>
-                                </form>
-                            @endif
-                        </div>
-                    </div>
+        @if($warehouses->isNotEmpty())
+        <div class="location-section">
+            <div class="section-nav warehouse-nav">
+                <div class="section-nav-title">
+                    <i class="fas fa-warehouse"></i>
+                    Warehouses
                 </div>
-            @endforeach
+                <div class="section-nav-subtitle">
+                    Central storage facilities and distribution centers
+                </div>
+            </div>
+            <div class="section-content">
+                <div class="locations-grid">
+                    @foreach($warehouses as $location)
+                        <div class="location-card" data-location-name="{{ strtolower($location->name) }}">
+                            <div class="card-header">
+                                <div class="location-name">
+                                    {{ $location->name }}
+                                    <span class="badge bg-secondary ms-2">ID: {{ $location->id }}</span>
+                                </div>
+                                <div class="location-badge">
+                                    <i class="fas fa-warehouse"></i>
+                                    Warehouse
+                                </div>
+                                <div class="status-badge {{ $location->status === 'active' ? 'status-active' : 'status-inactive' }}">
+                                    <i class="fas fa-circle"></i>
+                                    {{ ucfirst($location->status) }}
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="info-list">
+                                    <div class="info-item">
+                                        <i class="fas fa-user"></i>
+                                        {{ $location->contact_person ?: 'No contact person' }}
+                                    </div>
+                                    <div class="info-item">
+                                        <i class="fas fa-phone"></i>
+                                        {{ $location->contact_number ?: 'No phone number' }}
+                                    </div>
+                                    <div class="info-item">
+                                        <i class="fas fa-envelope"></i>
+                                        {{ $location->email ?: 'No email' }}
+                                    </div>
+                                </div>
+
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->count() : 0 }}</div>
+                                        <div class="stat-label">Products</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->sum('quantity') : 0 }}</div>
+                                        <div class="stat-label">Stock</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value">{{ $location->stockTransactions ? $location->stockTransactions->count() : 0 }}</div>
+                                        <div class="stat-label">Transactions</div>
+                                    </div>
+                                </div>
+
+                                <div class="card-actions">
+                                    <a href="{{ route('stock-locations.show', $location) }}" class="action-btn btn-view">
+                                        <i class="fas fa-eye"></i>
+                                        View
+                                    </a>
+                                    <a href="{{ route('stock-locations.edit', $location) }}" class="action-btn btn-edit">
+                                        <i class="fas fa-edit"></i>
+                                        Edit
+                                    </a>
+                                    @if(!$location->is_default)
+                                        <form action="{{ route('stock-locations.destroy', $location) }}" method="POST" style="flex: 1">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="action-btn btn-delete" onclick="return confirm('Are you sure you want to delete this location? This action cannot be undone.')">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
         </div>
+        @endif
 
         <!-- Retailers Section -->
-        <div class="section-nav retail-nav">
-            <div class="section-nav-title">
-                <i class="fas fa-store"></i>
-                Retail Partners
-            </div>
-            <div class="section-nav-subtitle">
-                Partner stores and retail distribution points
-            </div>
-        </div>
-        <div class="locations-grid">
-            @foreach($locations->where('location_type', 'retailer') as $location)
-                <div class="location-card" data-location-name="{{ strtolower($location->name) }}">
-                    <div class="card-header">
-                        <div class="location-name">
-                            {{ $location->name }}
-                            <span class="badge bg-secondary ms-2">ID: {{ $location->id }}</span>
-                        </div>
-                        <div class="location-badge">
-                            <i class="fas fa-store"></i>
-                            Retailer
-                        </div>
-                        <div class="status-badge {{ $location->status === 'active' ? 'status-active' : 'status-inactive' }}">
-                            <i class="fas fa-circle"></i>
-                            {{ ucfirst($location->status) }}
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="info-list">
-                            <div class="info-item">
-                                <i class="fas fa-user"></i>
-                                {{ $location->contact_person ?: 'No contact person' }}
-                            </div>
-                            <div class="info-item">
-                                <i class="fas fa-phone"></i>
-                                {{ $location->contact_number ?: 'No phone number' }}
-                            </div>
-                            <div class="info-item">
-                                <i class="fas fa-envelope"></i>
-                                {{ $location->email ?: 'No email' }}
-                            </div>
-                        </div>
-
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->count() : 0 }}</div>
-                                <div class="stat-label">Products</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->sum('quantity') : 0 }}</div>
-                                <div class="stat-label">Stock</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-value">{{ $location->stockTransactions ? $location->stockTransactions->count() : 0 }}</div>
-                                <div class="stat-label">Transactions</div>
-                            </div>
-                        </div>
-
-                        <div class="card-actions">
-                            <a href="{{ route('stock-locations.show', $location) }}" class="action-btn btn-view">
-                                <i class="fas fa-eye"></i>
-                                View
-                            </a>
-                            <a href="{{ route('stock-locations.edit', $location) }}" class="action-btn btn-edit">
-                                <i class="fas fa-edit"></i>
-                                Edit
-                            </a>
-                            @if(!$location->is_default)
-                                <form action="{{ route('stock-locations.destroy', $location) }}" method="POST" style="flex: 1">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="action-btn btn-delete" onclick="return confirm('Are you sure you want to delete this location? This action cannot be undone.')">
-                                        <i class="fas fa-trash"></i>
-                                        Delete
-                                    </button>
-                                </form>
-                            @endif
-                        </div>
-                    </div>
+        @if($retailers->isNotEmpty())
+        <div class="location-section">
+            <div class="section-nav retail-nav">
+                <div class="section-nav-title">
+                    <i class="fas fa-store"></i>
+                    Retail Partners
                 </div>
-            @endforeach
+                <div class="section-nav-subtitle">
+                    Partner stores and retail distribution points
+                </div>
+            </div>
+            <div class="section-content">
+                <div class="locations-grid">
+                    @foreach($retailers as $location)
+                        <div class="location-card" data-location-name="{{ strtolower($location->name) }}">
+                            <div class="card-header">
+                                <div class="location-name">
+                                    {{ $location->name }}
+                                    <span class="badge bg-secondary ms-2">ID: {{ $location->id }}</span>
+                                </div>
+                                <div class="location-badge">
+                                    <i class="fas fa-store"></i>
+                                    Retailer
+                                </div>
+                                <div class="status-badge {{ $location->status === 'active' ? 'status-active' : 'status-inactive' }}">
+                                    <i class="fas fa-circle"></i>
+                                    {{ ucfirst($location->status) }}
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="info-list">
+                                    <div class="info-item">
+                                        <i class="fas fa-user"></i>
+                                        {{ $location->contact_person ?: 'No contact person' }}
+                                    </div>
+                                    <div class="info-item">
+                                        <i class="fas fa-phone"></i>
+                                        {{ $location->contact_number ?: 'No phone number' }}
+                                    </div>
+                                    <div class="info-item">
+                                        <i class="fas fa-envelope"></i>
+                                        {{ $location->email ?: 'No email' }}
+                                    </div>
+                                </div>
+
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->count() : 0 }}</div>
+                                        <div class="stat-label">Products</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->sum('quantity') : 0 }}</div>
+                                        <div class="stat-label">Stock</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value">{{ $location->stockTransactions ? $location->stockTransactions->count() : 0 }}</div>
+                                        <div class="stat-label">Transactions</div>
+                                    </div>
+                                </div>
+
+                                <div class="card-actions">
+                                    <a href="{{ route('stock-locations.show', $location) }}" class="action-btn btn-view">
+                                        <i class="fas fa-eye"></i>
+                                        View
+                                    </a>
+                                    <a href="{{ route('stock-locations.edit', $location) }}" class="action-btn btn-edit">
+                                        <i class="fas fa-edit"></i>
+                                        Edit
+                                    </a>
+                                    @if(!$location->is_default)
+                                        <form action="{{ route('stock-locations.destroy', $location) }}" method="POST" style="flex: 1">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="action-btn btn-delete" onclick="return confirm('Are you sure you want to delete this location? This action cannot be undone.')">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
         </div>
+        @endif
     @endif
 </div>
 
@@ -607,10 +634,11 @@
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('locationSearch');
     const locationCards = document.querySelectorAll('.location-card');
+    const locationSections = document.querySelectorAll('.location-section');
 
     searchInput.addEventListener('input', function() {
         const searchTerm = this.value.toLowerCase();
-        
+
         locationCards.forEach(card => {
             const locationName = card.dataset.locationName;
             if (locationName.includes(searchTerm)) {
@@ -619,7 +647,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 card.style.display = 'none';
             }
         });
+
+        // Hide a whole section once none of its cards match
+        locationSections.forEach(section => {
+            const hasVisibleCard = Array.from(section.querySelectorAll('.location-card'))
+                .some(card => card.style.display !== 'none');
+            section.style.display = hasVisibleCard ? '' : 'none';
+        });
     });
 });
 </script>
+</div>
 @endsection 

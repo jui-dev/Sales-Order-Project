@@ -1,10 +1,13 @@
 @extends('layouts.app')
-
-@section('content')
+@section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Edit Customer</h1>
     <a href="{{ route('customers.index') }}" class="btn btn-secondary">Back to Customers</a>
 </div>
+@endsection
+
+@section('content')
+
 
 <div class="card">
     <div class="card-body">

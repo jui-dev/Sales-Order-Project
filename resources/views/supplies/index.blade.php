@@ -1,19 +1,17 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Inventory', 'url' => '#'],
-        ['label' => 'Supplies', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Supplies</h1>
         <a href="{{ route('supplies.create') }}" class="btn btn-success">
             <i class="bi bi-plus-circle me-1"></i> Record New Supply
         </a>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
 <!-- Unified Search Component -->
 <x-unified-search 
@@ -136,9 +134,10 @@
                 </tbody>
             </table>
         </div>
-        
+
         <x-pagination :paginator="$supplies" />
     </div>
+</div>
 </div>
 
 @endsection

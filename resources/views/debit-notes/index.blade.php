@@ -1,16 +1,14 @@
 @extends('layouts.app')
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Debit Notes</h1>
+    </div>
+@endsection
 
 @section('content')
 <div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Returns', 'url' => '#'],
-        ['label' => 'Debit Notes', 'url' => '#']
-    ]" />
     
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Debit Notes</h1>
-    </div>
+    
 
     <!-- Debit Note Management Guidance -->
     <div class="alert alert-info mb-4">
@@ -216,11 +214,6 @@
                         </tbody>
                     </table>
                 </div>
-
-                <!-- Pagination -->
-                <div class="d-flex justify-content-center mt-4">
-                    {{ $debitNotes->links() }}
-                </div>
             @else
                 <div class="text-center py-5">
                     <i class="bi bi-receipt display-1 text-muted"></i>
@@ -230,5 +223,9 @@
             @endif
         </div>
     </div>
+
+    @if($debitNotes && $debitNotes->count() > 0)
+        <x-pagination :paginator="$debitNotes" />
+    @endif
 </div>
 @endsection 

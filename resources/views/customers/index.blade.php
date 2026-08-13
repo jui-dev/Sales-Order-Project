@@ -1,19 +1,17 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Inventory', 'url' => '#'],
-        ['label' => 'Customers', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Customers</h1>
         <a href="{{ route('customers.create') }}" class="btn btn-success">
             <i class="bi bi-plus-circle me-1"></i>Add New Customer
         </a>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     @if(session('error'))
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -31,15 +29,20 @@
         </div>
     @endif
 
+<!-- Table Controls: DataTables' length + search land here -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div id="dt-length"></div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <div id="dt-filter"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-body">
-        <!-- Unified Search Component -->
-        <x-unified-search 
-            :filterOptions="$filterOptions"
-            :searchUrl="route('customers.index')"
-            :sortOptions="$sortOptions"
-        />
-
         <div class="table-responsive">
             <table id="data-table" class="table table-striped table-hover">
                 <thead>
@@ -102,6 +105,7 @@
         </div>
     </div>
 </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -109,6 +113,7 @@
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
 <script src="{{ asset('js/datatables-utils.js') }}"></script>
+<script src="{{ asset('js/table-controls.js') }}"></script>
 
 <script>
     // Wait for both DOM and all resources to be loaded
@@ -151,7 +156,12 @@
                         orderable: false,
                         searchable: false
                     }
-                ]
+                ],
+                initComplete: function() {
+                    if (typeof relocateTableControls === 'function') {
+                        relocateTableControls('data-table');
+                    }
+                }
             });
 
             if (result) {
@@ -174,7 +184,12 @@
                                 orderable: false,
                                 searchable: false
                             }
-                        ]
+                        ],
+                        initComplete: function() {
+                            if (typeof relocateTableControls === 'function') {
+                                relocateTableControls('data-table');
+                            }
+                        }
                     });
                     console.log('DataTables initialized successfully with direct initialization');
                 } catch (directError) {

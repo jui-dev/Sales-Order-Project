@@ -1,19 +1,17 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Sales', 'url' => '#'],
-        ['label' => 'Orders', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Orders</h1>
         <a href="{{ route('orders.create') }}" class="btn btn-success">
             <i class="bi bi-plus-circle me-1"></i>Create New Order
         </a>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     @if(session('error'))
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -30,6 +28,18 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
+
+<!-- Table Controls: DataTables' length + search land here -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div id="dt-length"></div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <div id="dt-filter"></div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="card">
     <div class="card-body">
@@ -124,8 +134,10 @@
                 </tbody>
             </table>
         </div>
+
         <x-pagination :paginator="$orders" />
     </div>
+</div>
 </div>
 @endsection
 
@@ -159,6 +171,7 @@
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="{{ asset('js/table-controls.js') }}"></script>
 
 <script>
     // Wait for both DOM and all resources to be loaded
@@ -173,11 +186,22 @@
         if (typeof jQuery !== 'undefined' && jQuery.fn.DataTable) {
             jQuery('#data-table').DataTable({
                 responsive: true,
-                pageLength: 25,
+                // This list is paginated server-side and already renders the
+                // shared pagination component. Leaving DataTables' own paging
+                // and count on would report only the rows in the current
+                // server page and stack a second, contradictory footer.
+                paging: false,
+                info: false,
+                lengthChange: false,
                 order: [[0, 'desc']],
                 language: {
                     emptyTable: "No orders found",
                     zeroRecords: "No orders match your search criteria"
+                },
+                initComplete: function() {
+                    if (typeof relocateTableControls === 'function') {
+                        relocateTableControls('data-table');
+                    }
                 }
             });
         }

@@ -1,14 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Returns', 'url' => route('returns.index')],
-        ['label' => $return->formatted_id, 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>
             <i class="bi bi-arrow-return-left me-2"></i>
             Return Transaction - {{ $return->formatted_id }}
@@ -19,6 +11,12 @@
             </a>
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     <div class="row g-4">
         <!-- Return Details -->

@@ -1,8 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Goods Received Note #{{ $grn->formatted_id ?? $grn->id }}</h1>
         <div>
             <a href="{{ route('grns.index') }}" class="btn btn-secondary">
@@ -19,6 +17,11 @@
             @endif
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
 
     <!-- GRN Meta Information -->
     <div class="row mb-4">

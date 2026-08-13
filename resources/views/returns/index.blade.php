@@ -1,14 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Returns', 'url' => '#'],
-        ['label' => 'All Returns', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="bi bi-arrow-return-left me-2"></i>{{ $pageTitle ?? 'Return Management' }}</h1>
         <div>
             <a href="{{ route('returns.create') }}" class="btn btn-primary">
@@ -16,6 +8,12 @@
             </a>
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     <div class="alert alert-info mb-4">
         <i class="bi bi-info-circle"></i>
@@ -23,17 +21,18 @@
     </div>
 
     <!-- Statistics Cards -->
-    <div class="row mb-4">
+    <div class="summary-panel mb-4">
+        <div class="row g-3">
         <div class="col-md-3">
-            <div class="card bg-danger text-white">
+            <div class="card border-0 shadow-sm summary-card summary-card--customer">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Customer Returns</h6>
+                            <h6 class="card-title text-danger">Customer Returns</h6>
                             <h3>{{ $statistics['customer_returns']['count'] }}</h3>
-                            <small>{{ number_format($statistics['customer_returns']['quantity']) }} units</small>
+                            <small class="text-muted">{{ number_format($statistics['customer_returns']['quantity']) }} units</small>
                         </div>
-                        <div class="align-self-center">
+                        <div class="align-self-center text-danger summary-card__icon">
                             <i class="bi bi-arrow-return-left display-4"></i>
                         </div>
                     </div>
@@ -41,15 +40,15 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info text-white">
+            <div class="card border-0 shadow-sm summary-card summary-card--vendor">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Vendor Returns</h6>
+                            <h6 class="card-title text-info-emphasis">Vendor Returns</h6>
                             <h3>{{ $statistics['vendor_returns']['count'] }}</h3>
-                            <small>{{ number_format($statistics['vendor_returns']['quantity']) }} units</small>
+                            <small class="text-muted">{{ number_format($statistics['vendor_returns']['quantity']) }} units</small>
                         </div>
-                        <div class="align-self-center">
+                        <div class="align-self-center text-info-emphasis summary-card__icon">
                             <i class="bi bi-arrow-return-right display-4"></i>
                         </div>
                     </div>
@@ -57,15 +56,15 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning text-white">
+            <div class="card border-0 shadow-sm summary-card summary-card--retailer">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Retailer Returns</h6>
+                            <h6 class="card-title text-warning-emphasis">Retailer Returns</h6>
                             <h3>{{ $statistics['retailer_returns']['count'] }}</h3>
-                            <small>{{ number_format($statistics['retailer_returns']['quantity']) }} units</small>
+                            <small class="text-muted">{{ number_format($statistics['retailer_returns']['quantity']) }} units</small>
                         </div>
-                        <div class="align-self-center">
+                        <div class="align-self-center text-warning-emphasis summary-card__icon">
                             <i class="bi bi-arrow-return-left display-4"></i>
                         </div>
                     </div>
@@ -73,20 +72,21 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-success text-white">
+            <div class="card border-0 shadow-sm summary-card summary-card--value">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h6 class="card-title">Total Value</h6>
+                            <h6 class="card-title text-success">Total Value</h6>
                             <h3>${{ number_format($statistics['customer_returns']['value'] + $statistics['vendor_returns']['value'] + $statistics['retailer_returns']['value'], 2) }}</h3>
-                            <small>Combined return value</small>
+                            <small class="text-muted">Combined return value</small>
                         </div>
-                        <div class="align-self-center">
+                        <div class="align-self-center text-success summary-card__icon">
                             <i class="bi bi-currency-dollar display-4"></i>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     </div>
 
@@ -274,19 +274,13 @@
             </div>
         </div>
 
-        <!-- Pagination -->
-        <div class="d-flex justify-content-center mt-4">
-            {{ $returns->appends(request()->query())->links() }}
-        </div>
+        <x-pagination :paginator="$returns" />
     @else
         <div class="card">
             <div class="card-body text-center py-5">
                 <i class="bi bi-arrow-return-left display-1 text-muted mb-3"></i>
                 <h3>No Returns Found</h3>
-                <p class="text-muted mb-4">No return transactions have been created yet.</p>
-                <a href="{{ route('returns.create') }}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle me-1"></i> Create First Return
-                </a>
+                <p class="text-muted mb-0">No return transactions have been created yet.</p>
             </div>
         </div>
     @endif
@@ -350,6 +344,33 @@ function deleteReturn(id, formattedId) {
 
 @push('styles')
 <style>
+/* White container holding the summary cards */
+.summary-panel {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: var(--card-shadow, 0 2px 15px rgba(0, 0, 0, 0.04));
+}
+
+/* Summary cards - soft gradient treatment */
+.summary-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+}
+
+.summary-card--customer { background: linear-gradient(135deg, #ffebee 0%, #ffffff 100%); }
+.summary-card--vendor   { background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%); }
+.summary-card--retailer { background: linear-gradient(135deg, #fff8e1 0%, #ffffff 100%); }
+.summary-card--value    { background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%); }
+
+.summary-card__icon {
+    opacity: 0.45;
+}
+
 /* Status badge improvements */
 .badge {
     font-size: 0.75em;

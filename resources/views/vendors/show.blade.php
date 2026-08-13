@@ -1,6 +1,5 @@
 @extends('layouts.app')
-
-@section('content')
+@section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>Vendor Details</h1>
     <div>
@@ -8,6 +7,10 @@
         <a href="{{ route('vendors.index') }}" class="btn btn-secondary">Back to Vendors</a>
     </div>
 </div>
+@endsection
+
+@section('content')
+
 
 <div class="card mb-4">
     <div class="card-body">

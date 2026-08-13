@@ -1,151 +1,208 @@
 @extends('layouts.app')
 
-@section('content')
+@section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Edit Product</h1>
     <div>
-        <a href="{{ route('products.show', $product) }}" class="btn btn-info">View Product</a>
-        <a href="{{ route('products.index') }}" class="btn btn-secondary">Back to Products</a>
+        <h1 class="h2 mb-1">Edit Product</h1>
+        <p class="text-muted mb-0">{{ $product->name }}</p>
     </div>
-</div>
-
-<div class="card">
-    <div class="card-body">
-        <form action="{{ route('products.update', $product) }}" method="POST">
-            @csrf
-            @method('PUT')
-            
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label for="name" class="form-label">Name</label>
-                    <input type="text" class="form-control @if($errors && $errors->has('name')) is-invalid @endif" id="name" name="name" value="{{ old('name', $product->name) }}" required>
-                    @if($errors && $errors->has('name'))
-                        <div class="invalid-feedback">{{ $errors->first('name') }}</div>
-                    @endif
-                </div>
-                
-                <div class="col-md-4 mb-3">
-                    <label for="selling_price" class="form-label">Selling Price</label>
-                    <div class="input-group">
-                        <span class="input-group-text">$</span>
-                        <input type="number" class="form-control @if($errors && $errors->has('selling_price')) is-invalid @endif" id="selling_price" name="selling_price" value="{{ old('selling_price', $product->selling_price) }}" min="0" step="0.01" required>
-                    </div>
-                    @if($errors && $errors->has('selling_price'))
-                        <div class="invalid-feedback">{{ $errors->first('selling_price') }}</div>
-                    @endif
-                </div>
-
-                <div class="col-md-4 mb-3">
-                    <label for="warehouse_stock" class="form-label">Warehouse Stock</label>
-                    <input type="number" class="form-control @error('warehouse_stock') is-invalid @enderror" id="warehouse_stock" name="warehouse_stock" value="{{ old('warehouse_stock', $product->warehouse_stock ?? 0) }}" min="0">
-                    @error('warehouse_stock')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div class="col-md-4 mb-3">
-                    <label for="retailer_stock" class="form-label">Retailer Stock</label>
-                    <input type="number" class="form-control @error('retailer_stock') is-invalid @enderror" id="retailer_stock" name="retailer_stock" value="{{ old('retailer_stock', $product->retailer_stock ?? 0) }}" min="0">
-                    @error('retailer_stock')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div class="col-md-4 mb-3">
-                    <label for="category_id" class="form-label">Category</label>
-                    <select class="form-select @if($errors && $errors->has('category_id')) is-invalid @endif" id="category_id" name="category_id">
-                        <option value="">Select Category</option>
-                        @foreach(\App\Models\ProductCategory::getMainCategories() as $category)
-                            <option value="{{ $category->id }}" {{ old('category_id', $product->category_id) == $category->id ? 'selected' : '' }}>
-                                {{ $category->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                    @if($errors && $errors->has('category_id'))
-                        <div class="invalid-feedback">{{ $errors->first('category_id') }}</div>
-                    @endif
-                </div>
-
-                <div class="col-md-4 mb-3">
-                    <label for="subcategory_id" class="form-label">Subcategory</label>
-                    <select class="form-select @if($errors && $errors->has('subcategory_id')) is-invalid @endif" id="subcategory_id" name="subcategory_id">
-                        <option value="">Select Subcategory</option>
-                        @if($product->category && $product->category->parent_id)
-                            @foreach(\App\Models\ProductCategory::getSubcategories($product->category->parent_id) as $subcategory)
-                                <option value="{{ $subcategory->id }}" {{ old('subcategory_id', $product->category_id) == $subcategory->id ? 'selected' : '' }}>
-                                    {{ $subcategory->name }}
-                                </option>
-                            @endforeach
-                        @endif
-                    </select>
-                    @if($errors && $errors->has('subcategory_id'))
-                        <div class="invalid-feedback">{{ $errors->first('subcategory_id') }}</div>
-                    @endif
-                </div>
-            </div>
-            
-            <!-- Stock Transfer Helper -->
-            <div class="row mb-3">
-                <div class="col-12">
-                    <div class="card border-secondary">
-                        <div class="card-header bg-light">
-                            <h6 class="mb-0">Quick Stock Transfer</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row align-items-end">
-                                <div class="col-md-3">
-                                    <label for="transfer_quantity" class="form-label">Quantity to Transfer</label>
-                                    <input type="number" class="form-control" id="transfer_quantity" min="1">
-                                </div>
-                                <div class="col-md-3">
-                                    <button type="button" class="btn btn-outline-primary" onclick="transferStock('warehouse_to_retailer')">
-                                        Warehouse → Retailer
-                                    </button>
-                                </div>
-                                <div class="col-md-3">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="transferStock('retailer_to_warehouse')">
-                                        Retailer → Warehouse
-                                    </button>
-                                </div>
-                                <div class="col-md-3">
-                                    <small class="text-muted">
-                                        Total Stock: <span id="total_stock">{{ ($product->warehouse_stock ?? 0) + ($product->retailer_stock ?? 0) }}</span>
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="alert alert-info mb-4">
-                <i class="bi bi-info-circle"></i>
-                Product purchase prices, GP%, and stock levels are automatically updated through supply and order transactions.
-            </div>
-            
-            <div class="text-end">
-                <button type="submit" class="btn btn-primary">Update Product</button>
-            </div>
-        </form>
+    <div class="d-flex gap-2">
+        <a href="{{ route('products.show', $product) }}" class="btn btn-outline-primary">
+            <i class="bi bi-eye me-2"></i>
+            View Product
+        </a>
+        <a href="{{ route('products.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>
+            Back to Products
+        </a>
     </div>
 </div>
 @endsection
 
+@section('content')
+<form action="{{ route('products.update', $product) }}" method="POST" id="product-form" class="product-form">
+    @csrf
+    @method('PUT')
+
+    <section class="form-section">
+        <div class="form-section-header">
+            <h2 class="form-section-title">Basic Information</h2>
+        </div>
+        <div class="form-section-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="name" class="form-label">
+                    Name <span class="text-danger">*</span>
+                </label>
+                <input type="text"
+                       class="form-control @error('name') is-invalid @enderror"
+                       id="name"
+                       name="name"
+                       value="{{ old('name', $product->name) }}"
+                       required>
+                @error('name')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+
+            <div class="col-md-6">
+                <label for="selling_price" class="form-label">
+                    Selling Price <span class="text-danger">*</span>
+                </label>
+                <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    <input type="number"
+                           class="form-control @error('selling_price') is-invalid @enderror"
+                           id="selling_price"
+                           name="selling_price"
+                           value="{{ old('selling_price', $product->selling_price) }}"
+                           min="0"
+                           step="0.01"
+                           required>
+                    @error('selling_price')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="form-text">Purchase price, GP% and stock levels update automatically from supply and order transactions.</div>
+            </div>
+        </div>
+        </div>
+    </section>
+
+    <section class="form-section">
+        <div class="form-section-header">
+            <h2 class="form-section-title">Categorisation</h2>
+        </div>
+        <div class="form-section-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="category_id" class="form-label">Category</label>
+                <select class="form-select @error('category_id') is-invalid @enderror"
+                        id="category_id"
+                        name="category_id">
+                    <option value="">Select Category</option>
+                    @foreach($mainCategories as $category)
+                        <option value="{{ $category->id }}" {{ old('category_id', $selectedCategoryId) == $category->id ? 'selected' : '' }}>
+                            {{ $category->name }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('category_id')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+
+            <div class="col-md-6">
+                <label for="subcategory_id" class="form-label">Subcategory</label>
+                <select class="form-select @error('subcategory_id') is-invalid @enderror"
+                        id="subcategory_id"
+                        name="subcategory_id">
+                    <option value="">Select Subcategory</option>
+                    @foreach($subcategories as $subcategory)
+                        <option value="{{ $subcategory->id }}" {{ old('subcategory_id', $selectedSubcategoryId) == $subcategory->id ? 'selected' : '' }}>
+                            {{ $subcategory->name }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('subcategory_id')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+        </div>
+    </section>
+
+    <section class="form-section">
+        <div class="form-section-header">
+            <h2 class="form-section-title">Stock</h2>
+        </div>
+        <div class="form-section-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="warehouse_stock" class="form-label">Warehouse Stock</label>
+                <input type="number"
+                       class="form-control @error('warehouse_stock') is-invalid @enderror"
+                       id="warehouse_stock"
+                       name="warehouse_stock"
+                       value="{{ old('warehouse_stock', $product->warehouse_stock ?? 0) }}"
+                       min="0">
+                @error('warehouse_stock')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+
+            <div class="col-md-6">
+                <label for="retailer_stock" class="form-label">Retailer Stock</label>
+                <input type="number"
+                       class="form-control @error('retailer_stock') is-invalid @enderror"
+                       id="retailer_stock"
+                       name="retailer_stock"
+                       value="{{ old('retailer_stock', $product->retailer_stock ?? 0) }}"
+                       min="0">
+                @error('retailer_stock')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+
+            <div class="col-12">
+                <div class="form-inset">
+                    <h3 class="form-inset-title">Quick Stock Transfer</h3>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label for="transfer_quantity" class="form-label">Quantity to Transfer</label>
+                            <input type="number" class="form-control" id="transfer_quantity" min="1">
+                        </div>
+                        <div class="col-md-5">
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="transferStock('warehouse_to_retailer')">
+                                    Warehouse <i class="bi bi-arrow-right mx-1"></i> Retailer
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="transferStock('retailer_to_warehouse')">
+                                    Retailer <i class="bi bi-arrow-right mx-1"></i> Warehouse
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">
+                                Total Stock: <strong id="total_stock">{{ ($product->warehouse_stock ?? 0) + ($product->retailer_stock ?? 0) }}</strong>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </section>
+
+    <div class="form-actions d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <small class="text-muted"><span class="text-danger">*</span> Required fields</small>
+        <div class="d-flex gap-2">
+            <a href="{{ route('products.show', $product) }}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-circle me-2"></i>
+                Update Product
+            </button>
+        </div>
+    </div>
+</form>
+@endsection
+
+@section('scripts')
 <script>
 function transferStock(direction) {
     const quantity = parseInt(document.getElementById('transfer_quantity').value);
     const warehouseInput = document.getElementById('warehouse_stock');
     const retailerInput = document.getElementById('retailer_stock');
     const totalDisplay = document.getElementById('total_stock');
-    
+
     if (!quantity || quantity <= 0) {
         alert('Please enter a valid quantity to transfer');
         return;
     }
-    
+
     let warehouseStock = parseInt(warehouseInput.value) || 0;
     let retailerStock = parseInt(retailerInput.value) || 0;
-    
+
     if (direction === 'warehouse_to_retailer') {
         if (warehouseStock < quantity) {
             alert('Not enough warehouse stock to transfer');
@@ -161,44 +218,47 @@ function transferStock(direction) {
         retailerStock -= quantity;
         warehouseStock += quantity;
     }
-    
+
     // Update the input fields
     warehouseInput.value = warehouseStock;
     retailerInput.value = retailerStock;
     totalDisplay.textContent = warehouseStock + retailerStock;
-    
+
     // Clear transfer quantity
     document.getElementById('transfer_quantity').value = '';
 }
 
-// Update total stock when individual stock fields change
 document.addEventListener('DOMContentLoaded', function() {
+    // Keep the running total in sync when the stock fields are edited directly
     const warehouseInput = document.getElementById('warehouse_stock');
     const retailerInput = document.getElementById('retailer_stock');
     const totalDisplay = document.getElementById('total_stock');
-    
-    function updateTotal() {
-        const warehouse = parseInt(warehouseInput.value) || 0;
-        const retailer = parseInt(retailerInput.value) || 0;
-        totalDisplay.textContent = warehouse + retailer;
-    }
-    
-    warehouseInput.addEventListener('input', updateTotal);
-    retailerInput.addEventListener('input', updateTotal);
 
-    // Category and subcategory handling
+    if (warehouseInput && retailerInput && totalDisplay) {
+        function updateTotal() {
+            const warehouse = parseInt(warehouseInput.value) || 0;
+            const retailer = parseInt(retailerInput.value) || 0;
+            totalDisplay.textContent = warehouse + retailer;
+        }
+
+        warehouseInput.addEventListener('input', updateTotal);
+        retailerInput.addEventListener('input', updateTotal);
+    }
+
+    // Repopulate the subcategory select whenever the category changes
     const categorySelect = document.getElementById('category_id');
     const subcategorySelect = document.getElementById('subcategory_id');
-    
+
     if (categorySelect && subcategorySelect) {
         categorySelect.addEventListener('change', function() {
             const categoryId = this.value;
-            
-            // Clear subcategory options
+
             subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
-            
+
             if (categoryId) {
-                // Fetch subcategories for the selected category
+                subcategorySelect.disabled = true;
+                subcategorySelect.innerHTML = '<option value="">Loading...</option>';
+
                 fetch(`{{ route('products.get-subcategories') }}?category_id=${categoryId}`)
                     .then(response => {
                         if (!response.ok) {
@@ -207,6 +267,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         return response.json();
                     })
                     .then(data => {
+                        subcategorySelect.disabled = false;
+                        subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+
                         if (data.options) {
                             Object.entries(data.options).forEach(([value, text]) => {
                                 if (value !== '') { // Skip the "All Subcategories" option
@@ -220,20 +283,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     })
                     .catch(error => {
                         console.error('Error loading subcategories:', error);
+                        subcategorySelect.disabled = false;
+                        subcategorySelect.innerHTML = '<option value="">Error loading subcategories</option>';
                     });
             }
         });
-        
-        // Handle subcategory selection
-        subcategorySelect.addEventListener('change', function() {
-            const subcategoryId = this.value;
-            
-            if (subcategoryId) {
-                // If a subcategory is selected, update the category_id to the subcategory_id
-                categorySelect.value = subcategoryId;
-            }
-            // If no subcategory is selected, the category_id will remain as the main category
-        });
     }
 });
-</script> 
+</script>
+@endsection

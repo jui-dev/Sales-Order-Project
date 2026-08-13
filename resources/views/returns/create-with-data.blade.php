@@ -1,20 +1,17 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Returns', 'url' => route('returns.index')],
-        ['label' => 'Create Return', 'url' => route('returns.create')],
-        ['label' => 'With Data', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="bi bi-plus-circle me-2"></i>Create Return Transaction</h1>
         <a href="{{ route('returns.create') }}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left me-1"></i> Back to Selection
         </a>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     <form action="{{ route('returns.store') }}" method="POST" id="returnForm">
         @csrf

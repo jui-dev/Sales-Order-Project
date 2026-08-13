@@ -141,12 +141,12 @@ class UnifiedSearchSystem {
         const formData = new FormData(filterForm);
         const filters = {};
         
+        // Keep empty values too: updateURL drops them, which is how a filter
+        // gets unset when the user picks "-- Any --" again.
         for (let [key, value] of formData.entries()) {
-            if (value && value !== '') {
-                filters[key] = value;
-            }
+            filters[key] = value;
         }
-        
+
         // Reset to first page when applying filters
         filters.page = 1;
         

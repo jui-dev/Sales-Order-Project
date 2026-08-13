@@ -1,12 +1,15 @@
 @extends('layouts.app')
-
-@section('content')
+@section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1><i class="bi bi-geo-alt-fill me-2"></i>Add Stock Location</h1>
     <a href="{{ route('stock-locations.index') }}" class="btn btn-secondary">
         <i class="bi bi-arrow-left me-1"></i> Back to Locations
     </a>
 </div>
+@endsection
+
+@section('content')
+
 
 <div class="row justify-content-center">
     <div class="col-md-8">

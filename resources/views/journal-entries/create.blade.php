@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
+<div class="container-fluid">
     <h1 class="mb-4">New Journal Entry</h1>
 
     <form method="POST" action="{{ route('journal-entries.store') }}" id="journalForm">

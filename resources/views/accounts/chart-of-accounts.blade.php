@@ -1,14 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Accounting', 'url' => '#'],
-        ['label' => 'Chart of Accounts', 'url' => '#']
-    ]" />
-    
-    <div class="row">
+@section('page-header')
+<div class="row">
         <div class="col-12 mb-4 d-flex justify-content-between align-items-center">
             <h1 class="h3 mb-0">Chart of Accounts</h1>
             <a href="{{ route('accounting.chart-of-accounts.create') }}" class="btn btn-success">
@@ -16,6 +8,12 @@
             </a>
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     @if(isset($error))
         <div class="row">
@@ -122,5 +120,5 @@
     });
 </script>
 @endpush
-
+</div>
 @endsection 

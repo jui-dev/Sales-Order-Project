@@ -1,14 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Picking & Transfers', 'url' => '#'],
-        ['label' => 'Warehouse to Retailer', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="bi bi-building-arrow-right me-2"></i>Warehouse to Retailer Picking</h1>
         <div>
             <a href="{{ route('stock-transfers.warehouse-to-retailer.pending') }}" class="btn btn-warning me-2">
@@ -19,6 +11,12 @@
             </a>
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
 @if(session('success'))
 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -43,19 +41,20 @@
 </div>
 
 <!-- System Overview Cards -->
-<div class="row mb-4">
+<div class="summary-panel mb-4">
+    <div class="row g-3">
     <div class="col-md-3">
-        <div class="card bg-primary text-white">
+        <div class="card border-0 shadow-sm summary-card summary-card--blue">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Warehouses</h6>
+                        <h6 class="card-title text-primary">Warehouses</h6>
                         <h3>{{ $totalWarehouses }}</h3>
                     </div>
-                    <i class="bi bi-house-fill" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-house-fill text-primary summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
-                <small class="text-light">
-                    <a href="{{ route('stock-locations.index') }}" class="text-light text-decoration-none">
+                <small>
+                    <a href="{{ route('stock-locations.index') }}" class="text-primary text-decoration-none">
                         <i class="bi bi-arrow-right me-1"></i>Manage Warehouses
                     </a>
                 </small>
@@ -63,17 +62,17 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-success text-white">
+        <div class="card border-0 shadow-sm summary-card summary-card--green">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Retailers</h6>
+                        <h6 class="card-title text-success">Retailers</h6>
                         <h3>{{ $totalRetailers }}</h3>
                     </div>
-                    <i class="bi bi-shop" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-shop text-success summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
-                <small class="text-light">
-                    <a href="{{ route('stock-locations.index') }}" class="text-light text-decoration-none">
+                <small>
+                    <a href="{{ route('stock-locations.index') }}" class="text-success text-decoration-none">
                         <i class="bi bi-arrow-right me-1"></i>Manage Retailers
                     </a>
                 </small>
@@ -81,38 +80,39 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-info text-white">
+        <div class="card border-0 shadow-sm summary-card summary-card--cyan">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Total Transfers</h6>
+                        <h6 class="card-title text-info-emphasis">Total Transfers</h6>
                         <h3>{{ $totalTransfers }}</h3>
                     </div>
-                    <i class="bi bi-arrow-left-right" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-arrow-left-right text-info-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
-                <small class="text-light">
+                <small class="text-muted">
                     <i class="bi bi-cart me-1"></i>{{ $orderGeneratedTransfers }} from orders, {{ $manualTransfers }} manual
                 </small>
             </div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card bg-warning text-dark">
+        <div class="card border-0 shadow-sm summary-card summary-card--amber">
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h6 class="card-title">Products in Stock</h6>
+                        <h6 class="card-title text-warning-emphasis">Products in Stock</h6>
                         <h3>{{ $productsWithStock }}</h3>
                     </div>
-                    <i class="bi bi-box" style="font-size: 2rem; opacity: 0.7;"></i>
+                    <i class="bi bi-box text-warning-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                 </div>
-                <small class="text-dark">
-                    <a href="{{ route('products.index') }}" class="text-dark text-decoration-none">
+                <small>
+                    <a href="{{ route('products.index') }}" class="text-warning-emphasis text-decoration-none">
                         <i class="bi bi-arrow-right me-1"></i>View Products
                     </a>
                 </small>
             </div>
         </div>
+    </div>
     </div>
 </div>
 
@@ -434,169 +434,109 @@
     </div>
 @else
     <!-- Enhanced Empty State -->
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-body text-center py-5">
-                    <i class="bi bi-building-arrow-right" style="font-size: 4rem; color: #6c757d;"></i>
-                    <h4 class="mt-3 text-muted">No Warehouse to Retailer Transfers Yet</h4>
-                    <p class="text-muted mb-4">
-                        Stock transfers will appear here when you move inventory from warehouses to retail locations.<br>
-                        Create transfers to distribute products to your retail partners.
-                    </p>
-                    
-                    @if($totalWarehouses > 0 && $totalRetailers > 0)
-                        <div class="alert alert-light border">
-                            <h6 class="text-success">
-                                <i class="bi bi-check-circle me-1"></i>System Ready
-                            </h6>
-                            <p class="mb-2">You have <strong>{{ $totalWarehouses }}</strong> warehouse(s) and <strong>{{ $totalRetailers }}</strong> retailer(s) configured.</p>
-                            @if($productsWithStock > 0)
-                                <p class="mb-0"><strong>{{ $productsWithStock }}</strong> products are available in warehouse stock for transfer.</p>
-                            @else
-                                <p class="mb-0">No products currently in warehouse stock. Add inventory to warehouses first.</p>
-                            @endif
-                        </div>
+    <div class="card mb-4">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-building-arrow-right" style="font-size: 4rem; color: #6c757d;"></i>
+            <h4 class="mt-3 text-muted">No Warehouse to Retailer Transfers Yet</h4>
+            <p class="text-muted mb-4">
+                Stock transfers will appear here when you move inventory from warehouses to retail locations.<br>
+                Create transfers to distribute products to your retail partners.
+            </p>
+
+            @if($totalWarehouses > 0 && $totalRetailers > 0)
+                <div class="alert alert-light border">
+                    <h6 class="text-success">
+                        <i class="bi bi-check-circle me-1"></i>System Ready
+                    </h6>
+                    <p class="mb-2">You have <strong>{{ $totalWarehouses }}</strong> warehouse(s) and <strong>{{ $totalRetailers }}</strong> retailer(s) configured.</p>
+                    @if($productsWithStock > 0)
+                        <p class="mb-0"><strong>{{ $productsWithStock }}</strong> products are available in warehouse stock for transfer.</p>
                     @else
-                        <div class="alert alert-warning border">
-                            <h6 class="text-warning">
-                                <i class="bi bi-exclamation-triangle me-1"></i>Setup Required
-                            </h6>
-                            @if($totalWarehouses == 0)
-                                <p class="mb-2">No warehouses configured. <a href="{{ route('stock-locations.create') }}">Create your first warehouse</a></p>
-                            @endif
-                            @if($totalRetailers == 0)
-                                <p class="mb-0">No retailers configured. <a href="{{ route('stock-locations.create') }}">Create your first retailer</a></p>
-                            @endif
-                        </div>
+                        <p class="mb-0">No products currently in warehouse stock. Add inventory to warehouses first.</p>
                     @endif
-                    
-                    <div class="d-flex justify-content-center gap-2 mt-4">
-                        @if($totalWarehouses > 0 && $totalRetailers > 0)
-                            <a href="{{ route('stock-transfers.warehouse-to-retailer.create') }}" class="btn btn-primary">
-                                <i class="bi bi-plus-circle me-1"></i> Create Stock Transfer
-                            </a>
-                        @endif
-                        @if($totalWarehouses == 0 || $totalRetailers == 0)
-                            <a href="{{ route('stock-locations.create') }}" class="btn btn-outline-secondary">
-                                <i class="bi bi-house-plus me-1"></i> Add Location
-                            </a>
-                        @endif
-                        <a href="{{ route('products.index') }}" class="btn btn-outline-info">
-                            <i class="bi bi-box me-1"></i> View Products
-                        </a>
-                    </div>
                 </div>
-            </div>
-        </div>
-        
-        <div class="col-md-4">
-            <!-- Warehouses List -->
-            @if($warehouses->count() > 0)
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="bi bi-house-fill me-1"></i>Available Warehouses
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        @foreach($warehouses->take(3) as $warehouse)
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="bi bi-house-fill me-2 text-primary"></i>
-                                <div class="flex-grow-1">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <strong>{{ $warehouse->name }}</strong>
-                                        <span class="badge bg-primary-subtle text-primary-emphasis ms-2">
-                                            <i class="bi bi-box me-1"></i>{{ $warehouse->total_stock }}
-                                        </span>
-                                    </div>
-                                    @if($warehouse->is_default)
-                                        <span class="badge bg-primary ms-1">Default</span>
-                                    @endif
-                                    @if($warehouse->address)
-                                        <br><small class="text-muted">{{ Str::limit($warehouse->address, 30) }}</small>
-                                    @endif
-                                </div>
-                            </div>
-                        @endforeach
-                        @if($warehouses->count() > 3)
-                            <div class="text-center mt-3">
-                                <a href="{{ route('stock-locations.index') }}" class="btn btn-sm btn-outline-primary">
-                                    View All {{ $warehouses->count() }} Warehouses
-                                </a>
-                            </div>
-                        @endif
-                    </div>
+            @else
+                <div class="alert alert-warning border">
+                    <h6 class="text-warning">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Setup Required
+                    </h6>
+                    @if($totalWarehouses == 0)
+                        <p class="mb-2">No warehouses configured. <a href="{{ route('stock-locations.create') }}">Create your first warehouse</a></p>
+                    @endif
+                    @if($totalRetailers == 0)
+                        <p class="mb-0">No retailers configured. <a href="{{ route('stock-locations.create') }}">Create your first retailer</a></p>
+                    @endif
                 </div>
             @endif
-            
-            <!-- Retailers List -->
-            @if($retailers->count() > 0)
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="bi bi-shop me-1"></i>Available Retailers
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        @foreach($retailers->take(3) as $retailer)
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="bi bi-shop me-2 text-success"></i>
-                                <div class="flex-grow-1">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <strong>{{ $retailer->name }}</strong>
-                                        <span class="badge bg-success-subtle text-success-emphasis ms-2">
-                                            <i class="bi bi-box me-1"></i>{{ $retailer->total_stock }}
-                                        </span>
-                                    </div>
-                                    @if($retailer->is_default)
-                                        <span class="badge bg-success ms-1">Default</span>
-                                    @endif
-                                    @if($retailer->address)
-                                        <br><small class="text-muted">{{ Str::limit($retailer->address, 30) }}</small>
-                                    @endif
-                                </div>
-                            </div>
-                        @endforeach
-                        @if($retailers->count() > 3)
-                            <div class="text-center mt-3">
-                                <a href="{{ route('stock-locations.index') }}" class="btn btn-sm btn-outline-success">
-                                    View All {{ $retailers->count() }} Retailers
-                                </a>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            @endif
-            
-            <!-- Recent Orders -->
-            @if($recentOrders->count() > 0)
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="bi bi-cart me-1"></i>Recent Pending Orders
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <p class="small text-muted mb-3">These orders might need stock transfers to fulfill:</p>
-                        @foreach($recentOrders as $order)
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="bi bi-cart me-2 text-info"></i>
-                                <div class="flex-grow-1">
-                                    <strong>Order #{{ $order->id }}</strong>
-                                    <br><small class="text-muted">{{ $order->customer->name ?? 'Unknown Customer' }}</small>
-                                    <br><small class="text-muted">{{ $order->created_at->diffForHumans() }}</small>
-                                </div>
-                                <a href="{{ route('orders.show', $order) }}" class="btn btn-sm btn-outline-info">
-                                    <i class="bi bi-eye"></i>
-                                </a>
-                            </div>
-                        @endforeach
-                    </div>
+
+            @if($totalWarehouses == 0 || $totalRetailers == 0)
+                <div class="d-flex justify-content-center gap-2 mt-4">
+                    <a href="{{ route('stock-locations.create') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-house-plus me-1"></i> Add Location
+                    </a>
                 </div>
             @endif
         </div>
     </div>
-@endif
 
-@endsection 
+    <!-- Recent Orders -->
+    @if($recentOrders->count() > 0)
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-cart me-1"></i>Recent Pending Orders
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">These orders might need stock transfers to fulfill:</p>
+                @foreach($recentOrders as $order)
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-cart me-2 text-info"></i>
+                        <div class="flex-grow-1">
+                            <strong>Order #{{ $order->id }}</strong>
+                            <br><small class="text-muted">{{ $order->customer->name ?? 'Unknown Customer' }}</small>
+                            <br><small class="text-muted">{{ $order->created_at->diffForHumans() }}</small>
+                        </div>
+                        <a href="{{ route('orders.show', $order) }}" class="btn btn-sm btn-outline-info">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+@endif
+</div>
+
+@endsection
+
+@push('styles')
+<style>
+/* White container holding the summary cards */
+.summary-panel {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: var(--card-shadow, 0 2px 15px rgba(0, 0, 0, 0.04));
+}
+
+/* Summary cards - soft gradient treatment */
+.summary-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+}
+
+.summary-card--blue  { background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%); }
+.summary-card--green { background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%); }
+.summary-card--amber { background: linear-gradient(135deg, #fff8e1 0%, #ffffff 100%); }
+.summary-card--cyan  { background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%); }
+
+.summary-card__icon {
+    opacity: 0.45;
+}
+</style>
+@endpush 

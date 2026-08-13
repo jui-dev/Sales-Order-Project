@@ -1,54 +1,20 @@
 @extends('layouts.app')
 
-@section('styles')
-<style>
-/* Force green header styling */
-.table-green-header th,
-thead.table-green-header th,
-.table thead.table-green-header th {
-    background-color: #e8f5e8 !important;
-    border-bottom: 2px solid #c3d9c3 !important;
-    border-color: #c3d9c3 !important;
-    font-weight: 600 !important;
-    font-size: 0.875rem !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
-    color: #1e3a0e !important;
-}
-
-.table-green-header {
-    background-color: #e8f5e8 !important;
-}
-</style>
-@endsection
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Stock Management', 'url' => '#'],
-        ['label' => 'Stock Transaction Records', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="mb-1">
                 <i class="bi bi-clipboard-data me-2 text-primary"></i>Stock Transaction Records
             </h1>
             <p class="text-muted mb-0">Complete history of all inventory movements and stock transactions</p>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-primary fs-6 px-3 py-2">
-                <i class="bi bi-list-check me-1"></i>{{ $stockTransactions->total() }} Total Records
-            </span>
-            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterTransactions">
-                <i class="bi bi-funnel me-1"></i>Filter Records
-            </button>
-            <button class="btn btn-outline-secondary" onclick="exportTransactions()">
-                <i class="bi bi-download me-1"></i>Export
-            </button>
-        </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     @if(session('warning'))
         <div class="alert alert-warning alert-dismissible fade show" role="alert">
@@ -72,16 +38,17 @@ thead.table-green-header th,
     @endif
 
     <!-- Transaction Summary Cards -->
-    <div class="row mb-4">
+    <div class="summary-panel mb-4">
+        <div class="row g-3">
         <div class="col-md-3">
-            <div class="card border-0 shadow-sm bg-primary text-white summary-card">
+            <div class="card border-0 shadow-sm summary-card summary-card--total">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
-                            <h6 class="card-title mb-0 text-white-50">Total Transactions</h6>
+                            <h6 class="card-title mb-0 text-primary">Total Transactions</h6>
                             <h4 class="mb-0 fw-bold">{{ number_format($stockTransactions->total()) }}</h4>
                         </div>
-                        <div class="text-white-50">
+                        <div class="text-primary summary-card__icon">
                             <i class="bi bi-list-check fs-1"></i>
                         </div>
                     </div>
@@ -89,14 +56,14 @@ thead.table-green-header th,
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-0 shadow-sm bg-success text-white summary-card">
+            <div class="card border-0 shadow-sm summary-card summary-card--completed">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
-                            <h6 class="card-title mb-0 text-white-50">Completed</h6>
+                            <h6 class="card-title mb-0 text-success">Completed</h6>
                             <h4 class="mb-0 fw-bold">{{ number_format($stockTransactions->where('status', 'completed')->count()) }}</h4>
                         </div>
-                        <div class="text-white-50">
+                        <div class="text-success summary-card__icon">
                             <i class="bi bi-check-circle fs-1"></i>
                         </div>
                     </div>
@@ -104,14 +71,14 @@ thead.table-green-header th,
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-0 shadow-sm bg-warning text-dark summary-card">
+            <div class="card border-0 shadow-sm summary-card summary-card--pending">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
-                            <h6 class="card-title mb-0 text-dark">Pending</h6>
+                            <h6 class="card-title mb-0 text-warning-emphasis">Pending</h6>
                             <h4 class="mb-0 fw-bold">{{ number_format($stockTransactions->where('status', 'pending')->count()) }}</h4>
                         </div>
-                        <div class="text-warning-emphasis">
+                        <div class="text-warning-emphasis summary-card__icon">
                             <i class="bi bi-clock fs-1"></i>
                         </div>
                     </div>
@@ -119,16 +86,40 @@ thead.table-green-header th,
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-0 shadow-sm bg-info text-white summary-card">
+            <div class="card border-0 shadow-sm summary-card summary-card--today">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
-                            <h6 class="card-title mb-0 text-white-50">Today's Records</h6>
+                            <h6 class="card-title mb-0 text-info-emphasis">Today's Records</h6>
                             <h4 class="mb-0 fw-bold">{{ number_format($stockTransactions->where('created_at', '>=', today())->count()) }}</h4>
                         </div>
-                        <div class="text-white-50">
+                        <div class="text-info-emphasis summary-card__icon">
                             <i class="bi bi-calendar-day fs-1"></i>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Records Toolbar -->
+    <div class="unified-search-container card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis border fs-6 px-3 py-2">
+                        <i class="bi bi-list-check me-1"></i>{{ $stockTransactions->total() }} Total Records
+                    </span>
+                </div>
+                <div class="col-md-6">
+                    <div class="d-flex justify-content-md-end gap-2 mt-3 mt-md-0">
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterTransactions">
+                            <i class="bi bi-funnel me-1"></i>Filter Records
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="exportTransactions()">
+                            <i class="bi bi-download me-1"></i>Export
+                        </button>
                     </div>
                 </div>
             </div>
@@ -136,48 +127,42 @@ thead.table-green-header th,
     </div>
 
     <!-- Main Stock Transactions Table -->
-    <div class="card shadow-sm">
+    <div class="card">
+        @if(request()->hasAny(['location_type', 'location_id', 'transaction_type', 'status', 'date_from', 'date_to', 'product_search']))
         <div class="card-header bg-light border-0">
             <div class="row align-items-center">
-                <div class="col">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-table me-2"></i>Stock Transaction Records
-                    </h5>
-                    <small class="text-muted">Complete history of all inventory movements and transactions</small>
-                </div>
-                <div class="col-auto">
-                    @if(request()->hasAny(['location_type', 'location_id', 'transaction_type', 'status', 'date_from', 'date_to', 'product_search']))
-                        <span class="badge bg-info me-2">
-                            <i class="bi bi-funnel-fill me-1"></i>Filtered
-                        </span>
-                        <a href="{{ route('stock-management.index') }}" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-x me-1"></i>Clear Filters
-                        </a>
-                    @endif
+                <div class="col-auto ms-auto">
+                    <span class="badge bg-info me-2">
+                        <i class="bi bi-funnel-fill me-1"></i>Filtered
+                    </span>
+                    <a href="{{ route('stock-management.index') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-x me-1"></i>Clear Filters
+                    </a>
                 </div>
             </div>
         </div>
-        
-        <div class="card-body p-0">
+        @endif
+
+        <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-green-header sticky-top border-bottom" style="background-color: #e8f5e8 !important;">
+                <table class="table table-striped table-hover align-middle">
+                    <thead>
                         <tr>
-                            <th width="80" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">ID</th>
-                            <th width="200" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Product</th>
-                            <th width="150" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Location</th>
-                            <th width="160" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Transaction Type</th>
-                            <th width="120" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Reference</th>
-                            <th width="100" class="text-center" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Quantity</th>
-                            <th width="100" class="text-end" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Unit Cost</th>
-                            <th width="100" class="text-end" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Total Cost</th>
-                            <th width="130" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Date</th>
-                            <th width="100" class="text-center" style="background-color: #e8f5e8 !important; color: #1e3a0e !important; border-color: #c3d9c3 !important;">Status</th>
+                            <th width="80">ID</th>
+                            <th width="200">Product</th>
+                            <th width="150">Location</th>
+                            <th width="160">Transaction Type</th>
+                            <th width="120">Reference</th>
+                            <th width="100" class="text-center">Quantity</th>
+                            <th width="100" class="text-end">Unit Cost</th>
+                            <th width="100" class="text-end">Total Cost</th>
+                            <th width="130">Date</th>
+                            <th width="100" class="text-center">Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($stockTransactions as $transaction)
-                        <tr class="align-middle">
+                        <tr>
                             <td>
                                 <span class="badge bg-light text-dark font-monospace">#{{ $transaction->id }}</span>
                             </td>
@@ -267,20 +252,9 @@ thead.table-green-header th,
                     </tbody>
                 </table>
             </div>
+
+            <x-pagination :paginator="$stockTransactions" />
         </div>
-        
-        @if($stockTransactions->hasPages())
-        <div class="card-footer bg-light border-0">
-            <div class="d-flex justify-content-between align-items-center">
-                <div class="text-muted small">
-                    Showing {{ $stockTransactions->firstItem() ?? 0 }}-{{ $stockTransactions->lastItem() ?? 0 }} of {{ $stockTransactions->total() }} transactions
-                </div>
-                <div>
-                    {{ $stockTransactions->appends(request()->query())->links() }}
-                </div>
-            </div>
-        </div>
-        @endif
     </div>
 </div>
 
@@ -384,32 +358,6 @@ thead.table-green-header th,
 
 @push('styles')
 <style>
-.table-green-header th {
-    background-color: #e8f5e8 !important;
-    border-bottom: 2px solid #c3d9c3 !important;
-    border-color: #c3d9c3 !important;
-    font-weight: 600;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #1e3a0e !important;
-}
-
-.table-green-header {
-    background-color: #e8f5e8 !important;
-}
-
-.table-hover tbody tr:hover {
-    background-color: rgba(0, 123, 255, 0.05);
-}
-
-.sticky-top {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
 .badge {
     font-weight: 500;
 }
@@ -418,25 +366,30 @@ thead.table-green-header th,
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
 }
 
-.card {
-    border: 1px solid rgba(0,0,0,.125);
-}
-
-.table-responsive {
-    max-height: 70vh;
-    overflow-y: auto;
+/* White container holding the summary cards */
+.summary-panel {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: var(--card-shadow, 0 2px 15px rgba(0, 0, 0, 0.04));
 }
 
 .summary-card {
-    transition: transform 0.2s ease-in-out;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
 .summary-card:hover {
     transform: translateY(-2px);
 }
 
-.border-bottom {
-    border-bottom: 2px solid #c3d9c3 !important;
+.summary-card--total     { background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%); }
+.summary-card--completed { background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%); }
+.summary-card--pending   { background: linear-gradient(135deg, #fff8e1 0%, #ffffff 100%); }
+.summary-card--today     { background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%); }
+
+.summary-card__icon {
+    opacity: 0.45;
 }
 </style>
 @endpush

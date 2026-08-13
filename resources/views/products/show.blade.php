@@ -702,12 +702,20 @@
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        @php
-                                            $locationModel = $stockBalance->location_type::find($stockBalance->location_id);
-                                            $locationName = $locationModel ? $locationModel->name : 'Unknown Location';
-                                        @endphp
-                                        <span class="fw-semibold text-dark">{{ $locationName }}</span>
-                                        @if($locationModel)
+                                        @if($stockBalance->location)
+                                            <span class="fw-semibold text-dark">{{ $stockBalance->location->name }}</span>
+                                            <small class="text-muted ms-2">(ID: {{ $stockBalance->location_id }})</small>
+                                        @else
+                                            @php
+                                                // Fallback: Try to find the location manually
+                                                try {
+                                                    $locationModel = $stockBalance->location_type::find($stockBalance->location_id);
+                                                    $locationName = $locationModel ? $locationModel->name : 'Unknown Location';
+                                                } catch (\Exception $e) {
+                                                    $locationName = 'Unknown Location';
+                                                }
+                                            @endphp
+                                            <span class="fw-semibold text-dark">{{ $locationName }}</span>
                                             <small class="text-muted ms-2">(ID: {{ $stockBalance->location_id }})</small>
                                         @endif
                                     </div>
@@ -718,6 +726,9 @@
                                             {{ $stockBalance->quantity }}
                                         </span>
                                         <small class="text-muted">units</small>
+                                        @if($stockBalance->reserved_quantity > 0)
+                                            <small class="text-warning ms-2">({{ $stockBalance->reserved_quantity }} reserved)</small>
+                                        @endif
                                     </div>
                                 </td>
                                 <td>

@@ -1,8 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Payment Information - {{ $supplierBill->formatted_id }}</h1>
         <div>
             <a href="{{ route('supplier-bills.show', $supplierBill) }}" class="btn btn-secondary">
@@ -22,6 +20,11 @@
             @endif
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
 
     <!-- Payment Status Alert -->
     @if($supplierBill->status === 'posted' && $supplierBill->payment && $supplierBill->payment->payment_status === 'unpaid')
@@ -179,133 +182,27 @@
 document.addEventListener('DOMContentLoaded', function() {
     let isProcessing = false;
     
-    // Handle Mark as Paid button protection
+    // Handle Mark as Paid button - prevent double submission only
     const markAsPaidForm = document.getElementById('markAsPaidForm');
     const markAsPaidBtn = document.getElementById('markAsPaidBtn');
     
-    console.log('Payment Info page loaded');
-    console.log('Mark as Paid form found:', !!markAsPaidForm);
-    console.log('Mark as Paid button found:', !!markAsPaidBtn);
-    
     if (markAsPaidForm && markAsPaidBtn) {
-        // Log form details for debugging
-        console.log('Form action:', markAsPaidForm.action);
-        console.log('Form method:', markAsPaidForm.method);
-        console.log('CSRF token present:', !!markAsPaidForm.querySelector('input[name="_token"]'));
-        
         markAsPaidForm.addEventListener('submit', function(e) {
-            console.log('Mark as Paid form submitted');
-            
+            // Only prevent double submission, no visual feedback
             if (isProcessing) {
-                console.log('Already processing, preventing submission');
                 e.preventDefault();
                 return false;
             }
             
-            console.log('Starting payment processing...');
+            // Set processing flag to prevent double clicks
             isProcessing = true;
             
-            // Disable the button immediately
+            // Disable the button to prevent multiple clicks
             markAsPaidBtn.disabled = true;
-            markAsPaidBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Processing...';
-            markAsPaidBtn.classList.remove('btn-success');
-            markAsPaidBtn.classList.add('btn-secondary');
             
-            // Prevent multiple submissions
-            markAsPaidForm.style.pointerEvents = 'none';
-            
-            // Show processing indicator
-            showProcessingIndicator('Processing payment...');
-            
-            // Add a timeout to reset if form submission takes too long
-            setTimeout(function() {
-                if (isProcessing) {
-                    console.log('Form submission timeout, resetting state');
-                    resetProcessingState();
-                }
-            }, 10000); // 10 seconds timeout
+            // Allow form to submit normally without any processing overlay
         });
     }
-    
-    // Function to show processing indicator
-    function showProcessingIndicator(message) {
-        // Create overlay if it doesn't exist
-        let overlay = document.getElementById('processingOverlay');
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'processingOverlay';
-            overlay.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.5);
-                z-index: 9999;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-            `;
-            
-            const content = document.createElement('div');
-            content.style.cssText = `
-                background: white;
-                padding: 2rem;
-                border-radius: 8px;
-                text-align: center;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            `;
-            
-            content.innerHTML = `
-                <div class="spinner-border text-primary mb-3" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mb-0">${message}</p>
-                <small class="text-muted">Please wait, do not refresh the page...</small>
-            `;
-            
-            overlay.appendChild(content);
-            document.body.appendChild(overlay);
-        }
-        
-        overlay.style.display = 'flex';
-    }
-    
-    // Function to reset processing state
-    function resetProcessingState() {
-        isProcessing = false;
-        
-        if (markAsPaidBtn) {
-            markAsPaidBtn.disabled = false;
-            markAsPaidBtn.innerHTML = '<i class="bi bi-credit-card me-1"></i> Mark as Paid';
-            markAsPaidBtn.classList.remove('btn-secondary');
-            markAsPaidBtn.classList.add('btn-success');
-        }
-        
-        if (markAsPaidForm) {
-            markAsPaidForm.style.pointerEvents = 'auto';
-        }
-        
-        // Hide processing overlay
-        const overlay = document.getElementById('processingOverlay');
-        if (overlay) {
-            overlay.style.display = 'none';
-        }
-    }
-    
-    // Prevent accidental navigation during processing
-    window.addEventListener('beforeunload', function(e) {
-        if (isProcessing) {
-            e.preventDefault();
-            e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-            return e.returnValue;
-        }
-    });
-    
-    // Reset state when page is unloaded
-    window.addEventListener('unload', function() {
-        isProcessing = false;
-    });
 });
 </script>
 @endpush

@@ -1,9 +1,12 @@
 @extends('layouts.app')
-
-@section('content')
+@section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1><i class="bi bi-list-check me-2"></i>All Picking Lists</h1>
 </div>
+@endsection
+
+@section('content')
+
 
 <!-- Statistics Cards -->
 <div class="row mb-4">
@@ -211,10 +214,7 @@
         </div>
     </div>
 
-    <!-- Pagination -->
-    <div class="d-flex justify-content-center mt-4">
-        {{ $pickingLists->links() }}
-    </div>
+    <x-pagination :paginator="$pickingLists" />
 @else
     <div class="card">
         <div class="card-body text-center py-5">

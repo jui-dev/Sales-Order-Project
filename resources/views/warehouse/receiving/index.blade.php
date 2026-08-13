@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
+<div class="container-fluid">
     <div class="row">
         <div class="col-md-12">
             <div class="card">
@@ -119,11 +119,6 @@
                             </tbody>
                         </table>
                     </div>
-
-                    <!-- Pagination -->
-                    <div class="d-flex justify-content-center">
-                        {{ $receivingLists->links() }}
-                    </div>
                     @else
                     <div class="text-center py-4">
                         <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
@@ -136,6 +131,8 @@
                     @endif
                 </div>
             </div>
+
+            <x-pagination :paginator="$receivingLists" />
         </div>
     </div>
 </div>

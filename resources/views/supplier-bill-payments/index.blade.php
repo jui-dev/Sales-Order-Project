@@ -1,14 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Purchases', 'url' => '#'],
-        ['label' => 'Supplier Bills Payment', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Supplier Bills Payment</h1>
         <div>
             <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterModal">
@@ -16,6 +8,12 @@
             </button>
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     <!-- Filter Modal -->
     <div class="modal fade" id="filterModal" tabindex="-1" aria-labelledby="filterModalLabel" aria-hidden="true">
@@ -109,10 +107,10 @@
                     </tbody>
                 </table>
             </div>
+
+            <x-pagination :paginator="$payments" />
         </div>
     </div>
-
-    <x-pagination :paginator="$payments" />
 </div>
 @endsection
 

@@ -1,19 +1,17 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Purchases', 'url' => '#'],
-        ['label' => 'Goods Receipt Notes', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Goods Receipt Notes</h1>
         <a href="{{ route('supplies.index') }}" class="btn btn-secondary">
             <i class="bi bi-arrow-left me-1"></i> Back to Supplies
         </a>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
 <div class="card">
     <div class="card-body">
@@ -105,6 +103,7 @@
             </table>
         </div>
     </div>
+</div>
 </div>
 @endsection
 

@@ -8,9 +8,35 @@
     'defaultDirection' => 'desc'
 ])
 
-<div class="unified-search-container mb-4">
+@php
+    // Keys this page actually filters on. Derived from $filterOptions so pages with
+    // their own fields (warehouse_id, vendor_id, ...) get the same badge / Clear All
+    // treatment as the legacy hard-coded ones.
+    $filterKeys = [];
+    foreach ($filterOptions as $field => $config) {
+        if (($config['type'] ?? null) === 'date_range') {
+            $filterKeys[] = $field . '_from';
+            $filterKeys[] = $field . '_to';
+        } else {
+            $filterKeys[] = $field;
+        }
+    }
+    $filterKeys = array_values(array_unique(array_merge(
+        $filterKeys,
+        ['status', 'date_from', 'date_to', 'type', 'category']
+    )));
+
+    // Everything that counts as "the list is filtered", including search and ranges
+    $activeKeys = array_values(array_unique(array_merge(
+        $filterKeys,
+        ['search', 'price_min', 'price_max', 'stock_min', 'stock_max']
+    )));
+@endphp
+
+<div class="unified-search-container card mb-4">
+    <div class="card-body">
     <!-- Search and Controls Row -->
-    <div class="row align-items-center mb-3">
+    <div class="row align-items-center mb-0">
         <!-- Global Search -->
         <div class="col-md-6 col-lg-4">
             <div class="input-group">
@@ -39,8 +65,8 @@
                 @if($showFilters)
                     <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterModal">
                         <i class="bi bi-funnel me-1"></i> Filter
-                        @if(request()->hasAny(['status', 'date_from', 'date_to', 'type', 'category']))
-                            <span class="badge bg-primary ms-1 active-filters-badge">{{ count(array_filter(request()->only(['status', 'date_from', 'date_to', 'type', 'category']))) }}</span>
+                        @if(request()->hasAny($filterKeys))
+                            <span class="badge bg-primary ms-1 active-filters-badge">{{ count(array_filter(request()->only($filterKeys))) }}</span>
                         @endif
                     </button>
                 @endif
@@ -67,7 +93,7 @@
                     </div>
                 @endif
 
-                @if(request()->hasAny(['search', 'status', 'date_from', 'date_to', 'type', 'category', 'price_min', 'price_max', 'stock_min', 'stock_max', 'sort', 'direction']))
+                @if(request()->hasAny(array_merge($activeKeys, ['sort', 'direction'])))
                     <a href="{{ request()->url() }}" class="btn btn-outline-secondary clear-filters">
                         <i class="bi bi-x-circle me-1"></i> Clear All
                     </a>
@@ -77,8 +103,8 @@
     </div>
 
     <!-- Active Filters Display -->
-    @if(request()->hasAny(['search', 'status', 'date_from', 'date_to', 'type', 'category', 'price_min', 'price_max', 'stock_min', 'stock_max']))
-        <div class="active-filters-display mb-3">
+    @if(request()->hasAny($activeKeys))
+        <div class="active-filters-display mt-3">
             <div class="d-flex flex-wrap gap-2 align-items-center">
                 <small class="text-muted me-2">Active filters:</small>
                 
@@ -130,6 +156,23 @@
                         <a href="{{ request()->url() }}?{{ http_build_query(request()->except(['stock_min', 'stock_max'])) }}" class="text-dark text-decoration-none ms-1">×</a>
                     </span>
                 @endif
+
+                {{-- Page-specific filters (warehouse, vendor, ...) not covered by the badges above --}}
+                @foreach($filterOptions as $field => $config)
+                    @continue(in_array($field, ['search', 'status', 'type', 'category', 'date_from', 'date_to', 'price_min', 'price_max', 'stock_min', 'stock_max'], true))
+                    @continue(!request()->filled($field))
+                    @php
+                        $activeValue = request($field);
+                        $activeLabel = $config['label'] ?? ucfirst(str_replace('_', ' ', $field));
+                        $activeDisplay = ($config['type'] ?? null) === 'select'
+                            ? ($config['options'][$activeValue] ?? $activeValue)
+                            : $activeValue;
+                    @endphp
+                    <span class="badge bg-secondary">
+                        {{ $activeLabel }}: {{ $activeDisplay }}
+                        <a href="{{ request()->url() }}?{{ http_build_query(request()->except($field)) }}" class="text-white text-decoration-none ms-1">×</a>
+                    </span>
+                @endforeach
             </div>
         </div>
     @endif
@@ -140,6 +183,7 @@
             <span class="visually-hidden">Loading...</span>
         </div>
         <p class="text-muted mt-2">Updating results...</p>
+    </div>
     </div>
 </div>
 

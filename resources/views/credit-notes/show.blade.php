@@ -1,30 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Returns', 'url' => '#'],
-        ['label' => 'Credit Notes', 'url' => route('credit-notes.index')],
-        ['label' => $creditNote->credit_note_number, 'url' => '#']
-    ]" />
-    
-    <!-- Credit Note Workflow Guidance -->
-    <div class="alert alert-info mb-4">
-        <i class="bi bi-info-circle"></i>
-        <strong>Credit Note Management:</strong> Use the workflow buttons to control when financial impact occurs. Credit notes are automatically generated when customer returns are approved.
-    </div>
-
-    <!-- Success Message -->
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle me-2"></i>
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    @endif
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Credit Note #{{ $creditNote->credit_note_number }}</h1>
         <div class="d-flex gap-2">
             @if($creditNote->status === 'issued')
@@ -93,6 +69,27 @@
             </a>
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    <!-- Credit Note Workflow Guidance -->
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i>
+        <strong>Credit Note Management:</strong> Use the workflow buttons to control when financial impact occurs. Credit notes are automatically generated when customer returns are approved.
+    </div>
+
+    <!-- Success Message -->
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle me-2"></i>
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+    
+    
 
     <div class="row">
         <!-- Credit Note Details -->

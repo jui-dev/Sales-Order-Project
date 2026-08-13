@@ -1,36 +1,37 @@
 @extends('layouts.app')
+@section('page-header')
+<div class="mb-4">
+    <h1>Create Return Transaction</h1>
+</div>
+@endsection
 
 @section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Returns', 'url' => route('returns.index')],
-        ['label' => 'Create Return', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-plus-circle me-2"></i>Create Return Transaction</h1>
+
+<div class="return-form">
+
+    <div class="return-notice">
+        <i class="bi bi-info-circle"></i>
         <div>
-            <a href="{{ route('returns.index') }}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left me-1"></i> Back to Returns
-            </a>
+            Returns are recorded as <strong>pending</strong>. Start by choosing a return type — each following step
+            appears once the step before it is filled in.
         </div>
     </div>
 
     <form action="{{ route('returns.store') }}" method="POST" id="returnForm">
         @csrf
-        
-        <div class="row">
-            <!-- Return Type Selection -->
-            <div class="col-md-6">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-arrow-return-left me-2"></i>Return Type
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
+
+        {{-- Section 1: Return type --}}
+        <div class="card return-card mb-4">
+            <div class="card-header return-card__header">
+                <span class="return-card__step">1</span>
+                <div>
+                    <h2 class="return-card__title">Return Type <span class="text-danger">*</span></h2>
+                    <p class="return-card__subtitle">Who is sending the goods back? The rest of the form follows from this choice.</p>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="return-panel">
+                        <div class="mb-0">
                             <label class="form-label">Select Return Type <span class="text-danger">*</span></label>
                             <div class="row">
                                 <div class="col-md-4">
@@ -65,59 +66,56 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Source Selection -->
-            <div class="col-md-6">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-person me-2"></i>Source Information
-                        </h5>
-                    </div>
-                    <div class="card-body">
+        {{-- Section 2: Source --}}
+        <div class="card return-card mb-4">
+            <div class="card-header return-card__header">
+                <span class="return-card__step">2</span>
+                <div>
+                    <h2 class="return-card__title">Source Information</h2>
+                    <p class="return-card__subtitle">Pick the customer, vendor, or retailer this return belongs to.</p>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="return-panel">
+                    <div class="row g-3">
                         <!-- Customer Selection (for Customer Returns) -->
-                        <div id="customerSection" style="display: none;">
-                            <div class="mb-3">
-                                <label for="customer_id" class="form-label">Select Customer <span class="text-danger">*</span></label>
-                                <select class="form-select" id="customer_id" name="customer_id">
-                                    <option value="">Choose a customer...</option>
-                                    @foreach($customers as $customer)
-                                        <option value="{{ $customer->id }}">{{ $customer->name }} ({{ $customer->email }})</option>
-                                    @endforeach
-                                </select>
-                            </div>
+                        <div class="col-md-6" id="customerSection" style="display: none;">
+                            <label for="customer_id" class="form-label">Select Customer <span class="text-danger">*</span></label>
+                            <select class="form-select" id="customer_id" name="customer_id">
+                                <option value="">Choose a customer...</option>
+                                @foreach($customers as $customer)
+                                    <option value="{{ $customer->id }}">{{ $customer->name }} ({{ $customer->email }})</option>
+                                @endforeach
+                            </select>
                         </div>
 
                         <!-- Vendor Selection (for Vendor Returns) -->
-                        <div id="vendorSection" style="display: none;">
-                            <div class="mb-3">
-                                <label for="vendor_id" class="form-label">Select Vendor <span class="text-danger">*</span></label>
-                                <select class="form-select" id="vendor_id" name="vendor_id">
-                                    <option value="">Choose a vendor...</option>
-                                    @foreach($vendors as $vendor)
-                                        <option value="{{ $vendor->id }}">{{ $vendor->name }} ({{ $vendor->email }})</option>
-                                    @endforeach
-                                </select>
-                            </div>
+                        <div class="col-md-6" id="vendorSection" style="display: none;">
+                            <label for="vendor_id" class="form-label">Select Vendor <span class="text-danger">*</span></label>
+                            <select class="form-select" id="vendor_id" name="vendor_id">
+                                <option value="">Choose a vendor...</option>
+                                @foreach($vendors as $vendor)
+                                    <option value="{{ $vendor->id }}">{{ $vendor->name }} ({{ $vendor->email }})</option>
+                                @endforeach
+                            </select>
                         </div>
 
                         <!-- Retailer Selection (for Retailer Returns) -->
-                        <div id="retailerSection" style="display: none;">
-                            <div class="mb-3">
-                                <label for="retailer_id" class="form-label">Select Retailer <span class="text-danger">*</span></label>
-                                <select class="form-select" id="retailer_id" name="retailer_id">
-                                    <option value="">Choose a retailer...</option>
-                                    @foreach($retailers as $retailer)
-                                        <option value="{{ $retailer->id }}">{{ $retailer->name }} ({{ $retailer->email }})</option>
-                                    @endforeach
-                                </select>
-                                <div class="form-text">
-                                    <i class="bi bi-info-circle me-1"></i>
-                                    Only retailers with completed stock transfers can be selected for returns.
-                                </div>
+                        <div class="col-md-6" id="retailerSection" style="display: none;">
+                            <label for="retailer_id" class="form-label">Select Retailer <span class="text-danger">*</span></label>
+                            <select class="form-select" id="retailer_id" name="retailer_id">
+                                <option value="">Choose a retailer...</option>
+                                @foreach($retailers as $retailer)
+                                    <option value="{{ $retailer->id }}">{{ $retailer->name }} ({{ $retailer->email }})</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Only retailers with completed stock transfers can be selected for returns.
                             </div>
                         </div>
                     </div>
@@ -125,72 +123,78 @@
             </div>
         </div>
 
-        <!-- Reference Selection -->
-        <div class="card mb-4" id="referenceSection" style="display: none;">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-file-text me-2"></i>Reference Document
-                </h5>
+        {{-- Section 3: Reference document --}}
+        <div class="card return-card mb-4" id="referenceSection" style="display: none;">
+            <div class="card-header return-card__header">
+                <span class="return-card__step">3</span>
+                <div>
+                    <h2 class="return-card__title">Reference Document <span class="text-danger">*</span></h2>
+                    <p class="return-card__subtitle">The invoice, supplier bill, or stock transfer the goods came from.</p>
+                </div>
             </div>
             <div class="card-body">
-                <!-- Invoice Selection (for Customer Returns) -->
-                <div id="invoiceSection" style="display: none;">
-                    <div class="mb-3">
-                        <label for="invoice_select" class="form-label">Select Invoice <span class="text-danger">*</span></label>
-                        <select class="form-select" id="invoice_select" name="invoice_id">
-                            <option value="">Choose an invoice...</option>
-                        </select>
-                    </div>
-                </div>
+                <div class="return-panel">
+                    <div class="row g-3">
+                        <!-- Invoice Selection (for Customer Returns) -->
+                        <div class="col-md-8" id="invoiceSection" style="display: none;">
+                            <label for="invoice_select" class="form-label">Select Invoice <span class="text-danger">*</span></label>
+                            <select class="form-select" id="invoice_select" name="invoice_id">
+                                <option value="">Choose an invoice...</option>
+                            </select>
+                        </div>
 
-                <!-- Supplier Bill Selection (for Vendor Returns) -->
-                <div id="supplierBillSection" style="display: none;">
-                    <div class="mb-3">
-                        <label for="supplier_bill_select" class="form-label">Select Supplier Bill <span class="text-danger">*</span></label>
-                        <select class="form-select" id="supplier_bill_select" name="supplier_bill_id">
-                            <option value="">Choose a supplier bill...</option>
-                        </select>
-                    </div>
-                </div>
+                        <!-- Supplier Bill Selection (for Vendor Returns) -->
+                        <div class="col-md-8" id="supplierBillSection" style="display: none;">
+                            <label for="supplier_bill_select" class="form-label">Select Supplier Bill <span class="text-danger">*</span></label>
+                            <select class="form-select" id="supplier_bill_select" name="supplier_bill_id">
+                                <option value="">Choose a supplier bill...</option>
+                            </select>
+                        </div>
 
-                <!-- Stock Transfer Selection (for Retailer Returns) -->
-                <div id="stockTransferSection" style="display: none;">
-                    <div class="mb-3">
-                        <label for="stock_transfer_select" class="form-label">Select Stock Transfer <span class="text-danger">*</span></label>
-                        <select class="form-select" id="stock_transfer_select" name="stock_transfer_id">
-                            <option value="">Choose a stock transfer...</option>
-                        </select>
-                        <div class="form-text">
-                            <i class="bi bi-info-circle me-1"></i>
-                            Only completed stock transfers are available for retailer returns. Pending or cancelled transfers cannot be used.
+                        <!-- Stock Transfer Selection (for Retailer Returns) -->
+                        <div class="col-md-8" id="stockTransferSection" style="display: none;">
+                            <label for="stock_transfer_select" class="form-label">Select Stock Transfer <span class="text-danger">*</span></label>
+                            <select class="form-select" id="stock_transfer_select" name="stock_transfer_id">
+                                <option value="">Choose a stock transfer...</option>
+                            </select>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Only completed stock transfers are available for retailer returns. Pending or cancelled transfers cannot be used.
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Dynamic Product Details Section -->
-        <div class="card mb-4" id="productSection" style="display: none;">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-box-seam me-2"></i>Product Details & Return Quantities
-                </h5>
+        {{-- Section 4: Products --}}
+        <div class="card return-card mb-4" id="productSection" style="display: none;">
+            <div class="card-header return-card__header">
+                <span class="return-card__step">4</span>
+                <div>
+                    <h2 class="return-card__title">Products &amp; Return Quantities <span class="text-danger">*</span></h2>
+                    <p class="return-card__subtitle">Tick the items coming back and enter how many of each.</p>
+                </div>
             </div>
             <div class="card-body">
-                <div id="productDetailsContainer">
-                    <!-- Product details will be dynamically loaded here -->
+                <div class="return-panel">
+                    <div id="productDetailsContainer">
+                        <!-- Product details will be dynamically loaded here -->
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Return Summary -->
-        <div class="card mb-4" id="summarySection" style="display: none;">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-calculator me-2"></i>Return Summary
-                </h5>
+        {{-- Running totals for what has been selected so far --}}
+        <div class="card return-card mb-4" id="summarySection" style="display: none;">
+            <div class="card-header return-card__header return-card__header--plain">
+                <div>
+                    <h2 class="return-card__title">Return Summary</h2>
+                    <p class="return-card__subtitle">A running total of what you have selected so far.</p>
+                </div>
             </div>
             <div class="card-body">
+                <div class="return-panel">
                 <div class="row">
                     <div class="col-md-6">
                         <dl class="row">
@@ -222,6 +226,7 @@
                     </h6>
                     <div id="validationSummaryContent"></div>
                 </div>
+                </div>
             </div>
         </div>
 
@@ -229,17 +234,19 @@
         <input type="hidden" id="return_location_id" name="return_location_id" required>
         <input type="hidden" id="return_location_type" name="return_location_type">
 
-        <!-- Return Reason Section -->
-        <div class="card mb-4" id="returnReasonSection" style="display: none;">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-exclamation-triangle me-2"></i>Return Reason
-                </h5>
+        {{-- Section 5: Return reason --}}
+        <div class="card return-card mb-4" id="returnReasonSection" style="display: none;">
+            <div class="card-header return-card__header">
+                <span class="return-card__step">5</span>
+                <div>
+                    <h2 class="return-card__title">Return Reason <span class="text-danger">*</span></h2>
+                    <p class="return-card__subtitle">Why the goods are being sent back.</p>
+                </div>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="mb-3">
+                <div class="return-panel">
+                    <div class="row g-3">
+                        <div class="col-md-8">
                             <label for="return_reason" class="form-label">Return Reason <span class="text-danger">*</span></label>
                             <select class="form-select" id="return_reason" name="return_reason" required>
                                 <option value="">Select a return reason...</option>
@@ -257,35 +264,31 @@
                             <div class="form-text">Please select the primary reason for this return.</div>
                         </div>
                     </div>
-                </div>
-                <div class="row" id="otherReasonRow" style="display: none;">
-                    <div class="col-md-12">
-                        <div class="mb-3">
-                            <label for="other_reason_details" class="form-label">Additional Details</label>
-                            <textarea class="form-control" id="other_reason_details" name="other_reason_details" rows="3" placeholder="Please provide additional details about the return reason..."></textarea>
-                        </div>
+                    <div id="otherReasonRow" class="mt-3" style="display: none;">
+                        <label for="other_reason_details" class="form-label">Additional Details</label>
+                        <textarea class="form-control" id="other_reason_details" name="other_reason_details" rows="3" placeholder="Please provide additional details about the return reason..."></textarea>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Return Details -->
-        <div class="card mb-4" id="detailsSection" style="display: none;">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-file-text me-2"></i>Return Details
-                </h5>
+        {{-- Section 6: Return details --}}
+        <div class="card return-card mb-4" id="detailsSection" style="display: none;">
+            <div class="card-header return-card__header">
+                <span class="return-card__step">6</span>
+                <div>
+                    <h2 class="return-card__title">Return Details</h2>
+                    <p class="return-card__subtitle">When the goods came back, plus anything worth noting.</p>
+                </div>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="mb-3">
+                <div class="return-panel">
+                    <div class="row g-3">
+                        <div class="col-md-6">
                             <label for="return_date" class="form-label">Return Date <span class="text-danger">*</span></label>
                             <input type="date" class="form-control" id="return_date" name="return_date" value="{{ date('Y-m-d') }}" max="{{ date('Y-m-d') }}" required>
                         </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
+                        <div class="col-md-6">
                             <label for="notes" class="form-label">Notes</label>
                             <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Additional notes (optional)..."></textarea>
                         </div>
@@ -304,44 +307,31 @@
         <!-- Hidden container for dynamic inputs -->
         <div id="hiddenInputs" style="display: none;"></div>
 
-        <!-- Action Buttons -->
-        <div class="card border-0 shadow-sm mb-4 return-action-card">
-            <div class="card-body py-4">
-                <div class="row align-items-center">
-                    <div class="col-lg-8">
-                        <div class="d-flex align-items-center">
-                            <div class="me-3">
-                                <div class="bg-primary bg-opacity-10 rounded-circle p-3">
-                                    <i class="bi bi-arrow-return-left text-primary fs-3"></i>
-                                </div>
-                            </div>
-                            <div>
-                                <h6 class="mb-1 fw-bold text-dark">Return Transaction Ready</h6>
-                                <small class="text-muted">Review your selections and submit the return request</small>
-                            </div>
-                        </div>
+        {{-- Review & submit --}}
+        <div class="card return-card return-summary mb-4">
+            <div class="card-body">
+                <div class="return-summary__inner">
+                    <div>
+                        <span class="return-summary__label">Total Return Value</span>
+                        <span class="return-summary__value">$<span id="actionTotalValue">0.00</span></span>
                     </div>
-                    
-                    <div class="col-lg-4">
-                        <div class="d-flex flex-column gap-3">
-                            <div id="validationMessage" style="display: none;">
-                                <div class="alert alert-danger border-0 mb-0 py-2 px-3">
-                                    <i class="bi bi-exclamation-triangle me-2"></i>
-                                    <span id="validationText" class="fw-semibold"></span>
-                                </div>
-                            </div>
-                            
-                            <div class="d-flex gap-3 justify-content-end">
-                                <a href="{{ route('returns.index') }}" class="btn btn-outline-secondary btn-lg px-4 fw-semibold">
-                                    <i class="bi bi-x-circle me-2"></i> Cancel
-                                </a>
-                                <button type="submit" class="btn btn-primary btn-lg px-4 fw-semibold" id="submitBtn" disabled>
-                                    <i class="bi bi-check-circle me-2"></i> Create Return
-                                </button>
-                            </div>
-                        </div>
+                    <div class="return-summary__actions">
+                        <a href="{{ route('returns.index') }}" class="btn btn-danger">Cancel</a>
+                        <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                            <i class="bi bi-check2-circle"></i> Create Return
+                        </button>
                     </div>
                 </div>
+
+                <div id="validationMessage" class="return-summary__validation" style="display: none;">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <span id="validationText" class="fw-semibold"></span>
+                </div>
+
+                <p class="return-summary__hint">
+                    Fields marked <span class="text-danger">*</span> are required. The return is saved as
+                    <strong>pending</strong> until it is processed.
+                </p>
             </div>
         </div>
     </form>
@@ -1005,6 +995,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (totalItemsElement) totalItemsElement.textContent = selectedItems.length;
         if (totalQuantityElement) totalQuantityElement.textContent = totalQuantity;
         if (totalReturnValueElement) totalReturnValueElement.textContent = `$${totalValue.toFixed(2)}`;
+
+        // Mirror the total onto the submit card
+        const actionTotalValueElement = document.getElementById('actionTotalValue');
+        if (actionTotalValueElement) actionTotalValueElement.textContent = totalValue.toFixed(2);
         
         // Update status based on validation
         const hasErrors = validationErrors.length > 0;
@@ -1313,8 +1307,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (hasValidSelectedItems) {
                     submitBtn.disabled = false;
-                    submitBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i> Create Return';
-                    submitBtn.className = 'btn btn-primary btn-lg px-4 fw-semibold';
+                    submitBtn.innerHTML = '<i class="bi bi-check2-circle"></i> Create Return';
+                    submitBtn.className = 'btn btn-primary';
                     console.log('Button force enabled');
                 }
             }
@@ -1428,13 +1422,13 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.disabled = !isFormValid;
         
         if (isFormValid) {
-            submitBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i> Create Return';
-            submitBtn.className = 'btn btn-primary btn-lg px-4 fw-semibold';
+            submitBtn.innerHTML = '<i class="bi bi-check2-circle"></i> Create Return';
+            submitBtn.className = 'btn btn-primary';
             submitBtn.title = 'All required fields are completed. Click to create return.';
             console.log('Button enabled - form is valid');
         } else {
-            submitBtn.innerHTML = '<i class="bi bi-lock me-2"></i> Create Return';
-            submitBtn.className = 'btn btn-primary btn-lg px-4 fw-semibold';
+            submitBtn.innerHTML = '<i class="bi bi-lock"></i> Create Return';
+            submitBtn.className = 'btn btn-primary';
             submitBtn.title = validationMessage;
             console.log('Button disabled - validation failed:', validationMessage);
         }
@@ -2008,100 +2002,179 @@ document.addEventListener('DOMContentLoaded', function() {
     vertical-align: middle;
 }
 
-/* Enhanced button styling */
-.btn-lg {
+/* ---- Page shell ------------------------------------------------- */
+.return-form {
+    width: 100%;
+}
+
+.return-notice {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.85rem 1.1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 6px;
+    border: 1px solid #e3e8e4;
+    background-color: #f8f9fa;
+    color: var(--dark-text);
+    font-size: 0.925rem;
+    line-height: 1.5;
+}
+
+.return-notice .bi {
+    color: #6c757d;
+    font-size: 1.05rem;
+    line-height: 1.4;
+}
+
+/* ---- Section cards ---------------------------------------------- */
+.return-card:hover {
+    /* keep sections calm; no lift on a form page */
+    box-shadow: var(--card-shadow);
+}
+
+.return-card__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    border-bottom: 0;
+    padding-bottom: 0.35rem;
+}
+
+.return-card__step {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background-color: var(--primary);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+
+.return-card__title {
+    margin: 0;
+    font-size: 1.02rem;
     font-weight: 600;
-    letter-spacing: 0.5px;
+    color: var(--dark-text);
+    letter-spacing: 0.01em;
+}
+
+.return-card__title .text-danger {
+    font-size: 0.8em;
+    vertical-align: super;
+    margin-left: 2px;
+}
+
+.return-card__subtitle {
+    margin: 0.15rem 0 0;
+    font-size: 0.825rem;
+    font-weight: 400;
+    color: #6c757d;
+}
+
+/* Light inner surface for a section's main content */
+.return-panel {
+    padding: 1.1rem;
+    border-radius: 6px;
+    background-color: #f5f8f6;
+}
+
+.return-panel .form-label {
+    font-size: 0.82rem;
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+}
+
+.return-panel .table {
+    background-color: #fff;
+}
+
+.return-panel .alert:last-child,
+.return-panel .table-responsive:last-child {
+    margin-bottom: 0;
+}
+
+/* ---- Submit card ------------------------------------------------- */
+.return-summary__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.return-summary__label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #6c757d;
+}
+
+.return-summary__value {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--dark-text);
+}
+
+#actionTotalValue {
     transition: all 0.3s ease;
 }
 
-.btn-success {
-    background: linear-gradient(135deg, #198754 0%, #20c997 100%);
-    border: none;
-    box-shadow: 0 4px 15px rgba(25, 135, 84, 0.3);
+.return-summary__actions {
+    display: flex;
+    gap: 0.6rem;
 }
 
-.btn-success:hover {
-    background: linear-gradient(135deg, #157347 0%, #1aa085 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(25, 135, 84, 0.4);
+.return-summary__hint {
+    margin: 0.9rem 0 0;
+    padding-top: 0.9rem;
+    border-top: 1px solid #e3e8e4;
+    font-size: 0.82rem;
+    color: #6c757d;
 }
 
-.btn-outline-secondary {
-    border-width: 2px;
-    font-weight: 600;
-}
-
-.btn-outline-secondary:hover {
-    background-color: #6c757d;
-    border-color: #6c757d;
-    transform: translateY(-1px);
-}
-
-/* Action buttons section styling */
-.return-action-card {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border: 1px solid #dee2e6;
-}
-
-.return-action-card .bg-primary {
-    background-color: var(--primary) !important;
-}
-
-.return-action-card .text-primary {
-    color: var(--primary) !important;
-}
-
-.btn-outline-secondary {
-    border-width: 2px;
-    font-weight: 600;
-    transition: all 0.3s ease;
-    color: var(--primary);
-    border-color: var(--primary);
-    background-color: transparent;
-}
-
-.btn-outline-secondary:hover {
+/* Keep the submit button on the project green — Bootstrap's own
+   .btn:disabled rule otherwise repaints it blue while it is locked. */
+#submitBtn,
+#submitBtn:hover,
+#submitBtn:focus {
     background-color: var(--primary);
     border-color: var(--primary);
-    color: white;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(44, 110, 73, 0.3);
+    color: #fff;
 }
 
-.btn-outline-secondary:focus {
-    background-color: var(--primary);
-    border-color: var(--primary);
-    color: white;
-    box-shadow: 0 0 0 0.2rem rgba(44, 110, 73, 0.25);
+#submitBtn:hover,
+#submitBtn:focus {
+    background-color: var(--primary-dark);
+    border-color: var(--primary-dark);
 }
 
-.btn-primary {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    border: none;
-    color: white;
-    font-weight: 600;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(44, 110, 73, 0.3);
-}
-
-.btn-primary:hover {
-    background: linear-gradient(135deg, var(--primary-dark) 0%, #1a472a 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(44, 110, 73, 0.4);
-}
-
+#submitBtn:disabled,
 .btn-primary:disabled {
-    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
-    color: rgba(255, 255, 255, 0.6);
-    transform: none;
-    box-shadow: none;
+    background-color: #adb5bd;
+    border-color: #adb5bd;
+    color: #fff;
+    opacity: 1;
     cursor: not-allowed;
 }
 
-.btn-primary:disabled:hover {
-    transform: none;
-    box-shadow: none;
+/* ---- Required-field cues ----------------------------------------- */
+.text-danger {
+    color: var(--danger) !important;
+}
+
+.form-label .text-danger {
+    font-weight: 600;
+    margin-left: 2px;
 }
 
 /* Validation summary styling */
@@ -2132,10 +2205,12 @@ document.addEventListener('DOMContentLoaded', function() {
 /* Validation message styling */
 #validationMessage {
     animation: slideIn 0.3s ease-out;
-    border-radius: 8px;
+    margin-top: 1rem;
+    border-radius: 6px;
     padding: 12px 16px;
-    background: rgba(220, 53, 69, 0.1);
-    border-left: 4px solid #dc3545;
+    background: rgba(231, 111, 81, 0.1);
+    border-left: 4px solid var(--danger);
+    font-size: 0.9rem;
 }
 
 @keyframes slideIn {
@@ -2149,22 +2224,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 }
 
-/* Card styling improvements */
-.card {
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    transition: all 0.3s ease;
-}
-
-.card:hover {
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-}
-
-.card-header {
-    border-radius: 12px 12px 0 0 !important;
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-}
-
 /* Form control improvements */
 .form-control:focus, .form-select:focus {
     border-color: #198754;
@@ -2173,85 +2232,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
 /* Responsive improvements */
 @media (max-width: 768px) {
-    .btn-lg {
-        font-size: 1rem;
-        padding: 0.75rem 1.5rem;
+    .return-panel {
+        padding: 0.9rem;
     }
-    
-    #validationMessage {
-        margin: 10px 0;
-        font-size: 0.9rem;
-    }
-    
-    .return-action-card .row {
+
+    .return-summary__inner {
+        align-items: flex-start;
         flex-direction: column;
     }
-    
-    .return-action-card .col-lg-8,
-    .return-action-card .col-lg-4 {
+
+    .return-summary__actions {
         width: 100%;
     }
-    
-    .return-action-card .d-flex.justify-content-end {
-        justify-content: center !important;
+
+    .return-summary__actions .btn {
+        flex: 1;
     }
-    
-    .return-action-card .d-flex.gap-3 {
-        flex-direction: column;
-        gap: 1rem !important;
+
+    .form-label .text-danger {
+        font-size: 0.9em;
     }
-    
-    .return-action-card .btn {
-        width: 100%;
-    }
-}
-
-/* Enhanced action card styling */
-.return-action-card {
-    position: relative;
-    overflow: hidden;
-}
-
-.return-action-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 50%, var(--accent) 100%);
-}
-
-.return-action-card .bg-primary.bg-opacity-10 {
-    background-color: rgba(44, 110, 73, 0.1) !important;
-}
-
-.return-action-card .text-primary {
-    color: var(--primary) !important;
-}
-
-/* Button hover animations */
-.btn-lg {
-    position: relative;
-    overflow: hidden;
-}
-
-.btn-lg::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
-    transform: translate(-50%, -50%);
-    transition: width 0.6s ease, height 0.6s ease;
-    pointer-events: none;
-}
-
-.btn-lg:hover::before {
-    width: 300px;
-    height: 300px;
 }
 
 /* Return destination styling in table */
@@ -2274,29 +2274,6 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 
-
-/* Return reason section styling */
-#returnReasonSection .form-select {
-    border-radius: 8px;
-    border: 2px solid #e9ecef;
-    transition: all 0.3s ease;
-}
-
-#returnReasonSection .form-select:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 0.2rem rgba(44, 110, 73, 0.25);
-}
-
-#returnReasonSection .form-control {
-    border-radius: 8px;
-    border: 2px solid #e9ecef;
-    transition: all 0.3s ease;
-}
-
-#returnReasonSection .form-control:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 0.2rem rgba(44, 110, 73, 0.25);
-}
 
 #otherReasonRow {
     animation: slideDown 0.3s ease-out;

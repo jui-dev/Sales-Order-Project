@@ -74,6 +74,23 @@ body {
   min-height: calc(100vh - var(--navbar-height) - 100px);
 }
 
+/* Page content panel (tinted card behind page body content) */
+.dashboard-panel,
+.page-panel {
+  background-color: rgba(44, 110, 73, 0.05); /* soft brand-green tint, matches .bg-subtle */
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  padding: 1.75rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 576px) {
+  .dashboard-panel,
+  .page-panel {
+    padding: 1rem;
+  }
+}
+
 /* Card styling */
 .card {
   border: none;
@@ -91,7 +108,6 @@ body {
 /* Table styling */
 .table thead th {
   background-color: #e8f5e8 !important;
-  border-bottom: 2px solid var(--border-color);
   font-weight: 600;
   color: var(--dark-text);
   padding: 0.75rem;
@@ -160,6 +176,71 @@ body {
   color: var(--medium-text);
   background-color: transparent;
   border-color: var(--border-color);
+}
+
+/* Table footer bar (result count + pager).
+   Base = standalone strip, for the few list pages that have no table card
+   (audit-logs, journal-entries). Inside a card it is promoted to a true
+   full-bleed card footer by the .card-body rule below. */
+.table-footer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1.25rem;
+  background-color: #fbfcfb;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: var(--medium-text);
+}
+
+/* True card footer: bleed past .card-body's padding so the strip spans the full
+   card width and sits flush on its bottom edge — a single hairline on top, no
+   side/bottom border and no inner radius, so it reads as part of the card
+   rather than a box floating inside one. Offsets must track .card-body padding
+   (1.25rem, dropping to 1rem under 576px). .card already clips to its own
+   6px radius via overflow:hidden, so the bottom corners round themselves. */
+.card-body > .table-footer-bar {
+  margin: 1.25rem -1.25rem -1.25rem;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0;
+}
+
+/* DataTables (customers, vendors) renders its own info + pager, which
+   table-controls.js moves into this same bar. These reset DataTables' stock
+   spacing and alignment; !important is required because the CDN's
+   `div.dataTables_wrapper div.dataTables_info` selectors outrank ours. */
+.table-footer-bar .dataTables_info,
+.table-footer-bar .dataTables_paginate {
+  padding: 0 !important;
+  margin: 0 !important;
+  color: inherit !important;
+  white-space: normal;
+}
+
+.table-footer-bar .dataTables_paginate .pagination {
+  margin: 0 !important;
+}
+
+@media (max-width: 576px) {
+  .table-footer-bar {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    padding: 0.75rem 1rem;
+  }
+
+  .table-footer-bar .pagination {
+    justify-content: center !important;
+  }
+
+  .card-body > .table-footer-bar {
+    margin: 1rem -1rem -1rem;
+  }
 }
 
 .card-header {
@@ -244,8 +325,7 @@ body {
 
 .table thead th {
   border-top: none;
-  border-bottom: 2px solid #c3d9c3 !important;
-  border-color: #c3d9c3 !important;
+  border-bottom: none !important;
   color: #1e3a0e !important;
   font-weight: 600;
   text-transform: uppercase;
@@ -253,8 +333,68 @@ body {
   letter-spacing: 0.05em;
 }
 
-.table-striped tbody tr:nth-of-type(odd) {
-  background-color: rgba(0, 0, 0, 0.01);
+/* Lighter alternating row shade. Bootstrap 5.3 paints stripes with an inset
+   box-shadow fed by this variable, so setting background-color has no effect. */
+.table-striped {
+  --bs-table-striped-bg: rgba(0, 0, 0, 0.03);
+}
+
+/* DataTables ships its own stripe (rgba(var(--dt-row-stripe), 0.05)) and its
+   stylesheet is pushed after this file, so it needs an equal-or-higher
+   specificity override. The `body` prefix supplies that. Its hover rule has the
+   same specificity as its stripe rule, so re-assert hover afterwards or striped
+   rows would stop highlighting on hover. */
+body table.dataTable.table-striped > tbody > tr:nth-of-type(2n + 1) > * {
+  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.03);
+}
+
+body table.dataTable.table-hover > tbody > tr:hover > * {
+  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.075);
+}
+
+/* DataTables' layout rules are all scoped to `div.dataTables_wrapper`. Once the
+   length/search controls are relocated into the controls card (see
+   public/js/table-controls.js) they fall outside that scope and lose their
+   inline sizing, so re-apply the essentials here. */
+#dt-length .dataTables_length label,
+#dt-filter .dataTables_filter label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+#dt-length .dataTables_length select,
+#dt-filter .dataTables_filter input {
+  width: auto;
+  display: inline-block;
+  margin-left: 0;
+}
+
+/* On narrow screens stack the search label above a full-width input. Keeping the
+   label as a nowrap flex row makes its max-content width push the field past the
+   card edge; going block-level drops that intrinsic width to just "Search:". */
+@media (max-width: 576px) {
+  #dt-length,
+  #dt-filter {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #dt-filter .dataTables_filter,
+  #dt-filter .dataTables_filter label {
+    display: block;
+    width: 100%;
+    white-space: normal;
+  }
+
+  #dt-filter .dataTables_filter input {
+    display: block;
+    width: 100%;
+    margin-top: 0.25rem;
+  }
 }
 
 .table td {
@@ -427,18 +567,32 @@ body {
     -webkit-overflow-scrolling: touch;
 }
 
-/* Custom scrollbar for table overflow */
+/* Custom scrollbar for table overflow.
+   `width` sizes vertical scrollbars and `height` horizontal ones — both are needed, or a
+   table that scrolls vertically (e.g. stock-management, which caps its height) renders a
+   browser-default-width bar in the thumb colour. Kept neutral so it reads as chrome rather
+   than as part of the table. */
+.table-responsive {
+    scrollbar-width: thin;                            /* Firefox */
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;  /* Firefox: thumb, track */
+}
+
 .table-responsive::-webkit-scrollbar {
+    width: 6px;
     height: 6px;
 }
 
 .table-responsive::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: transparent;
 }
 
 .table-responsive::-webkit-scrollbar-thumb {
-    background: var(--secondary);
+    background: rgba(0, 0, 0, 0.2);
     border-radius: 3px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.35);
 }
 
 /* Table styles */
@@ -541,15 +695,6 @@ body {
         background-color: var(--primary);
         padding: 1rem;
         border-radius: 0 0 8px 8px;
-    }
-}
-
-@media (min-width: 992px) {
-    /* Offset navbar to the right of the permanent sidebar on larger screens */
-    .navbar.fixed-top {
-        left: 250px;
-        right: 0;
-        width: auto; /* Let it fill remaining space */
     }
 }
 
@@ -749,15 +894,164 @@ body {
     }
 }
 
-/* Footer */
-footer {
-    margin-top: 3rem;
-    padding: 1.5rem 0;
+/* Site footer — a slim closing rule. Transparent so it sits on the page tint
+   instead of reading as a separate grey slab, and using the same hairline
+   colour as .table-footer-bar so both rules on a list page agree. */
+footer.site-footer {
+    margin-top: 2.5rem;
+    padding: 0.875rem 1.5rem;
+    background: transparent;
+    border-top: 1px solid var(--border-color);
+    color: var(--medium-text);
+    font-size: 0.875rem;
+}
+
+.site-footer__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
 }
 
 @media (max-width: 576px) {
-    footer {
-        margin-top: 2rem;
-        padding: 1rem 0;
+    footer.site-footer {
+        margin-top: 1.5rem;
+        padding: 0.875rem 1rem;
     }
-} 
+
+    .site-footer__inner {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+
+/* ==========================================================================
+   Product form
+   Full-width single-column form used by products/create and products/edit.
+   Each section is its own card. Everything is scoped to .product-form so it
+   never leaks onto global .card.
+   ========================================================================== */
+
+.product-form .form-section {
+    background-color: var(--light-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+}
+
+.product-form .form-section-header {
+    background-color: rgba(44, 110, 73, 0.04);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.875rem 1.5rem;
+}
+
+.product-form .form-section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin: 0;
+}
+
+.product-form .form-section-body {
+    padding: 1.5rem;
+}
+
+.product-form .form-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--dark-text);
+    margin-bottom: 0.375rem;
+}
+
+.product-form .form-text {
+    font-size: 0.8125rem;
+    color: var(--medium-text);
+    margin-top: 0.375rem;
+}
+
+/* custom.css styles .form-control focus but never .form-select — cover both */
+.product-form .form-control:focus,
+.product-form .form-select:focus {
+    border-color: var(--primary-light);
+    box-shadow: 0 0 0 0.2rem rgba(44, 110, 73, 0.15);
+}
+
+/* Border only: the previous double glow ring was part of the visual noise */
+.product-form .form-control.is-invalid,
+.product-form .form-select.is-invalid {
+    border-color: var(--danger);
+    box-shadow: none;
+}
+
+.product-form .form-control.is-valid,
+.product-form .form-select.is-valid {
+    border-color: var(--success);
+    box-shadow: none;
+}
+
+.product-form .invalid-feedback {
+    font-size: 0.8125rem;
+}
+
+.product-form .input-group-text {
+    background-color: #f8f9fa;
+    border-color: var(--border-color);
+    color: var(--medium-text);
+}
+
+.product-form .form-control:disabled,
+.product-form .form-select:disabled {
+    background-color: #f8f9fa;
+    opacity: 0.6;
+}
+
+/* Inset panel for secondary tools inside a section (e.g. Quick Stock Transfer) */
+.product-form .form-inset {
+    background-color: rgba(44, 110, 73, 0.05);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+}
+
+.product-form .form-inset-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--dark-text);
+    margin-bottom: 0.875rem;
+}
+
+/* Action bar shares the card surface so it reads as the end of the form */
+.product-form .form-actions {
+    background-color: var(--light-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: var(--card-shadow);
+    padding: 1rem 1.5rem;
+}
+
+@media (max-width: 767.98px) {
+    .product-form .form-section,
+    .product-form .form-actions {
+        border-radius: 8px;
+    }
+
+    .product-form .form-section-header {
+        padding: 0.75rem 1rem;
+    }
+
+    .product-form .form-section-body {
+        padding: 1.25rem 1rem;
+    }
+
+    .product-form .form-actions {
+        padding: 1rem;
+    }
+
+    .product-form .form-inset {
+        padding: 1rem;
+    }
+}

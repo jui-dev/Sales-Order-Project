@@ -1,30 +1,6 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Returns', 'url' => '#'],
-        ['label' => 'Debit Notes', 'url' => route('debit-notes.index')],
-        ['label' => $debitNote->debit_note_number, 'url' => '#']
-    ]" />
-    
-    <!-- Debit Note Workflow Guidance -->
-    <div class="alert alert-info mb-4">
-        <i class="bi bi-info-circle"></i>
-        <strong>Debit Note Management:</strong> Use the workflow buttons to control when financial impact occurs. Debit notes are automatically generated when vendor returns are approved.
-    </div>
-    
-    <!-- Success Message -->
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle me-2"></i>
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    @endif
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Debit Note #{{ $debitNote->debit_note_number }}</h1>
         <div class="d-flex gap-2">
             @if($debitNote->status === 'issued')
@@ -91,6 +67,27 @@
             </a>
         </div>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    <!-- Debit Note Workflow Guidance -->
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i>
+        <strong>Debit Note Management:</strong> Use the workflow buttons to control when financial impact occurs. Debit notes are automatically generated when vendor returns are approved.
+    </div>
+    
+    <!-- Success Message -->
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle me-2"></i>
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+    
+    
 
     <!-- Status Alert -->
     @if($debitNote->status === 'cancelled')

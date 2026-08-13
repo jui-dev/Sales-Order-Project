@@ -1,6 +1,5 @@
 @extends('layouts.app')
-
-@section('content')
+@section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1><i class="bi bi-clock-history me-2"></i>Transaction History: {{ $product->name ?? 'Unknown Product' }}</h1>
     <div>
@@ -15,6 +14,10 @@
         </a>
     </div>
 </div>
+@endsection
+
+@section('content')
+
 
 <!-- Debug Information (remove in production) -->
 @if(config('app.debug'))
@@ -259,17 +262,6 @@
                     </tbody>
                 </table>
             </div>
-            
-            <!-- Pagination -->
-            @if(method_exists($movements, 'links'))
-                <div class="d-flex justify-content-center mt-3">
-                    {{ $movements->links() }}
-                </div>
-            @else
-                <div class="text-center mt-3">
-                    <small class="text-muted">Showing all {{ $movements->count() }} movements</small>
-                </div>
-            @endif
         @else
             <div class="text-center py-4">
                 <i class="bi bi-clock-history display-4 text-muted mb-3"></i>
@@ -279,6 +271,18 @@
         @endif
     </div>
 </div>
+
+@if($movements->count() > 0)
+    @if($movements instanceof \Illuminate\Contracts\Pagination\Paginator)
+        <x-pagination :paginator="$movements" />
+    @else
+        <div class="table-footer-bar">
+            <div class="table-footer-bar__summary">
+                Showing all <strong>{{ $movements->count() }}</strong> movements
+            </div>
+        </div>
+    @endif
+@endif
 
 <!-- Related Picking Lists -->
 @if(isset($pickingLists) && $pickingLists->count() > 0)

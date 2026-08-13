@@ -1,16 +1,14 @@
 @extends('layouts.app')
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Credit Notes</h1>
+    </div>
+@endsection
 
 @section('content')
 <div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Returns', 'url' => '#'],
-        ['label' => 'Credit Notes', 'url' => '#']
-    ]" />
     
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Credit Notes</h1>
-    </div>
+    
 
     <!-- Credit Note Management Guidance -->
     <div class="alert alert-info mb-4">
@@ -212,10 +210,7 @@
             </div>
         </div>
 
-        <!-- Pagination -->
-        <div class="d-flex justify-content-center mt-4">
-            {{ $creditNotes->appends(request()->query())->links() }}
-        </div>
+        <x-pagination :paginator="$creditNotes" />
     @else
         <div class="card">
             <div class="card-body text-center py-5">

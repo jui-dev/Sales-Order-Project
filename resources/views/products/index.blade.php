@@ -1,19 +1,17 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Inventory', 'url' => '#'],
-        ['label' => 'Products', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Products</h1>
         <a href="{{ route('products.create') }}" class="btn btn-primary">
             <i class="bi bi-plus-circle me-1"></i>Add New Product
         </a>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     <div class="alert alert-info mb-4">
         <i class="bi bi-info-circle"></i>
@@ -129,10 +127,8 @@
                     </tbody>
                 </table>
             </div>
-            
+
             <x-pagination :paginator="$products" />
-        </div>
-    </div>
         </div>
     </div>
 </div>

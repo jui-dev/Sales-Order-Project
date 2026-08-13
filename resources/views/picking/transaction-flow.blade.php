@@ -1,20 +1,19 @@
 @extends('layouts.app')
 @php use Illuminate\Support\Str; @endphp
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-diagram-3 me-2"></i>Transaction Flow Overview</h1>
+    </div>
+@endsection
 
 @section('content')
 <div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Stock Management', 'url' => '#'],
-        ['label' => 'Transaction Flow', 'url' => '#']
-    ]" />
     
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-diagram-3 me-2"></i>Transaction Flow Overview</h1>
-    </div>
+    
 
 <!-- Stock Summary Cards -->
-<div class="row mb-4">
+<div class="summary-panel mb-4">
+    <div class="row g-3">
     <div class="col-md-3">
         <div class="card text-center shadow-sm border-0" style="background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%);">
             <div class="card-body">
@@ -46,6 +45,7 @@
                 <h2>{{ $stockSummary['active_pickings'] }}</h2>
             </div>
         </div>
+    </div>
     </div>
 </div>
 
@@ -119,10 +119,20 @@
         @endif
     </div>
 </div>
+</div>
 @endsection
 
 @section('styles')
 <style>
+/* White container holding the summary cards */
+.summary-panel {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: var(--card-shadow, 0 2px 15px rgba(0, 0, 0, 0.04));
+}
+
 .flow-step {
     text-align: center;
 }

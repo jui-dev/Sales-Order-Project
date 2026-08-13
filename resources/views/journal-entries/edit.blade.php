@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
+<div class="container-fluid">
     <h1 class="mb-4">Edit Journal Entry {{ $journalEntry->formatted_id }}</h1>
 
     <form method="POST" action="{{ route('journal-entries.update', $journalEntry) }}" id="journalEditForm">

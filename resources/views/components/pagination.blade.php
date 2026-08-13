@@ -1,11 +1,23 @@
 @props(['paginator'])
 
-@if($paginator->hasPages())
-    <div class="d-flex justify-content-between align-items-center mt-4">
-        <div class="text-muted">
-            Showing {{ $paginator->firstItem() ?? 0 }} to {{ $paginator->lastItem() ?? 0 }} of {{ $paginator->total() }} results
-        </div>
-        
+@php
+    // Some views hand us a plain Collection when the result set isn't paginated.
+    $isPaginator = $paginator instanceof \Illuminate\Contracts\Pagination\Paginator;
+
+    // Keep active search/filter/sort params on the page links
+    if ($isPaginator) {
+        $paginator = $paginator->appends(request()->query());
+    }
+@endphp
+
+@if($isPaginator)
+<div class="table-footer-bar">
+    <div class="table-footer-bar__summary">
+        Showing <strong>{{ $paginator->firstItem() ?? 0 }}</strong>&ndash;<strong>{{ $paginator->lastItem() ?? 0 }}</strong>
+        of <strong>{{ $paginator->total() }}</strong> results
+    </div>
+
+    @if($paginator->hasPages())
         <nav aria-label="Page navigation">
             <ul class="pagination pagination-sm mb-0">
                 {{-- Previous Page Link --}}
@@ -30,7 +42,7 @@
                     $startPage = max(1, $currentPage - 2);
                     $endPage = min($lastPage, $currentPage + 2);
                 @endphp
-                
+
                 {{-- First page --}}
                 @if($startPage > 1)
                     <li class="page-item">
@@ -42,7 +54,7 @@
                         </li>
                     @endif
                 @endif
-                
+
                 {{-- Page range around current page --}}
                 @for($page = $startPage; $page <= $endPage; $page++)
                     @if ($page == $currentPage)
@@ -55,7 +67,7 @@
                         </li>
                     @endif
                 @endfor
-                
+
                 {{-- Last page --}}
                 @if($endPage < $lastPage)
                     @if($endPage < $lastPage - 1)
@@ -84,5 +96,6 @@
                 @endif
             </ul>
         </nav>
-    </div>
-@endif 
+    @endif
+</div>
+@endif

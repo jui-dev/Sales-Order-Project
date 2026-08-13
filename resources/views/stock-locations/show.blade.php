@@ -9,7 +9,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid py-4">
     <a href="{{ route('stock-locations.index') }}" class="btn btn-secondary mb-3">
         <i class="bi bi-chevron-left"></i> Back to Locations
     </a>

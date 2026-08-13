@@ -1,19 +1,17 @@
 @extends('layouts.app')
-
-@section('content')
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <x-breadcrumb :items="[
-        ['label' => 'Inventory', 'url' => '#'],
-        ['label' => 'Vendors', 'url' => '#']
-    ]" />
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Vendors</h1>
         <a href="{{ route('vendors.create') }}" class="btn btn-success">
             <i class="bi bi-plus-circle me-1"></i>Add New Vendor
         </a>
     </div>
+@endsection
+
+@section('content')
+<div class="container-fluid">
+    
+    
 
     @if(session('error'))
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -31,21 +29,29 @@
         </div>
     @endif
 
-<div class="card">
+<!-- Table Controls: DataTables' length + search land here, alongside Sort By -->
+<div class="card mb-4">
     <div class="card-body">
-        <!-- Sorting Controls -->
-        <div class="d-flex justify-content-end mb-3">
-            <div class="input-group input-group-sm" style="max-width: 260px;">
-                <label class="input-group-text bg-light" for="sort-by">Sort&nbsp;By</label>
-                <select id="sort-by" class="form-select">
-                    <option value="0">ID</option>
-                    <option value="1">Name</option>
-                    <option value="2">Contact</option>
-                </select>
-                <button class="btn btn-outline-secondary" id="sort-direction" data-dir="asc"><i class="bi bi-sort-alpha-down"></i></button>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div id="dt-length"></div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <div id="dt-filter"></div>
+                <div class="input-group input-group-sm w-auto" style="max-width: 260px;">
+                    <label class="input-group-text bg-light" for="sort-by">Sort&nbsp;By</label>
+                    <select id="sort-by" class="form-select">
+                        <option value="0">ID</option>
+                        <option value="1">Name</option>
+                        <option value="2">Contact</option>
+                    </select>
+                    <button class="btn btn-outline-secondary" id="sort-direction" data-dir="asc"><i class="bi bi-sort-alpha-down"></i></button>
+                </div>
             </div>
         </div>
+    </div>
+</div>
 
+<div class="card">
+    <div class="card-body">
         <div class="table-responsive">
             <table id="data-table" class="table table-striped table-hover">
                 <thead>
@@ -110,6 +116,7 @@
         </div>
     </div>
 </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -117,6 +124,7 @@
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
 <script src="{{ asset('js/datatables-utils.js') }}"></script>
+<script src="{{ asset('js/table-controls.js') }}"></script>
 
 <script>
     // Enhanced DataTables initialization using DataTablesUtils
@@ -186,6 +194,9 @@
                     // Simple initialization without complex callbacks
                     initComplete: function() {
                         console.log('DataTable initialized successfully');
+                        if (typeof relocateTableControls === 'function') {
+                            relocateTableControls('data-table');
+                        }
                     }
                 });
 
@@ -248,6 +259,9 @@
                     // Simple initialization without complex callbacks
                     initComplete: function() {
                         console.log('DataTable initialized successfully');
+                        if (typeof relocateTableControls === 'function') {
+                            relocateTableControls('data-table');
+                        }
                     }
                 });
 
