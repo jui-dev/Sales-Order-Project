@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return; // Skip for SQLite or other drivers unsupported by ADD CONSTRAINT
+        }
+
         // Add a check constraint to ensure vendor return transactions have warehouse location type
         // This is a safeguard to prevent incorrect location types in the future
         DB::statement("

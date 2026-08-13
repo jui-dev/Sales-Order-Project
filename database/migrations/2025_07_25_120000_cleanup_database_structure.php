@@ -28,82 +28,127 @@ return new class extends Migration
         Schema::dropIfExists('debit_note_items');
 
         // Simplify credit_notes table structure
-        Schema::table('credit_notes', function (Blueprint $table) {
-            // Drop complex columns and keep only essential ones
-            $table->dropForeign(['invoice_id']);
-            $table->dropForeign(['customer_id']);
-            $table->dropForeign(['return_transaction_id']);
-            $table->dropForeign(['created_by']);
-            $table->dropForeign(['updated_by']);
-            $table->dropForeign(['cancelled_by']);
-
-            $table->dropColumn([
-                'invoice_id',
-                'customer_id',
-                'return_transaction_id',
-                'credit_note_number',
-                'total_amount',
-                'status',
-                'issue_date',
-                'notes',
-                'reason',
-                'tax_amount',
-                'discount_amount',
-                'subtotal',
-                'currency',
-                'exchange_rate',
-                'reference_number',
-                'expiry_date',
-                'is_partial',
-                'remaining_amount',
-                'metadata',
-                'created_by',
-                'updated_by',
-                'cancelled_at',
-                'cancelled_by',
-                'cancellation_reason'
-            ]);
-        });
+        $this->dropColumnsSafely('credit_notes', [
+            'invoice_id',
+            'customer_id',
+            'return_transaction_id',
+            'credit_note_number',
+            'total_amount',
+            'status',
+            'issue_date',
+            'notes',
+            'reason',
+            'tax_amount',
+            'discount_amount',
+            'subtotal',
+            'currency',
+            'exchange_rate',
+            'reference_number',
+            'expiry_date',
+            'is_partial',
+            'remaining_amount',
+            'metadata',
+            'created_by',
+            'updated_by',
+            'cancelled_at',
+            'cancelled_by',
+            'cancellation_reason',
+        ], [
+            'invoice_id',
+            'customer_id',
+            'return_transaction_id',
+            'created_by',
+            'updated_by',
+            'cancelled_by',
+        ]);
 
         // Simplify debit_notes table structure
-        Schema::table('debit_notes', function (Blueprint $table) {
-            // Drop complex columns and keep only essential ones
-            $table->dropForeign(['supplier_bill_id']);
-            $table->dropForeign(['vendor_id']);
-            $table->dropForeign(['return_transaction_id']);
-            $table->dropForeign(['created_by']);
-            $table->dropForeign(['updated_by']);
-            $table->dropForeign(['cancelled_by']);
-            $table->dropForeign(['journal_entry_id']);
+        $this->dropColumnsSafely('debit_notes', [
+            'supplier_bill_id',
+            'vendor_id',
+            'return_transaction_id',
+            'debit_note_number',
+            'total_amount',
+            'status',
+            'issue_date',
+            'notes',
+            'reason',
+            'tax_amount',
+            'discount_amount',
+            'subtotal',
+            'currency',
+            'exchange_rate',
+            'reference_number',
+            'expiry_date',
+            'is_partial',
+            'remaining_amount',
+            'metadata',
+            'created_by',
+            'updated_by',
+            'cancelled_at',
+            'cancelled_by',
+            'cancellation_reason',
+            'journal_entry_id',
+        ], [
+            'supplier_bill_id',
+            'vendor_id',
+            'return_transaction_id',
+            'created_by',
+            'updated_by',
+            'cancelled_by',
+            'journal_entry_id',
+        ]);
+    }
 
-            $table->dropColumn([
-                'supplier_bill_id',
-                'vendor_id',
-                'return_transaction_id',
-                'debit_note_number',
-                'total_amount',
-                'status',
-                'issue_date',
-                'notes',
-                'reason',
-                'tax_amount',
-                'discount_amount',
-                'subtotal',
-                'currency',
-                'exchange_rate',
-                'reference_number',
-                'expiry_date',
-                'is_partial',
-                'remaining_amount',
-                'metadata',
-                'created_by',
-                'updated_by',
-                'cancelled_at',
-                'cancelled_by',
-                'cancellation_reason',
-                'journal_entry_id'
-            ]);
-        });
+    /**
+     * Drop columns from a table, first clearing anything that depends on them.
+     *
+     * SQLite refuses to drop a column while an index still references it, so the
+     * foreign keys and indexes covering those columns are removed first. Every
+     * step is guarded because this migration also runs on databases where an
+     * earlier migration already removed some of these columns.
+     *
+     * @param  list<string>  $columns  Columns to drop.
+     * @param  list<string>  $foreignKeys  Subset of $columns that carry a foreign key.
+     */
+    private function dropColumnsSafely(string $table, array $columns, array $foreignKeys = []): void
+    {
+        if (! Schema::hasTable($table)) {
+            return;
+        }
+
+        // Only touch columns that are actually present.
+        $columns = array_values(array_filter(
+            $columns,
+            fn (string $column) => Schema::hasColumn($table, $column)
+        ));
+
+        if ($columns === []) {
+            return;
+        }
+
+        foreach (array_intersect($foreignKeys, $columns) as $column) {
+            try {
+                Schema::table($table, fn (Blueprint $blueprint) => $blueprint->dropForeign([$column]));
+            } catch (\Throwable) {
+                // No foreign key on this column (or the driver has already discarded it).
+            }
+        }
+
+        // Drop every non-primary index that covers one of the doomed columns.
+        foreach (Schema::getIndexes($table) as $index) {
+            if (($index['primary'] ?? false) || array_intersect($index['columns'] ?? [], $columns) === []) {
+                continue;
+            }
+
+            try {
+                Schema::table($table, fn (Blueprint $blueprint) => $blueprint->dropIndex($index['name']));
+            } catch (\Throwable) {
+                // Index already gone, or backs a constraint the driver removes itself.
+            }
+        }
+
+        Schema::table($table, fn (Blueprint $blueprint) => $blueprint->dropColumn($columns));
     }
 
     /**

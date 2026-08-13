@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() !== 'mysql') {
+            return; // Skip for SQLite or other drivers unsupported by ALTER ENUM
+        }
+
         // Add 'posted' to the status enum
         DB::statement("ALTER TABLE credit_notes MODIFY COLUMN status ENUM('draft', 'pending', 'issued', 'posted', 'cancelled', 'expired') DEFAULT 'draft'");
     }

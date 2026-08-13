@@ -12,6 +12,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // This data fix is timestamped ahead of the migration that creates the
+        // invoices table, so on a fresh database there is nothing to fix yet.
+        if (! Schema::hasTable('invoices')) {
+            return;
+        }
+
         // Fix existing invoices that don't have invoice numbers
         $invoices = Invoice::whereNull('invoice_number')->orWhere('invoice_number', '')->orderBy('id')->get();
         

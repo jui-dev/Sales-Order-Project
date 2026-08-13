@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('stock_transactions', function (Blueprint $table) {
-            DB::statement("ALTER TABLE stock_transactions MODIFY COLUMN status ENUM('pending', 'issued', 'approved', 'rejected', 'completed', 'cancelled') DEFAULT 'pending'");
-        });
+        if (DB::getDriverName() !== 'mysql') {
+            return; // Skip for SQLite or other drivers unsupported by ALTER ENUM
+        }
+
+        DB::statement("ALTER TABLE stock_transactions MODIFY COLUMN status ENUM('pending', 'issued', 'approved', 'rejected', 'completed', 'cancelled') DEFAULT 'pending'");
     }
 
     /**
