@@ -3,41 +3,65 @@
 namespace App\Observers;
 
 use App\Models\ProductStock;
-use App\Models\StockTransaction;
+use Illuminate\Support\Facades\DB;
 
 class ProductStockObserver
 {
     /**
-     * Sync the parent product\'s aggregate stock whenever a stock row is saved.
+     * Handle the ProductStock "created" event.
      */
-    public function saved(ProductStock $stock): void
+    public function created(ProductStock $productStock): void
     {
-        $this->syncProductStock($stock);
+        $this->updateProductAvailableStock($productStock);
     }
 
     /**
-     * Sync the parent product\'s aggregate stock whenever a stock row is deleted.
+     * Handle the ProductStock "updated" event.
      */
-    public function deleted(ProductStock $stock): void
+    public function updated(ProductStock $productStock): void
     {
-        $this->syncProductStock($stock);
+        // Only update if quantity or reserved_quantity changed
+        if ($productStock->wasChanged(['quantity', 'reserved_quantity'])) {
+            $this->updateProductAvailableStock($productStock);
+        }
     }
 
-    private function syncProductStock(ProductStock $stock): void
+    /**
+     * Handle the ProductStock "deleted" event.
+     */
+    public function deleted(ProductStock $productStock): void
     {
-        // Guard: if the relation is missing, bail early.
-        if (! $stock->product) {
+        $this->updateProductAvailableStock($productStock);
+    }
+
+    /**
+     * Update the product's available_stocks when stock or reservations change
+     */
+    private function updateProductAvailableStock(ProductStock $productStock): void
+    {
+        $product = $productStock->product;
+        if (!$product) {
             return;
         }
 
-        // Calculate available stock purely from product_stocks table only
-        // This avoids double-counting issues with stock_transactions
-        $availableStock = (int) ProductStock::where('product_id', $stock->product_id)
-            ->sum('quantity');
-        $availableStock = max(0, $availableStock);
+        // Calculate available stock from product_stocks table accounting for reservations
+        // Available stock = Total stock - Reserved stock
+        DB::transaction(function() use ($product) {
+            $stockData = DB::table('product_stocks')
+                ->where('product_id', $product->id)
+                ->whereIn('location_type', ['App\\Models\\Warehouse', 'App\\Models\\Retailer'])
+                ->selectRaw('SUM(quantity) as total_stock, SUM(COALESCE(reserved_quantity, 0)) as reserved_stock')
+                ->first();
 
-        // Persist quietly to avoid triggering observers / events.
-        $stock->product->available_stocks = $availableStock;
-        $stock->product->saveQuietly();
+            $totalStock = $stockData->total_stock ?? 0;
+            $reservedStock = $stockData->reserved_stock ?? 0;
+            $availableStock = max(0, $totalStock - $reservedStock);
+
+            // Update the product's available_stocks only if it has changed
+            if ($product->available_stocks !== $availableStock) {
+                $product->available_stocks = $availableStock;
+                $product->saveQuietly();
+            }
+        });
     }
-} 
+}

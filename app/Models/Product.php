@@ -184,11 +184,18 @@ class Product extends Model
             return (int) $value;
         }
 
-        // Calculate available stock only from product_stocks table (internal locations)
-        // This excludes vendor locations as they are external entities
-        $availableStock = (int) $this->stockBalances()->sum('quantity');
-        
+        // Calculate available stock from product_stocks table accounting for reservations
+        // Available stock = Total stock - Reserved stock
+        $stockBalances = $this->stockBalances()
+            ->whereIn('location_type', ['App\\Models\\Warehouse', 'App\\Models\\Retailer'])
+            ->get();
+
+        $totalStock = $stockBalances->sum('quantity');
+        $reservedStock = $stockBalances->sum('reserved_quantity');
+
+        $availableStock = $totalStock - $reservedStock;
+
         // Ensure stock doesn't go negative
         return max(0, $availableStock);
     }
-} 
+}

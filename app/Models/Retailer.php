@@ -30,6 +30,12 @@ class Retailer extends Model
         return $this->morphMany(\App\Models\ProductStock::class, 'location');
     }
 
+    public function productStocks(): MorphMany
+    {
+        // Alias for stockBalances - both point to the same relationship
+        return $this->stockBalances();
+    }
+
     public function fulfillmentOrders(): MorphMany
     {
         return $this->morphMany(\App\Models\Order::class, 'fulfillment_location');
@@ -49,4 +55,4 @@ class Retailer extends Model
     {
         return $this->morphMany(\App\Models\StockTransaction::class, 'location');
     }
-} 
+}

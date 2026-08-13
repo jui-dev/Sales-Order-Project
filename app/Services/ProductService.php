@@ -29,13 +29,14 @@ class ProductService
                     'stockBalances.location',
                     'stockTransactions.location',
                     'stockTransactions.reference',
+                    'category',
                 ])->find($id);
-                
+
                 if (!$product) {
                     $this->logMissingData('product', $id);
                     throw new \App\Exceptions\DataNotFoundException('product', $id);
                 }
-                
+
                 return $product;
             },
             'product',
@@ -139,17 +140,22 @@ class ProductService
                     ->increment('quantity', $quantity);
             }
 
-            // Calculate total available stock from product_stocks
-            $baseStock = DB::table('product_stocks')
+            // Calculate available stock from product_stocks accounting for reservations
+            $stockData = DB::table('product_stocks')
                 ->where('product_id', $product->id)
                 ->whereIn('location_type', [
                     'App\\Models\\Warehouse',
                     'App\\Models\\Retailer'
                 ])
-                ->sum('quantity');
+                ->selectRaw('SUM(quantity) as total_stock, SUM(COALESCE(reserved_quantity, 0)) as reserved_stock')
+                ->first();
+
+            $totalStock = $stockData->total_stock ?? 0;
+            $reservedStock = $stockData->reserved_stock ?? 0;
+            $availableStock = max(0, $totalStock - $reservedStock);
 
             // Update the product's available_stocks
-            $product->update(['available_stocks' => max(0, $baseStock)]);
+            $product->update(['available_stocks' => $availableStock]);
         });
     }
 
@@ -231,7 +237,7 @@ class ProductService
                 $totalSupplied = 0;
                 $totalSold = 0;
                 $totalTransferred = 0;
-                
+
                 try {
                     // Get total supplied quantity (completed supplies)
                     $totalSupplied = DB::table('supply_items')
@@ -522,11 +528,11 @@ class ProductService
     {
         $categories = \App\Models\ProductCategory::getMainCategories();
         $options = ['' => 'All Categories'];
-        
+
         foreach ($categories as $category) {
             $options[$category->id] = $category->name;
         }
-        
+
         return $options;
     }
 
@@ -537,11 +543,11 @@ class ProductService
     {
         $subcategories = \App\Models\ProductCategory::getSubcategories($categoryId);
         $options = ['' => 'All Subcategories'];
-        
+
         foreach ($subcategories as $subcategory) {
             $options[$subcategory->id] = $subcategory->name;
         }
-        
+
         return $options;
     }
 
@@ -737,4 +743,4 @@ class ProductService
             $product->id
         );
     }
-} 
+}

@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use App\Models\Traits\HasFormattedId;
+use App\Models\Grn;
+use Illuminate\Support\Facades\DB;
 
 class StockTransaction extends Model
 {
@@ -76,6 +78,10 @@ class StockTransaction extends Model
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
+
+    // GRN Status Constants
+    public const GRN_STATUS_DRAFT = 'draft';
+    public const GRN_STATUS_POSTED = 'posted';
 
     /**
      * Ensure an invalid/empty transaction_type never slips into the DB.
@@ -160,7 +166,7 @@ class StockTransaction extends Model
         if (!$this->isReturn()) {
             return null;
         }
-        
+
         // For returns, the notes field now directly contains the return reason
         return $this->notes;
     }
@@ -223,7 +229,7 @@ class StockTransaction extends Model
     /* ------------------------------------------------------------------
      | Return-specific helper methods
      |------------------------------------------------------------------*/
-    
+
     /**
      * Check if this is a return transaction
      */
@@ -418,12 +424,12 @@ class StockTransaction extends Model
         if (!is_array($returnData)) {
             $returnData = [];
         }
-        
+
         // Update return data with cancellation info
         $returnData['cancelled_by'] = $cancelledByUserId;
         $returnData['cancelled_at'] = now()->toISOString();
         $returnData['cancellation_notes'] = $notes;
-        
+
         $this->update([
             'status' => self::STATUS_CANCELLED,
             'notes' => json_encode($returnData),
@@ -439,17 +445,25 @@ class StockTransaction extends Model
      */
     public function updateProductStock(): void
     {
+        // Prevent double updates by checking if this transaction has already been processed
+        // This is crucial for GRN-based stock transactions to avoid double counting
+        $cacheKey = "stock_update_processed_{$this->id}";
+        $existingUpdate = \Cache::get($cacheKey);
+        if ($existingUpdate) {
+            return; // This transaction has already been processed
+        }
+
         // For vendor returns, we don't create product_stocks records for vendors
         // Vendors are external entities and should not be tracked in internal inventory
         if ($this->transaction_type === self::TYPE_VENDOR_RETURN) {
             // Vendor returns should only affect warehouse stock
             // Find the warehouse from the transaction location
             $warehouse = null;
-            
+
             if ($this->location_type === Warehouse::class) {
                 $warehouse = Warehouse::find($this->location_id);
             }
-            
+
             if ($warehouse) {
                 // Update warehouse stock in product_stocks table
                 $productStock = ProductStock::firstOrCreate([
@@ -459,14 +473,14 @@ class StockTransaction extends Model
                 ], [
                     'quantity' => 0,
                 ]);
-                
+
                 // Decrease warehouse stock for vendor returns
                 $productStock->decrement('quantity', $this->quantity);
             }
-            
+
             return;
         }
-        
+
         // For retailer returns, handle both source and destination
         if ($this->transaction_type === self::TYPE_RETAILER_RETURN) {
             // Get the stock transfer to find the warehouse destination
@@ -477,7 +491,7 @@ class StockTransaction extends Model
                 if ($stockTransfer->from_location_type === 'App\\Models\\Warehouse' || $stockTransfer->from_location_type === 'App\Models\Warehouse') {
                     $warehouse = \App\Models\Warehouse::find($stockTransfer->from_location_id);
                 }
-                
+
                 if ($warehouse) {
                     // Decrease stock from retailer (source)
                     $retailerStock = ProductStock::firstOrCreate([
@@ -488,7 +502,7 @@ class StockTransaction extends Model
                         'quantity' => 0,
                     ]);
                     $retailerStock->decrement('quantity', $this->quantity);
-                    
+
                     // Increase stock to warehouse (destination)
                     $warehouseStock = ProductStock::firstOrCreate([
                         'product_id' => $this->product_id,
@@ -516,30 +530,58 @@ class StockTransaction extends Model
             }
             return;
         }
-        
+
         // For all other transaction types, create/update product_stocks records
         // Only for internal locations (warehouses and retailers)
         if (in_array($this->location_type, [Warehouse::class, Retailer::class])) {
-            $productStock = ProductStock::firstOrCreate([
-                'product_id' => $this->product_id,
-                'location_id' => $this->location_id,
-                'location_type' => $this->location_type,
-            ], [
-                'quantity' => 0,
-            ]);
-
             // Handle stock adjustments based on return type
-            switch ($this->transaction_type) {
-                case self::TYPE_CUSTOMER_RETURN:
-                    // For customer returns, stock increases at destination
-                    $productStock->increment('quantity', $this->quantity);
-                    break;
-                    
-                default:
-                    // For other transaction types, use the original logic
-                    $productStock->increment('quantity', $this->quantity);
-                    break;
+            // For vendor returns, we don't create product_stocks records for vendors
+            if ($this->transaction_type === self::TYPE_VENDOR_RETURN) {
+                return;
             }
+
+            // For stock_in transactions from GRN, check GRN status
+            if ($this->isGrnBasedStockIn()) {
+                $grn = Grn::find($this->reference_id);
+
+                // Only update stock if GRN is posted
+                if (!$grn || $grn->status !== self::GRN_STATUS_POSTED) {
+                    return;
+                }
+            }
+
+            // Calculate the stock change based on direction
+            $stockChange = $this->quantity;
+            if (in_array($this->direction, ['out', 'outbound'])) {
+                $stockChange = -$stockChange;
+            }
+
+            // Use database locking to prevent race conditions and ensure atomic operations
+            DB::transaction(function() use ($stockChange) {
+                // Lock the ProductStock record for update to prevent race conditions
+                $productStock = ProductStock::where('product_id', $this->product_id)
+                    ->where('location_id', $this->location_id)
+                    ->where('location_type', $this->location_type)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$productStock) {
+                    // Create new record if it doesn't exist
+                    $productStock = ProductStock::create([
+                        'product_id' => $this->product_id,
+                        'location_id' => $this->location_id,
+                        'location_type' => $this->location_type,
+                        'quantity' => $stockChange, // Set to the change amount directly
+                    ]);
+                } else {
+                    // Update existing record
+                    $productStock->quantity += $stockChange;
+                    $productStock->save();
+                }
+
+                // Mark this transaction as processed to prevent double updates
+                \Cache::put("stock_update_processed_{$this->id}", true, 3600); // Cache for 1 hour
+            });
         }
     }
 
@@ -757,6 +799,22 @@ class StockTransaction extends Model
     }
 
     /**
+     * Check if this is a stock-in transaction
+     */
+    public function isStockIn(): bool
+    {
+        return $this->transaction_type === self::TYPE_STOCK_IN;
+    }
+
+    /**
+     * Check if this is a GRN-based stock-in transaction
+     */
+    public function isGrnBasedStockIn(): bool
+    {
+        return $this->isStockIn() && $this->reference_type === Grn::class;
+    }
+
+    /**
      * Get return source information for display
      */
     public function getReturnSourceInfo(): array
@@ -792,7 +850,7 @@ class StockTransaction extends Model
                                 $formattedDate = $invoiceDate->format('M d, Y');
                             }
                         }
-                        
+
                         return [
                             'source' => $reference->customer->name ?? 'Unknown Customer',
                             'reference' => $reference->formatted_id ?? 'Invoice #' . $reference->id,
@@ -807,7 +865,7 @@ class StockTransaction extends Model
                         // Get the warehouse from the supplier bill's GRN's supply
                         $warehouse = $reference->grn->supply->warehouse ?? null;
                         $sourceName = $warehouse ? $warehouse->name : 'Unknown Warehouse';
-                        
+
                         $billDate = $reference->bill_date;
                         $formattedDate = 'Unknown Date';
                         if ($billDate) {
@@ -817,7 +875,7 @@ class StockTransaction extends Model
                                 $formattedDate = $billDate->format('M d, Y');
                             }
                         }
-                        
+
                         return [
                             'source' => $sourceName,
                             'reference' => $reference->formatted_id ?? 'Bill #' . $reference->id,
@@ -838,7 +896,7 @@ class StockTransaction extends Model
                                 $formattedDate = $transferDate->format('M d, Y');
                             }
                         }
-                        
+
                         return [
                             'source' => $fromLocation ? $fromLocation->name : 'Unknown Retailer',
                             'reference' => $reference->formatted_id ?? 'Transfer #' . $reference->id,
@@ -858,7 +916,7 @@ class StockTransaction extends Model
                     $formattedDate = $transactionDate->format('M d, Y');
                 }
             }
-            
+
             return [
                 'source' => 'Unknown Source',
                 'reference' => 'Reference #' . $this->reference_id,
@@ -868,7 +926,7 @@ class StockTransaction extends Model
         } catch (\Exception $e) {
             // Log the error for debugging
             \Log::error('Error in getReturnSourceInfo for transaction ' . $this->id . ': ' . $e->getMessage());
-            
+
             return [
                 'source' => 'Error Loading Source',
                 'reference' => 'Reference #' . $this->reference_id,
@@ -905,4 +963,4 @@ class StockTransaction extends Model
     {
         return $this->isInboundDirection() ? $this->quantity : -$this->quantity;
     }
-} 
+}

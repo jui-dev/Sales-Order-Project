@@ -47,4 +47,14 @@ class Supply extends Model
     {
         return $this->hasOne(\App\Models\Grn::class);
     }
-} 
+
+    /**
+     * Stock transactions raised for this supply. Older rows store the reference
+     * type as the plain string 'supply', newer ones as the model class.
+     */
+    public function stockTransactions(): HasMany
+    {
+        return $this->hasMany(StockTransaction::class, 'reference_id')
+            ->whereIn('reference_type', ['supply', self::class]);
+    }
+}

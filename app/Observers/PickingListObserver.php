@@ -65,18 +65,25 @@ class PickingListObserver
                     : StockTransaction::TYPE_ORDER_FULFILLMENT;
 
                 // Record outbound transaction (source warehouse)
-                StockTransaction::create([
-                    'product_id'       => $item->product_id,
-                    'location_id'      => $stock->location_id,
-                    'location_type'    => $stock->location_type,
-                    'quantity'         => $qty,
-                    'direction'        => 'outbound',
-                    'transaction_type' => $txnType,
-                    'reference_type'   => PickingList::class,
-                    'reference_id'     => $list->id,
-                    'transaction_date' => now(),
-                    'status'           => 'completed', // Stock movement is finalized
-                ]);
+                // Note: We manually update stock above, so we need to prevent
+                // StockTransactionObserver from double-deducting. We'll disable
+                // the observer for this transaction by temporarily storing a flag.
+                $skipStockUpdate = true;
+
+                $transaction = StockTransaction::withoutEvents(function() use ($item, $stock, $qty, $txnType, $list) {
+                    return StockTransaction::create([
+                        'product_id'       => $item->product_id,
+                        'location_id'      => $stock->location_id,
+                        'location_type'    => $stock->location_type,
+                        'quantity'         => $qty,
+                        'direction'        => 'outbound',
+                        'transaction_type' => $txnType,
+                        'reference_type'   => PickingList::class,
+                        'reference_id'     => $list->id,
+                        'transaction_date' => now(),
+                        'status'           => 'completed', // Stock movement is finalized
+                    ]);
+                });
 
                 /* -------------------------------------------------------
                  |  Inbound side (destination) – for transfers only
@@ -93,18 +100,21 @@ class PickingListObserver
                     $destStock->save();
 
                     // Inbound transaction record
-                    StockTransaction::create([
-                        'product_id'       => $item->product_id,
-                        'location_id'      => $destStock->location_id,
-                        'location_type'    => $destStock->location_type,
-                        'quantity'         => $qty,
-                        'direction'        => 'inbound',
-                        'transaction_type' => $txnType,
-                        'reference_type'   => PickingList::class,
-                        'reference_id'     => $list->id,
-                        'transaction_date' => now(),
-                        'status'           => 'completed', // Stock movement is finalized
-                    ]);
+                    // Note: We manually update stock above, so prevent observer from double-updating
+                    $inboundTransaction = StockTransaction::withoutEvents(function() use ($item, $destStock, $qty, $txnType, $list) {
+                        return StockTransaction::create([
+                            'product_id'       => $item->product_id,
+                            'location_id'      => $destStock->location_id,
+                            'location_type'    => $destStock->location_type,
+                            'quantity'         => $qty,
+                            'direction'        => 'inbound',
+                            'transaction_type' => $txnType,
+                            'reference_type'   => PickingList::class,
+                            'reference_id'     => $list->id,
+                            'transaction_date' => now(),
+                            'status'           => 'completed', // Stock movement is finalized
+                        ]);
+                    });
                 }
             }
 
@@ -132,4 +142,4 @@ class PickingListObserver
             }
         });
     }
-} 
+}
