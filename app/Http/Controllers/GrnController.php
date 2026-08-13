@@ -41,7 +41,12 @@ class GrnController extends Controller
 
     public function show(int $id): View
     {
-        $grn = Grn::with(['supply.vendor', 'supply.warehouse', 'supply.items.product'])->findOrFail($id);
+        $grn = Grn::with([
+            'supply.vendor',
+            'supply.warehouse',
+            'supply.items.product',
+            'supplierBill.payment',
+        ])->findOrFail($id);
 
         return view('grns.show', compact('grn'));
     }

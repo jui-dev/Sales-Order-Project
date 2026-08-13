@@ -1055,3 +1055,360 @@ footer.site-footer {
         padding: 1rem;
     }
 }
+
+/* =====================================================================
+   Detail page kit
+   ---------------------------------------------------------------------
+   Shared building blocks for record "show" pages (GRN, supplier bill,
+   invoice, order, supply). Named neutrally so any detail page can adopt
+   them; page-specific tweaks belong in that page's own style block.
+   First used by resources/views/grns/show.blade.php.
+   ===================================================================== */
+
+/* ---- Section card ---------------------------------------------------- */
+.detail-card {
+    background-color: var(--light-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+}
+
+/* A detail page is for reading, not browsing - suppress the card hover lift */
+.detail-card:hover {
+    transform: none;
+    box-shadow: var(--card-shadow);
+}
+
+.detail-card__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 1.1rem 1.25rem 0.85rem;
+    background-color: var(--light-panel);
+    border-bottom: 1px solid var(--subtle-border);
+}
+
+.detail-card__step {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background-color: rgba(44, 110, 73, 0.1);
+    color: var(--primary);
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.detail-card__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--dark-text);
+    letter-spacing: 0.01em;
+}
+
+.detail-card__subtitle {
+    margin: 0.1rem 0 0;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--medium-text);
+}
+
+.detail-card__body {
+    padding: 1.25rem;
+}
+
+.detail-card__body--flush {
+    padding: 0;
+}
+
+/* Light inner surface for secondary content (notes, callouts) */
+.detail-panel {
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    background-color: #f5f8f6;
+    color: var(--dark-text);
+}
+
+/* ---- Key/value stack (right-rail cards) ------------------------------ */
+.detail-kv + .detail-kv {
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--subtle-border);
+}
+
+.detail-kv__label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--medium-text);
+}
+
+.detail-kv__value {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.9375rem;
+    color: var(--dark-text);
+    word-break: break-word;
+}
+
+.detail-kv__value--muted {
+    color: var(--medium-text);
+}
+
+/* ---- Figure strip ---------------------------------------------------- */
+.detail-figures {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.detail-figure + .detail-figure {
+    border-left: 1px solid var(--subtle-border);
+    padding-left: 1rem;
+}
+
+.detail-figure__label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--medium-text);
+}
+
+.detail-figure__value {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--dark-text);
+}
+
+.detail-figure__value--lead {
+    color: var(--primary);
+}
+
+.detail-figure__note {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.78rem;
+    color: var(--medium-text);
+}
+
+/* ---- Workflow rail --------------------------------------------------- */
+/* A record's position in a multi-stage process. Stages are numbered
+   because the order is real information, not decoration. */
+.workflow-rail {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 0;
+}
+
+.workflow-stage {
+    position: relative;
+    padding: 0 1rem 0 0;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.workflow-stage:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 15px;
+    left: 2.35rem;
+    right: 0.65rem;
+    height: 2px;
+    background-color: var(--border-color);
+}
+
+.workflow-stage--done:not(:last-child)::after {
+    background-color: var(--primary-light);
+}
+
+.workflow-stage__marker {
+    position: relative;
+    z-index: 1;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    border: 2px solid var(--border-color);
+    background-color: var(--light-panel);
+    color: var(--medium-text);
+}
+
+.workflow-stage--done .workflow-stage__marker {
+    border-color: var(--primary-light);
+    background-color: var(--primary-light);
+    color: #fff;
+}
+
+.workflow-stage--current .workflow-stage__marker {
+    border-color: var(--primary);
+    background-color: var(--primary);
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(44, 110, 73, 0.15);
+}
+
+.workflow-stage--todo .workflow-stage__marker {
+    border-style: dashed;
+}
+
+.workflow-stage__name {
+    display: block;
+    margin-top: 0.6rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--dark-text);
+}
+
+.workflow-stage--todo .workflow-stage__name {
+    color: var(--medium-text);
+}
+
+.workflow-stage--current .workflow-stage__name {
+    color: var(--primary);
+}
+
+.workflow-stage__meta {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.78rem;
+    color: var(--medium-text);
+}
+
+a.workflow-stage:hover .workflow-stage__name {
+    text-decoration: underline;
+}
+
+/* ---- Responsive ------------------------------------------------------ */
+@media (max-width: 991.98px) {
+    .detail-figures {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .detail-figure:nth-child(odd) {
+        border-left: 0;
+        padding-left: 0;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .workflow-rail {
+        grid-auto-flow: row;
+        grid-auto-columns: auto;
+        gap: 0.35rem;
+    }
+
+    .workflow-stage {
+        display: grid;
+        grid-template-columns: 32px 1fr;
+        column-gap: 0.75rem;
+        align-items: center;
+        padding: 0.35rem 0;
+    }
+
+    .workflow-stage:not(:last-child)::after {
+        top: auto;
+        bottom: -0.35rem;
+        left: 15px;
+        right: auto;
+        width: 2px;
+        height: 0.7rem;
+    }
+
+    .workflow-stage__name,
+    .workflow-stage__meta {
+        grid-column: 2;
+        margin-top: 0;
+    }
+
+    .detail-card__body {
+        padding: 1rem;
+    }
+}
+
+/* =====================================================================
+   Print
+   ---------------------------------------------------------------------
+   Turns any page into a plain document: drop the app chrome and the
+   controls, keep the content and its section headings.
+   ===================================================================== */
+@media print {
+    .sidebar-nav,
+    .navbar,
+    .site-footer,
+    .toast-container,
+    .offcanvas-backdrop,
+    .d-print-none {
+        display: none !important;
+    }
+
+    body {
+        padding-left: 0 !important;
+        background: #fff !important;
+        color: #000;
+    }
+
+    .main-content {
+        padding: 0 !important;
+    }
+
+    .page-panel,
+    .dashboard-panel {
+        background: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+
+    .card,
+    .detail-card {
+        box-shadow: none !important;
+        border: 1px solid #dee2e6 !important;
+        break-inside: avoid;
+    }
+
+    .detail-panel {
+        background: none !important;
+        border: 1px solid #dee2e6;
+    }
+
+    /* Suppress printed link URLs. Scoped away from elements that use ::after
+       structurally - the workflow rail draws its connectors with it. */
+    a[href]:not(.workflow-stage)::after {
+        content: "" !important;
+    }
+
+    a {
+        color: #000 !important;
+        text-decoration: none !important;
+    }
+
+    .table thead th {
+        background-color: #f1f1f1 !important;
+        color: #000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Backgrounds are dropped by default when printing - the rail is
+       meaningless without its markers and connectors, so force them. */
+    .workflow-stage__marker,
+    .workflow-stage::after {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
