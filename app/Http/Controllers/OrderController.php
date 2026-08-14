@@ -85,6 +85,12 @@ class OrderController extends Controller
     {
         try {
             $order = $this->service->get($id);
+
+            // Loaded here rather than in the service so the API response shape
+            // stays as it is: the detail page walks the items and reads the
+            // workflow off the picking list and the invoice's payments.
+            $order->load(['items.product', 'pickingList', 'invoice.payments']);
+
             return view('orders.show', compact('order'));
         } catch (DataNotFoundException $e) {
             return redirect()->route('orders.index')

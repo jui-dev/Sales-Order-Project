@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Traits\HasFormattedId;
 use App\Models\Invoice;
+use App\Models\PickingList;
 
 class Order extends Model
 {
@@ -60,5 +61,19 @@ class Order extends Model
     public function invoice(): HasOne
     {
         return $this->hasOne(Invoice::class);
+    }
+
+    /**
+     * The picking list raised when the order is confirmed.
+     *
+     * PickingList points back through a reference_type/reference_id pair rather
+     * than an order_id, so the type is constrained here. Newest first: a manual
+     * completion can raise a second list (see OrderService::deductOrderStock).
+     */
+    public function pickingList(): HasOne
+    {
+        return $this->hasOne(PickingList::class, 'reference_id')
+            ->where('reference_type', self::class)
+            ->latest('id');
     }
 } 
