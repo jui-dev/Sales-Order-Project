@@ -129,7 +129,18 @@ class CreditNoteController extends Controller
     public function show(CreditNote $creditNote): View|RedirectResponse
     {
         try {
-            $creditNote->load(['customer', 'invoice', 'returnTransaction.product', 'journalEntry', 'createdBy', 'approvedBy', 'cancelledBy']);
+            // journalEntry.lines.account feeds <x-journal-ledger>; without it the
+            // ledger issues a query per line.
+            $creditNote->load([
+                'customer',
+                'invoice',
+                'returnTransaction.product',
+                'items.product',
+                'journalEntry.lines.account',
+                'createdBy',
+                'approvedBy',
+                'cancelledBy',
+            ]);
             
             return view('credit-notes.show', compact('creditNote'));
         } catch (DataNotFoundException $e) {

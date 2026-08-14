@@ -1,70 +1,67 @@
 @extends('layouts.app')
+
+@php
+    $customer  = $creditNote->customer;
+    $invoice   = $creditNote->invoice;
+    $return    = $creditNote->returnTransaction;
+    $journal   = $creditNote->journalEntry;
+    $items     = $creditNote->items ?? collect();
+
+    $isIssued    = $creditNote->status === 'issued';
+    $isPosted    = $creditNote->status === 'posted';
+    $isCancelled = $creditNote->status === 'cancelled';
+
+    // Two separate steps, and the page's whole job is to keep them apart:
+    // posting the note writes a draft journal entry, posting that entry is
+    // what actually moves the accounts.
+    $hasJournal      = $journal !== null;
+    $journalPosted   = $hasJournal && $journal->status === 'posted';
+    $awaitingNote    = $isIssued && ! $hasJournal;
+    $awaitingLedger  = $hasJournal && ! $journalPosted;
+
+    $totalUnits = $items->sum('quantity');
+
+    // Stages for the rail, seen from this note.
+    $stages = \App\Support\ReturnWorkflow::forNote($creditNote);
+@endphp
+
 @section('page-header')
-<div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Credit Note #{{ $creditNote->credit_note_number }}</h1>
-        <div class="d-flex gap-2">
-            @if($creditNote->status === 'issued')
-                @if(!$creditNote->journalEntry)
-                    <form action="{{ route('credit-notes.post', $creditNote) }}" method="POST" style="display: inline;">
-                        @csrf
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-circle me-1"></i> Post Credit Note
-                        </button>
-                    </form>
-                @elseif($creditNote->journalEntry->status === 'draft')
-                    <form action="{{ route('credit-notes.post-journal-entry', $creditNote) }}" method="POST" style="display: inline;">
-                        @csrf
-                        <button type="submit" class="btn btn-warning">
-                            <i class="bi bi-arrow-up-circle me-1"></i> Post Journal Entry
-                        </button>
-                    </form>
-                @elseif($creditNote->journalEntry->status === 'posted')
-                    <span class="badge bg-success fs-6">
-                        <i class="bi bi-check-circle me-1"></i> Journal Entry Posted
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <h1 class="mb-1">Credit Note {{ $creditNote->formatted_id }}</h1>
+            <p class="text-muted mb-0">
+                <span class="badge bg-{{ $creditNote->status_color }}">{{ $creditNote->status_display }}</span>
+                @if($hasJournal)
+                    <span class="ms-2 badge bg-{{ $journalPosted ? 'success' : 'secondary' }}">
+                        Journal {{ $journalPosted ? 'posted' : 'draft' }}
                     </span>
                 @endif
-                
-                <a href="{{ route('credit-notes.download', $creditNote) }}" class="btn btn-primary">
-                    <i class="bi bi-download me-1"></i> Download PDF
-                </a>
-                <form action="{{ route('credit-notes.cancel', $creditNote) }}" method="POST" style="display: inline;">
-                    @csrf
-                    <button type="submit" class="btn btn-danger"
-                            onclick="return confirm('Are you sure you want to cancel this credit note?')">
-                        <i class="bi bi-x-circle me-1"></i> Cancel Credit Note
-                    </button>
-                </form>
-            @elseif($creditNote->status === 'posted')
-                @if($creditNote->journalEntry && $creditNote->journalEntry->status === 'draft')
-                    <form action="{{ route('credit-notes.post-journal-entry', $creditNote) }}" method="POST" style="display: inline;">
-                        @csrf
-                        <button type="submit" class="btn btn-warning">
-                            <i class="bi bi-arrow-up-circle me-1"></i> Post Journal Entry
-                        </button>
-                    </form>
-                @elseif($creditNote->journalEntry && $creditNote->journalEntry->status === 'posted')
-                    <span class="badge bg-success fs-6">
-                        <i class="bi bi-check-circle me-1"></i> Journal Entry Posted
-                    </span>
-                @endif
-                
-                <a href="{{ route('credit-notes.download', $creditNote) }}" class="btn btn-primary">
-                    <i class="bi bi-download me-1"></i> Download PDF
-                </a>
-                <form action="{{ route('credit-notes.cancel', $creditNote) }}" method="POST" style="display: inline;">
-                    @csrf
-                    <button type="submit" class="btn btn-danger"
-                            onclick="return confirm('Are you sure you want to cancel this credit note?')">
-                        <i class="bi bi-x-circle me-1"></i> Cancel Credit Note
-                    </button>
-                </form>
-                
-                <!-- Disabled Post Credit Note button for posted status -->
-                <button type="button" class="btn btn-secondary" disabled>
+                <span class="ms-2">${{ number_format($creditNote->total_amount, 2) }}</span>
+                <span class="ms-2">·</span>
+                <span class="ms-2">{{ $customer->name ?? 'Unknown customer' }}</span>
+            </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2 d-print-none">
+            @if($awaitingNote)
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#postNoteModal">
                     <i class="bi bi-check-circle me-1"></i> Post Credit Note
                 </button>
+            @elseif($awaitingLedger)
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#postJournalModal">
+                    <i class="bi bi-arrow-up-circle me-1"></i> Post Journal Entry
+                </button>
             @endif
-            <a href="{{ route('credit-notes.index') }}" class="btn btn-secondary">
+            @unless($isCancelled)
+                <a href="{{ route('credit-notes.download', $creditNote) }}" class="btn btn-outline-primary">
+                    <i class="bi bi-download me-1"></i> Download PDF
+                </a>
+            @endunless
+            @if(! $isCancelled && ! $journalPosted)
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelNoteModal">
+                    <i class="bi bi-x-circle me-1"></i> Cancel
+                </button>
+            @endif
+            <a href="{{ route('credit-notes.index') }}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left me-1"></i> Back to List
             </a>
         </div>
@@ -72,297 +69,436 @@
 @endsection
 
 @section('content')
-<div class="container-fluid">
-    
-    <!-- Credit Note Workflow Guidance -->
-    <div class="alert alert-info mb-4">
-        <i class="bi bi-info-circle"></i>
-        <strong>Credit Note Management:</strong> Use the workflow buttons to control when financial impact occurs. Credit notes are automatically generated when customer returns are approved.
-    </div>
-
-    <!-- Success Message -->
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle me-2"></i>
-            {{ session('success') }}
+            <i class="bi bi-check-circle me-2"></i>{{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     @endif
-    
-    
 
-    <div class="row">
-        <!-- Credit Note Details -->
-        <div class="col-md-8">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Credit Note Details</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>Credit Note Number:</strong></td>
-                                    <td>{{ $creditNote->credit_note_number }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Status:</strong></td>
-                                    <td>
-                                        <span class="badge bg-{{ $creditNote->status_color }}">
-                                            {{ $creditNote->status_display }}
-                                        </span>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Issue Date:</strong></td>
-                                    <td>{{ $creditNote->issue_date ? $creditNote->issue_date->format('M d, Y H:i') : 'Not issued' }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Total Amount:</strong></td>
-                                    <td><strong class="text-success">${{ number_format($creditNote->total_amount, 2) }}</strong></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Journal Entry:</strong></td>
-                                    <td>
-                                        @if($creditNote->journalEntry)
-                                            <a href="{{ route('journal-entries.show', $creditNote->journalEntry) }}" class="text-decoration-none">
-                                                {{ $creditNote->journalEntry->formatted_id }}
-                                            </a>
-                                            <br><small class="text-muted">
-                                                Status: <span class="badge bg-{{ $creditNote->journalEntry->status === 'posted' ? 'success' : 'warning' }}">
-                                                    {{ ucfirst($creditNote->journalEntry->status) }}
-                                                </span>
-                                            </small>
-                                        @else
-                                            <span class="text-muted">Not posted</span>
-                                        @endif
-                                    </td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td><strong>Customer:</strong></td>
-                                    <td>
-                                        <strong>{{ $creditNote->customer->name }}</strong><br>
-                                        <small class="text-muted">{{ $creditNote->customer->email }}</small>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Original Invoice:</strong></td>
-                                    <td>
-                                        <a href="{{ route('invoices.show', $creditNote->invoice) }}" class="text-decoration-none">
-                                            {{ $creditNote->invoice->invoice_number }}
-                                        </a>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Return Transaction:</strong></td>
-                                    <td>
-                                        <a href="{{ route('returns.show', $creditNote->returnTransaction) }}" class="text-decoration-none">
-                                            {{ $creditNote->returnTransaction->formatted_id }}
-                                        </a>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Created:</strong></td>
-                                    <td>{{ $creditNote->created_at->format('M d, Y H:i') }}</td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>{{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
 
-                    @if($creditNote->notes)
-                        <div class="mt-3">
-                            <strong>Notes:</strong>
-                            <p class="mb-0 text-muted">{{ $creditNote->notes }}</p>
-                        </div>
-                    @endif
-                </div>
-            </div>
+    {{-- The credit note is one stage of the return that produced it --}}
+    @if($stages)
+        <x-workflow-rail :stages="$stages" />
+    @endif
 
-            <!-- Credit Note Items -->
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Credit Note Items</h5>
+    {{-- Headline figures --}}
+    <div class="detail-card mb-4">
+        <div class="detail-card__body">
+            <div class="detail-figures">
+                <div class="detail-figure">
+                    <span class="detail-figure__label">Credited</span>
+                    <span class="detail-figure__value detail-figure__value--lead">
+                        ${{ number_format($creditNote->total_amount, 2) }}
+                    </span>
+                    <span class="detail-figure__note">Owed back to the customer</span>
                 </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Product</th>
-                                    <th>Quantity</th>
-                                    <th>Unit Price</th>
-                                    <th>Total</th>
-                                    <th>Notes</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @if($creditNote->metadata && isset($creditNote->metadata['product_name']))
-                                    <tr>
-                                        <td>
-                                            <strong>{{ $creditNote->metadata['product_name'] }}</strong>
-                                            @if(isset($creditNote->metadata['product_sku']))
-                                                <br><small class="text-muted">SKU: {{ $creditNote->metadata['product_sku'] }}</small>
-                                            @endif
-                                        </td>
-                                        <td>{{ $creditNote->metadata['quantity_returned'] ?? 0 }}</td>
-                                        <td>${{ number_format($creditNote->metadata['original_unit_price'] ?? 0, 2) }}</td>
-                                        <td><strong>${{ number_format($creditNote->total_amount, 2) }}</strong></td>
-                                        <td>
-                                            @if(isset($creditNote->metadata['return_reason']))
-                                                <small class="text-muted">{{ $creditNote->metadata['return_reason'] }}</small>
-                                            @else
-                                                <span class="text-muted">-</span>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                @else
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted">No item details available</td>
-                                    </tr>
-                                @endif
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                                    <td><strong class="text-success">${{ number_format($creditNote->total_amount, 2) }}</strong></td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
+                <div class="detail-figure">
+                    <span class="detail-figure__label">Units Credited</span>
+                    <span class="detail-figure__value">{{ number_format($totalUnits) }}</span>
+                    <span class="detail-figure__note">
+                        Across {{ $items->count() }} {{ Str::plural('line', $items->count()) }}
+                    </span>
+                </div>
+                <div class="detail-figure">
+                    <span class="detail-figure__label">Ledger</span>
+                    <span class="detail-figure__value">
+                        {{ $journalPosted ? 'Posted' : ($hasJournal ? 'Draft' : 'None') }}
+                    </span>
+                    <span class="detail-figure__note">
+                        @if($journalPosted)
+                            Affecting the accounts
+                        @elseif($hasJournal)
+                            No effect until posted
+                        @else
+                            Created when the note is posted
+                        @endif
+                    </span>
+                </div>
+                <div class="detail-figure">
+                    <span class="detail-figure__label">Issued</span>
+                    <span class="detail-figure__value">
+                        {{ optional($creditNote->issue_date)->format('M d') ?: '—' }}
+                    </span>
+                    <span class="detail-figure__note">
+                        {{ optional($creditNote->issue_date)->format('Y') ?: 'Not issued' }}
+                    </span>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Related Information -->
-        <div class="col-md-4">
-            <!-- Return Transaction Details -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h6 class="mb-0">Return Transaction</h6>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <strong>Return ID:</strong>
-                        <a href="{{ route('returns.show', $creditNote->returnTransaction) }}" class="text-decoration-none">
-                            {{ $creditNote->returnTransaction->formatted_id }}
-                        </a>
-                    </div>
-                    <div class="mb-3">
-                        <strong>Product:</strong>
-                        <div>{{ $creditNote->returnTransaction->product->name }}</div>
-                        <small class="text-muted">SKU: {{ $creditNote->returnTransaction->product->sku }}</small>
-                    </div>
-                    <div class="mb-3">
-                        <strong>Quantity Returned:</strong>
-                        <div>{{ $creditNote->returnTransaction->quantity }}</div>
-                    </div>
-                    <div class="mb-3">
-                        <strong>Return Date:</strong>
-                        <div>{{ $creditNote->returnTransaction->transaction_date->format('M d, Y') }}</div>
-                    </div>
-                    <div>
-                        <strong>Status:</strong>
-                        <div>
-                            <span class="badge bg-{{ $creditNote->returnTransaction->status === 'pending' ? 'warning' : ($creditNote->returnTransaction->status === 'approved' ? 'info' : 'success') }}">
-                                {{ ucfirst($creditNote->returnTransaction->status) }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
+    @if($isCancelled)
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>This credit note has been cancelled.</strong>
+            @if($creditNote->cancellation_reason)
+                <br>Reason: {{ $creditNote->cancellation_reason }}
+            @endif
+        </div>
+    @endif
+
+    {{-- Where this sits, and what the next click actually does --}}
+    <div class="detail-card mb-4">
+        <div class="detail-card__header">
+            <span class="detail-card__step"><i class="bi bi-flag"></i></span>
+            <div>
+                <h2 class="detail-card__title">Status</h2>
+                <p class="detail-card__subtitle">What has happened to the accounts, and what happens next</p>
+            </div>
+        </div>
+        <div class="detail-card__body">
+            <div class="detail-kv">
+                <span class="detail-kv__label">Current Status</span>
+                <span class="detail-kv__value">
+                    <span class="badge bg-{{ $creditNote->status_color }}">{{ $creditNote->status_display }}</span>
+                </span>
             </div>
 
-            <!-- Original Invoice Details -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h6 class="mb-0">Original Invoice</h6>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <strong>Invoice Number:</strong>
-                        <a href="{{ route('invoices.show', $creditNote->invoice) }}" class="text-decoration-none">
-                            {{ $creditNote->invoice->invoice_number }}
-                        </a>
-                    </div>
-                    <div class="mb-3">
-                        <strong>Invoice Date:</strong>
-                        <div>{{ $creditNote->invoice->invoice_date->format('M d, Y') }}</div>
-                    </div>
-                    <div class="mb-3">
-                        <strong>Invoice Total:</strong>
-                        <div>${{ number_format($creditNote->invoice->total, 2) }}</div>
-                    </div>
-                    <div>
-                        <strong>Status:</strong>
-                        <div>
-                            <span class="badge bg-{{ $creditNote->invoice->status === 'paid' ? 'success' : 'warning' }}">
-                                {{ ucfirst($creditNote->invoice->status) }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
+            <div class="detail-panel mt-3 mb-0">
+                @if($isCancelled)
+                    This credit note was cancelled. Nothing is owed back to
+                    {{ $customer->name ?? 'the customer' }} against it.
+                @elseif($journalPosted)
+                    The reversal is posted. Sales returns and accounts receivable have both moved by
+                    ${{ number_format($creditNote->total_amount, 2) }}, so this now shows in the
+                    financial statements.
+                @elseif($hasJournal)
+                    A <strong>draft</strong> journal entry exists but has not been posted, so the accounts
+                    have not moved yet. Posting it is what gives this credit note its financial effect.
+                @else
+                    This credit note is issued but has no journal entry, so it has no effect on the
+                    accounts yet. Posting it creates a draft reversal against
+                    {{ $invoice->invoice_number ?? 'the original invoice' }}, which is then posted
+                    separately.
+                @endif
             </div>
+        </div>
+    </div>
 
-            <!-- Related Documents -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h6 class="mb-0">Related Documents</h6>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <strong>Original Invoice:</strong><br>
-                        <a href="{{ route('invoices.show', $creditNote->invoice) }}" class="text-decoration-none">
-                            {{ $creditNote->invoice->invoice_number }}
-                        </a>
-                        <br><small class="text-muted">{{ $creditNote->invoice->invoice_date->format('M d, Y') }}</small>
+    {{-- The accounting, in full --}}
+    <div class="row g-4 mb-4">
+        <div class="col-lg-7">
+            <x-journal-ledger
+                :entry="$journal"
+                title="Journal Entry"
+                subtitle="The double entry this credit note reverses the sale with"
+                icon="bi-journal-text"
+                empty="No journal entry yet. It is created when the credit note is posted." />
+        </div>
+
+        <div class="col-lg-5">
+            <div class="detail-card h-100">
+                <div class="detail-card__header">
+                    <span class="detail-card__step"><i class="bi bi-link-45deg"></i></span>
+                    <div>
+                        <h2 class="detail-card__title">Raised From</h2>
+                        <p class="detail-card__subtitle">The return and sale behind this credit</p>
                     </div>
-                    
-                    @if($creditNote->journalEntry)
-                        <div>
-                            <strong>Journal Entry:</strong><br>
-                            <a href="{{ route('journal-entries.show', $creditNote->journalEntry) }}" class="text-decoration-none">
-                                {{ $creditNote->journalEntry->formatted_id }}
-                            </a>
-                            <br><small class="text-muted">
-                                Status: <span class="badge bg-{{ $creditNote->journalEntry->status === 'posted' ? 'success' : 'warning' }}">
-                                    {{ ucfirst($creditNote->journalEntry->status) }}
+                </div>
+                <div class="detail-card__body">
+                    <div class="detail-kv">
+                        <span class="detail-kv__label">Return</span>
+                        <span class="detail-kv__value">
+                            @if($return)
+                                <a href="{{ route('returns.show', $return) }}">{{ $return->formatted_id }}</a>
+                                <span class="text-muted small d-block">
+                                    {{ number_format($return->quantity) }}
+                                    {{ Str::plural('unit', $return->quantity) }} ·
+                                    {{ ucfirst($return->status) }}
                                 </span>
-                            </small>
-                        </div>
-                    @endif
-                </div>
-            </div>
-
-            <!-- Customer Information -->
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0">Customer Information</h6>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <strong>Name:</strong>
-                        <div>{{ $creditNote->customer->name }}</div>
+                            @else
+                                <span class="text-muted">No return recorded</span>
+                            @endif
+                        </span>
                     </div>
-                    <div class="mb-3">
-                        <strong>Email:</strong>
-                        <div>{{ $creditNote->customer->email }}</div>
+                    <div class="detail-kv">
+                        <span class="detail-kv__label">Original Invoice</span>
+                        <span class="detail-kv__value">
+                            @if($invoice)
+                                <a href="{{ route('invoices.show', $invoice) }}">
+                                    {{ $invoice->invoice_number ?: $invoice->formatted_id }}
+                                </a>
+                                <span class="text-muted small d-block">
+                                    ${{ number_format($invoice->total, 2) }} ·
+                                    {{ optional($invoice->invoice_date)->format('M d, Y') ?: 'No date' }}
+                                </span>
+                            @else
+                                <span class="text-muted">No invoice linked</span>
+                            @endif
+                        </span>
                     </div>
-                    <div class="mb-3">
-                        <strong>Phone:</strong>
-                        <div>{{ $creditNote->customer->phone ?? 'Not provided' }}</div>
+                    <div class="detail-kv">
+                        <span class="detail-kv__label">Customer</span>
+                        <span class="detail-kv__value">
+                            {{ $customer->name ?? '—' }}
+                            @if($customer && $customer->email)
+                                <span class="text-muted small d-block">{{ $customer->email }}</span>
+                            @endif
+                        </span>
                     </div>
-                    <div>
-                        <strong>Address:</strong>
-                        <div>{{ $creditNote->customer->address ?? 'Not provided' }}</div>
+                    <div class="detail-kv">
+                        <span class="detail-kv__label">Document Number</span>
+                        <span class="detail-kv__value detail-kv__value--muted">
+                            {{ $creditNote->credit_note_number ?: '—' }}
+                        </span>
+                    </div>
+                    <div class="detail-kv">
+                        <span class="detail-kv__label">Created</span>
+                        <span class="detail-kv__value detail-kv__value--muted">
+                            {{ optional($creditNote->created_at)->format('M d, Y H:i') ?: '—' }}
+                        </span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
-@endsection 
+
+    {{-- What is being credited --}}
+    <div class="detail-card note-items">
+        <div class="detail-card__header">
+            <span class="detail-card__step"><i class="bi bi-list-ul"></i></span>
+            <div>
+                <h2 class="detail-card__title">Credited Products</h2>
+                <p class="detail-card__subtitle">
+                    Priced at what {{ $customer->name ?? 'the customer' }} originally paid.
+                </p>
+            </div>
+        </div>
+        <div class="detail-card__body detail-card__body--flush">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 3rem;">#</th>
+                            <th>Product</th>
+                            <th class="text-end">Quantity</th>
+                            <th class="text-end">Unit Price</th>
+                            <th class="text-end">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($items as $index => $item)
+                            <tr>
+                                <td data-label="#">{{ $index + 1 }}</td>
+                                <td data-label="Product">
+                                    <strong>{{ $item->product_name ?: ($item->product->name ?? 'Unknown product') }}</strong>
+                                    <span class="d-block text-muted small">
+                                        SKU {{ $item->sku ?: ($item->product->sku ?? 'N/A') }}
+                                        @if($item->notes)
+                                            · {{ Str::headline($item->notes) }}
+                                        @endif
+                                    </span>
+                                </td>
+                                <td data-label="Quantity" class="text-end">{{ number_format($item->quantity) }}</td>
+                                <td data-label="Unit Price" class="text-end">
+                                    ${{ number_format($item->unit_price, 2) }}
+                                </td>
+                                <td data-label="Line Total" class="text-end fw-semibold">
+                                    ${{ number_format($item->total_amount ?? $item->subtotal, 2) }}
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    No line detail recorded for this credit note.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                    @if($items->isNotEmpty())
+                        <tfoot>
+                            <tr>
+                                <td colspan="2" class="text-muted">
+                                    Total across {{ $items->count() }}
+                                    {{ Str::plural('line', $items->count()) }}
+                                </td>
+                                <td data-label="Total quantity" class="text-end fw-semibold">
+                                    {{ number_format($totalUnits) }}
+                                </td>
+                                <td></td>
+                                <td data-label="Credit total" class="text-end fw-bold">
+                                    ${{ number_format($creditNote->total_amount, 2) }}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    @endif
+                </table>
+            </div>
+        </div>
+    </div>
+
+    @if($creditNote->notes)
+        <div class="detail-card mt-4">
+            <div class="detail-card__header">
+                <span class="detail-card__step"><i class="bi bi-sticky"></i></span>
+                <div>
+                    <h2 class="detail-card__title">Notes</h2>
+                    <p class="detail-card__subtitle">Recorded with the credit note</p>
+                </div>
+            </div>
+            <div class="detail-card__body">
+                <div class="detail-panel mb-0">{{ $creditNote->notes }}</div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Issued -> draft journal entry --}}
+    @if($awaitingNote)
+        <div class="modal fade" id="postNoteModal" tabindex="-1" aria-labelledby="postNoteModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="postNoteModalLabel">Post Credit Note</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-2">Posting {{ $creditNote->formatted_id }} will:</p>
+                        <ul class="mb-3 ps-3">
+                            <li class="mb-1">
+                                Create a journal entry reversing
+                                <strong>${{ number_format($creditNote->total_amount, 2) }}</strong>
+                                of revenue and receivable against
+                                {{ $invoice->invoice_number ?? 'the original invoice' }}
+                            </li>
+                            <li>Reverse the cost of the goods back into inventory</li>
+                        </ul>
+                        <div class="detail-panel mb-0">
+                            <span class="d-block mb-1">
+                                <strong>What does not happen yet:</strong> the entry is created as a
+                                <strong>draft</strong>. It has no effect on the financial statements until
+                                it is posted, which is a second step on this page.
+                            </span>
+                            <span class="text-muted small">
+                                A credit note can only be posted once.
+                            </span>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <form action="{{ route('credit-notes.post', $creditNote) }}" method="POST">
+                            @csrf
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle me-1"></i> Post Credit Note
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Draft journal entry -> posted --}}
+    @if($awaitingLedger)
+        <div class="modal fade" id="postJournalModal" tabindex="-1" aria-labelledby="postJournalModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="postJournalModalLabel">Post Journal Entry</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <span class="badge bg-secondary">Draft</span>
+                            <i class="bi bi-arrow-right text-muted"></i>
+                            <span class="badge bg-success">Posted</span>
+                        </div>
+                        <p class="mb-3">
+                            This posts {{ $journal->formatted_id ?? 'the draft entry' }} to the ledger.
+                            From that point the reversal of
+                            <strong>${{ number_format($creditNote->total_amount, 2) }}</strong> shows in the
+                            trial balance and the income statement.
+                        </p>
+                        <div class="detail-panel mb-0">
+                            <span class="text-muted small">
+                                Posting is not reversible from this page. A posted entry is corrected with
+                                a further journal entry, not by editing this one.
+                            </span>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <form action="{{ route('credit-notes.post-journal-entry', $creditNote) }}" method="POST">
+                            @csrf
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-arrow-up-circle me-1"></i> Post Journal Entry
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if(! $isCancelled && ! $journalPosted)
+        <div class="modal fade" id="cancelNoteModal" tabindex="-1" aria-labelledby="cancelNoteModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="cancelNoteModalLabel">Cancel Credit Note</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3">
+                            Cancel credit note <strong>{{ $creditNote->formatted_id }}</strong> for
+                            ${{ number_format($creditNote->total_amount, 2) }}?
+                        </p>
+                        <div class="detail-panel mb-0">
+                            <span class="d-block mb-1">
+                                Nothing is owed back to {{ $customer->name ?? 'the customer' }} once this is
+                                cancelled. The return it came from is not affected.
+                            </span>
+                            <span class="text-muted small">This cannot be undone.</span>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Keep It</button>
+                        <form action="{{ route('credit-notes.cancel', $creditNote) }}" method="POST">
+                            @csrf
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-x-circle me-1"></i> Cancel Credit Note
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+@endsection
+
+@push('styles')
+<style>
+    /* Totals row: keep it readable once the table collapses to cards on mobile */
+    @media (max-width: 768px) {
+        .note-items tfoot tr {
+            display: block;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .note-items tfoot td {
+            display: block;
+            text-align: right;
+            padding: 0.35rem 0.75rem;
+        }
+
+        .note-items tfoot td:empty {
+            display: none;
+        }
+
+        /* Mirror the tbody label treatment custom.css applies below 768px */
+        .note-items tfoot td[data-label]::before {
+            content: attr(data-label);
+            float: left;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.85em;
+        }
+    }
+</style>
+@endpush

@@ -29,12 +29,19 @@ final class ReturnWorkflow
     public const CURRENT = 'current';
     public const TODO    = 'todo';
 
+    /** Stage positions, used to suppress links back to the current page. */
+    public const STAGE_RECORD  = 0;
+    public const STAGE_APPROVE = 1;
+    public const STAGE_NOTE    = 2;
+    public const STAGE_LEDGER  = 3;
+
     /**
-     * Stages for a return, seen from the return detail page.
+     * Stages for a return, seen from the page named by $selfStage.
      */
-    public static function forReturn(StockTransaction $return): array
+    public static function forReturn(StockTransaction $return, int $selfStage = self::STAGE_RECORD): array
     {
         $isRetailer = $return->isRetailerReturn();
+        $returnUrl  = route('returns.show', $return->id);
 
         $approved  = in_array($return->status, [
             StockTransaction::STATUS_APPROVED,
@@ -49,7 +56,7 @@ final class ReturnWorkflow
                 'name'  => 'Record Return',
                 'state' => self::DONE,
                 'meta'  => optional($return->transaction_date)->format('M d, Y') ?: 'Recorded',
-                'url'   => null,
+                'url'   => $returnUrl,
             ],
             [
                 // Stock moves here and nowhere else - the observer skips returns
@@ -66,12 +73,12 @@ final class ReturnWorkflow
                     $cancelled => 'Return cancelled',
                     default    => 'Awaiting approval',
                 },
-                'url'   => null,
+                'url'   => $returnUrl,
             ],
         ];
 
         if ($isRetailer) {
-            return $stages;
+            return self::suppressSelfLink($stages, $selfStage);
         }
 
         $note    = self::noteFor($return);
@@ -107,6 +114,46 @@ final class ReturnWorkflow
             },
             'url'   => self::noteUrl($return, $note),
         ];
+
+        return self::suppressSelfLink($stages, $selfStage);
+    }
+
+    /**
+     * Stages as seen from the credit or debit note raised by a return.
+     *
+     * The note and ledger stages both live on the note page, so calling from
+     * either lands on the same suppressed link.
+     */
+    public static function forNote(CreditNote|DebitNote $note): array
+    {
+        $return = $note->returnTransaction;
+
+        // A note whose return has gone missing has no chain to draw.
+        if (! $return) {
+            return [];
+        }
+
+        return self::forReturn($return, self::STAGE_NOTE);
+    }
+
+    /**
+     * Never link a stage to the page the reader is already on. Several stages
+     * can share one page - approving happens on the return, posting on the
+     * note - so match on the destination rather than the index.
+     */
+    private static function suppressSelfLink(array $stages, int $selfStage): array
+    {
+        $selfUrl = $stages[$selfStage]['url'] ?? null;
+
+        if ($selfUrl === null) {
+            return $stages;
+        }
+
+        foreach ($stages as $index => $stage) {
+            if ($stage['url'] === $selfUrl) {
+                $stages[$index]['url'] = null;
+            }
+        }
 
         return $stages;
     }

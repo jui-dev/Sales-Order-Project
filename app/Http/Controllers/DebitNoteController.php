@@ -127,7 +127,18 @@ class DebitNoteController extends Controller
      */
     public function show(DebitNote $debitNote): View
     {
-        $debitNote->load(['vendor', 'supplierBill', 'returnTransaction.product', 'journalEntry', 'createdBy', 'approvedBy', 'cancelledBy', 'items.product']);
+        // journalEntry.lines.account feeds <x-journal-ledger>; without it the
+        // ledger issues a query per line.
+        $debitNote->load([
+            'vendor',
+            'supplierBill',
+            'returnTransaction.product',
+            'items.product',
+            'journalEntry.lines.account',
+            'createdBy',
+            'approvedBy',
+            'cancelledBy',
+        ]);
         
         return view('debit-notes.show', compact('debitNote'));
     }
