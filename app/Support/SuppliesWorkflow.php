@@ -30,6 +30,30 @@ final class SuppliesWorkflow
     public const STAGE_PAYMENT = 3;
 
     /**
+     * Stages as seen from the supply detail page.
+     */
+    public static function forSupply(Supply $supply): array
+    {
+        $grn = $supply->grn;
+
+        $stages = self::build(
+            supply: $supply,
+            grn: $grn,
+            bill: $grn?->supplierBill,
+            selfStage: self::STAGE_SUPPLY,
+        );
+
+        // build() marks any recorded supply as done, which is right when the reader is
+        // further along the chain. On this page a supply that is still pending is the
+        // stage they are actually standing on.
+        if ($supply->status !== 'completed') {
+            $stages[self::STAGE_SUPPLY]['state'] = self::CURRENT;
+        }
+
+        return $stages;
+    }
+
+    /**
      * Stages as seen from the GRN detail page.
      */
     public static function forGrn(Grn $grn): array
