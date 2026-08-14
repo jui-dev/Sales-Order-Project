@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use App\Models\Traits\HasFormattedId;
 use App\Models\Grn;
@@ -204,6 +205,20 @@ class StockTransaction extends Model
     {
         $returnData = $this->return_data;
         return (is_array($returnData) && isset($returnData['cancellation_notes'])) ? $returnData['cancellation_notes'] : null;
+    }
+
+    /**
+     * The note raised from this return when it was approved. Only one of the
+     * two is ever populated, decided by the return type.
+     */
+    public function creditNote(): HasOne
+    {
+        return $this->hasOne(CreditNote::class, 'return_transaction_id');
+    }
+
+    public function debitNote(): HasOne
+    {
+        return $this->hasOne(DebitNote::class, 'return_transaction_id');
     }
 
     /**
