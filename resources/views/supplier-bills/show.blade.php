@@ -34,31 +34,17 @@
             </p>
         </div>
         <div class="d-flex flex-wrap gap-2 d-print-none">
-            <a href="{{ route('supplier-bills.index') }}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left me-1"></i> Back to List
-            </a>
             <button type="button" class="btn btn-outline-primary" onclick="window.print()">
                 <i class="bi bi-printer me-1"></i> Print
             </button>
             @if($isDraft)
-                <form action="{{ route('supplier-bills.post', $bill) }}" method="POST" class="d-inline" id="postSupplierBillForm">
-                    @csrf
-                    <button type="submit" class="btn btn-primary" id="postSupplierBillBtn">
-                        <i class="bi bi-check-circle me-1"></i> Post Supplier Bill
-                    </button>
-                </form>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#postSupplierBillModal">
+                    <i class="bi bi-check-circle me-1"></i> Post Supplier Bill
+                </button>
             @elseif($bill->status === 'posted')
-                <a href="{{ route('supplier-bills.payment-info', $bill) }}" class="btn btn-outline-primary">
+                <a href="{{ route('supplier-bills.payment-info', $bill) }}" class="btn btn-primary">
                     <i class="bi bi-credit-card me-1"></i> Payment Information
                 </a>
-                @if($payment && $payment->payment_status === 'unpaid')
-                    <form action="{{ route('supplier-bills.pay', $bill) }}" method="POST" class="d-inline" id="markAsPaidForm">
-                        @csrf
-                        <button type="submit" class="btn btn-primary" id="markAsPaidBtn">
-                            <i class="bi bi-cash-coin me-1"></i> Mark as Paid
-                        </button>
-                    </form>
-                @endif
             @endif
         </div>
     </div>
@@ -327,6 +313,81 @@
         </div>
     </div>
 
+@if($isDraft)
+    {{-- Posting hands the bill to accounting, so spell out the consequences --}}
+    <div class="modal fade" id="postSupplierBillModal" tabindex="-1" aria-labelledby="postSupplierBillModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="postSupplierBillModalLabel">Post Supplier Bill</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <span class="badge bg-secondary">{{ ucfirst($bill->status) }}</span>
+                        <i class="bi bi-arrow-right text-muted"></i>
+                        <span class="badge bg-success">Posted</span>
+                    </div>
+
+                    <p class="mb-3">
+                        Posting {{ $bill->formatted_id ?? '#' . $bill->id }} confirms the
+                        ${{ number_format($bill->total_amount, 2) }} owed to
+                        {{ $bill->vendor->name ?: 'the vendor' }} and hands it over to accounting.
+                        Three things happen at once:
+                    </p>
+
+                    <ul class="list-unstyled mb-3">
+                        <li class="d-flex gap-3 mb-3">
+                            <span class="detail-card__step flex-shrink-0"><i class="bi bi-journal-arrow-down"></i></span>
+                            <span>
+                                <strong>A purchase journal entry is drafted.</strong>
+                                Inventory (1200) is debited ${{ number_format($bill->total_amount, 2) }}
+                                and Accounts Payable (2000) is credited the same, recording the stock
+                                received against what you now owe. The entry is created with
+                                <em>draft</em> status for accounting to review.
+                            </span>
+                        </li>
+                        <li class="d-flex gap-3 mb-3">
+                            <span class="detail-card__step flex-shrink-0"><i class="bi bi-credit-card"></i></span>
+                            <span>
+                                <strong>A payment record is opened.</strong>
+                                An unpaid payment for ${{ number_format($bill->total_amount, 2) }} is
+                                raised against {{ $bill->vendor->name ?: 'the vendor' }}. Nothing leaves
+                                the business yet — that happens when the bill is marked as paid.
+                            </span>
+                        </li>
+                        <li class="d-flex gap-3 mb-0">
+                            <span class="detail-card__step flex-shrink-0"><i class="bi bi-lock"></i></span>
+                            <span>
+                                <strong>The bill is locked as posted.</strong>
+                                It can no longer be edited, and you will be taken to the payment
+                                information page to settle it.
+                            </span>
+                        </li>
+                    </ul>
+
+                    <div class="detail-panel mb-0">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Posting cannot be undone from this page. Check the
+                        {{ $totalProducts }} {{ Str::plural('line', $totalProducts) }} and the
+                        ${{ number_format($bill->total_amount, 2) }} total match the vendor's invoice
+                        before continuing.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form action="{{ route('supplier-bills.post', $bill) }}" method="POST" id="postSupplierBillForm">
+                        @csrf
+                        <button type="submit" class="btn btn-primary" id="postSupplierBillBtn">
+                            <i class="bi bi-check-circle me-1"></i> Post Supplier Bill
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
+
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -356,28 +417,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Show processing indicator
             showProcessingIndicator('Posting supplier bill...');
-        });
-    }
-
-    // Handle Mark as Paid button - prevent double submission only
-    const markAsPaidForm = document.getElementById('markAsPaidForm');
-    const markAsPaidBtn = document.getElementById('markAsPaidBtn');
-
-    if (markAsPaidForm && markAsPaidBtn) {
-        markAsPaidForm.addEventListener('submit', function(e) {
-            // Only prevent double submission, no visual feedback
-            if (isProcessing) {
-                e.preventDefault();
-                return false;
-            }
-
-            // Set processing flag to prevent double clicks
-            isProcessing = true;
-
-            // Disable the button to prevent multiple clicks
-            markAsPaidBtn.disabled = true;
-
-            // Allow form to submit normally without any processing overlay
         });
     }
 

@@ -37,19 +37,13 @@
             </p>
         </div>
         <div class="d-flex flex-wrap gap-2 d-print-none">
-            <a href="{{ route('supplier-bills.show', $bill) }}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left me-1"></i> Back to Bill
-            </a>
             <button type="button" class="btn btn-outline-primary" onclick="window.print()">
                 <i class="bi bi-printer me-1"></i> Print
             </button>
             @if($awaitsPay && $payment)
-                <form action="{{ route('supplier-bills.pay', $bill) }}" method="POST" class="d-inline" id="markAsPaidForm">
-                    @csrf
-                    <button type="submit" class="btn btn-primary" id="markAsPaidBtn">
-                        <i class="bi bi-credit-card me-1"></i> Mark as Paid
-                    </button>
-                </form>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#markAsPaidModal">
+                    <i class="bi bi-credit-card me-1"></i> Mark as Paid
+                </button>
             @endif
         </div>
     </div>
@@ -268,6 +262,78 @@
             </div>
         </div>
     </div>
+
+@if($awaitsPay && $payment)
+    {{-- Settling the bill writes to the ledger, so spell out the consequences --}}
+    <div class="modal fade" id="markAsPaidModal" tabindex="-1" aria-labelledby="markAsPaidModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="markAsPaidModalLabel">Mark Bill as Paid</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <span class="badge bg-warning">Unpaid</span>
+                        <i class="bi bi-arrow-right text-muted"></i>
+                        <span class="badge bg-success">Paid</span>
+                    </div>
+
+                    <p class="mb-3">
+                        This records that ${{ number_format($bill->total_amount, 2) }} has been paid to
+                        {{ $bill->vendor->name ?: 'the vendor' }} against
+                        {{ $bill->formatted_id ?? '#' . $bill->id }}. Three things happen at once:
+                    </p>
+
+                    <ul class="list-unstyled mb-3">
+                        <li class="d-flex gap-3 mb-3">
+                            <span class="detail-card__step flex-shrink-0"><i class="bi bi-journal-arrow-up"></i></span>
+                            <span>
+                                <strong>A payment journal entry is drafted.</strong>
+                                Accounts Payable (2000) is debited ${{ number_format($bill->total_amount, 2) }}
+                                and Cash (1000) is credited the same, clearing the liability and recording
+                                the cash leaving the business. The entry is created with <em>draft</em>
+                                status for accounting to review.
+                            </span>
+                        </li>
+                        <li class="d-flex gap-3 mb-3">
+                            <span class="detail-card__step flex-shrink-0"><i class="bi bi-credit-card"></i></span>
+                            <span>
+                                <strong>The payment record is settled.</strong>
+                                {{ $payment->formatted_id ?? 'The payment' }} moves from unpaid to paid and
+                                is stamped with today's date. Nothing further is owed on this bill.
+                            </span>
+                        </li>
+                        <li class="d-flex gap-3 mb-0">
+                            <span class="detail-card__step flex-shrink-0"><i class="bi bi-flag"></i></span>
+                            <span>
+                                <strong>The purchase is complete.</strong>
+                                Payment is the last stage of Record Supply → Receive Goods → Supplier Bill
+                                → Payment, so the workflow closes out.
+                            </span>
+                        </li>
+                    </ul>
+
+                    <div class="detail-panel mb-0">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        This records a payment that has already been made — it does not move any money
+                        itself. It cannot be undone from this page, so confirm the vendor has actually
+                        been paid ${{ number_format($bill->total_amount, 2) }} before continuing.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form action="{{ route('supplier-bills.pay', $bill) }}" method="POST" id="markAsPaidForm">
+                        @csrf
+                        <button type="submit" class="btn btn-primary" id="markAsPaidBtn">
+                            <i class="bi bi-credit-card me-1"></i> Mark as Paid
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
 
 @push('scripts')
 <script>

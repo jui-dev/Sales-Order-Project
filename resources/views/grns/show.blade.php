@@ -28,9 +28,6 @@
             </p>
         </div>
         <div class="d-flex flex-wrap gap-2 d-print-none">
-            <a href="{{ route('grns.index') }}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left me-1"></i> Back to List
-            </a>
             <button type="button" class="btn btn-outline-primary" onclick="window.print()">
                 <i class="bi bi-printer me-1"></i> Print
             </button>
@@ -43,13 +40,11 @@
                         <i class="bi bi-trash me-1"></i> Delete
                     </button>
                 </form>
-                <form action="{{ route('grns.update-status', $grn) }}" method="POST" class="d-inline">
-                    @csrf
-                    @method('PATCH')
-                    <button type="submit" class="btn btn-primary">
+                @if($supply)
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#postGrnModal">
                         <i class="bi bi-check-circle me-1"></i> Post GRN
                     </button>
-                </form>
+                @endif
             @endunless
         </div>
     </div>
@@ -304,6 +299,88 @@
         </div>
     </div>
 @endunless
+
+@if(! $isPosted && $supply)
+    {{-- Posting is the step that actually moves stock, so spell out the consequences --}}
+    <div class="modal fade" id="postGrnModal" tabindex="-1" aria-labelledby="postGrnModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="postGrnModalLabel">Post Goods Received Note</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <span class="badge bg-secondary">{{ ucfirst($grn->status) }}</span>
+                        <i class="bi bi-arrow-right text-muted"></i>
+                        <span class="badge bg-success">Posted</span>
+                    </div>
+
+                    <p class="mb-3">
+                        Posting {{ $grn->formatted_id ?? '#' . $grn->id }} confirms the delivery from
+                        {{ $supply->vendor->name ?: 'the vendor' }} has physically arrived. Three things
+                        happen at once:
+                    </p>
+
+                    <ul class="list-unstyled mb-3">
+                        <li class="d-flex gap-3 mb-3">
+                            <span class="detail-card__step flex-shrink-0"><i class="bi bi-box-seam"></i></span>
+                            <span>
+                                <strong>Stock enters the warehouse.</strong>
+                                {{ number_format($totalUnits) }}
+                                {{ Str::plural('unit', $totalUnits) }}
+                                across {{ $items->count() }} {{ Str::plural('product', $items->count()) }}
+                                are added to {{ $supply->warehouse->name ?: 'the warehouse' }} and become
+                                available to sell. An inbound stock transaction is written for each line so
+                                the movement stays auditable.
+                            </span>
+                        </li>
+                        <li class="d-flex gap-3 mb-3">
+                            <span class="detail-card__step flex-shrink-0"><i class="bi bi-receipt"></i></span>
+                            <span>
+                                @if($bill)
+                                    <strong>The supplier bill already exists.</strong>
+                                    {{ $bill->formatted_id ?? '#' . $bill->id }} is attached to this GRN, so
+                                    no new bill is raised.
+                                @else
+                                    <strong>A draft supplier bill is raised.</strong>
+                                    A bill for {{ $supply->vendor->name ?: 'the vendor' }} totalling
+                                    ${{ number_format($totalValue, 2) }} is created automatically, listing
+                                    everything on this receipt. You will be taken to it afterwards.
+                                @endif
+                            </span>
+                        </li>
+                        <li class="d-flex gap-3 mb-0">
+                            <span class="detail-card__step flex-shrink-0"><i class="bi bi-clipboard-check"></i></span>
+                            <span>
+                                <strong>The supply is closed off.</strong>
+                                Supply {{ $supply->formatted_id ?? '#' . $supply->id }} is marked completed
+                                if it is not already.
+                            </span>
+                        </li>
+                    </ul>
+
+                    <div class="detail-panel mb-0">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Posting cannot be undone from this page, and the GRN can no longer be edited or
+                        deleted once posted. Check the quantities on this receipt match what was actually
+                        delivered before continuing.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form action="{{ route('grns.update-status', $grn) }}" method="POST">
+                        @csrf
+                        @method('PATCH')
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-1"></i> Post GRN
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
 @endsection
 
 @push('styles')
