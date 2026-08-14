@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Invoice;
 use App\Models\Order;
+use App\Models\PickingList;
 
 /**
  * Single source of truth for a sales order's position in the fulfilment chain:
@@ -107,6 +108,17 @@ final class OrderWorkflow
         }
 
         return $stages;
+    }
+
+    /**
+     * Stages as seen from the picking list raised for an order.
+     *
+     * PickingList::order() matches on reference_id alone, so the caller has to
+     * have established that this list really references an order.
+     */
+    public static function forPicking(PickingList $pickingList): array
+    {
+        return self::forOrder($pickingList->order, self::STAGE_PICK);
     }
 
     /**
