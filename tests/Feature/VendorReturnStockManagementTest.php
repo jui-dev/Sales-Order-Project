@@ -44,10 +44,10 @@ class VendorReturnStockManagementTest extends TestCase
             'status' => 'completed',
         ]);
 
-        // Create GRN
+        // Create GRN ('posted' - the grns.status enum has no 'completed')
         $this->grn = Grn::factory()->create([
             'supply_id' => $this->supply->id,
-            'status' => 'completed',
+            'status' => 'posted',
         ]);
 
         // Create supplier bill
@@ -89,6 +89,14 @@ class VendorReturnStockManagementTest extends TestCase
         $this->assertEquals($this->warehouse->id, $return->location_id);
         $this->assertEquals(Warehouse::class, $return->location_type);
 
+        // Recording the return must not touch stock yet.
+        $this->assertEquals(100, ProductStock::where('location_type', Warehouse::class)
+            ->where('product_id', $this->product->id)
+            ->where('location_id', $this->warehouse->id)
+            ->value('quantity'));
+
+        $returnService->approveReturn($return);
+
         // Verify no vendor location record was created in product_stocks
         $vendorStockRecord = ProductStock::where('location_type', Vendor::class)
             ->where('product_id', $this->product->id)
@@ -122,6 +130,7 @@ class VendorReturnStockManagementTest extends TestCase
         ];
 
         $return = $returnService->createVendorReturn($returnData);
+        $returnService->approveReturn($return);
 
         // Refresh the product to get updated available_stocks
         $this->product->refresh();
@@ -163,6 +172,7 @@ class VendorReturnStockManagementTest extends TestCase
         ];
 
         $return = $returnService->createVendorReturn($returnData);
+        $returnService->approveReturn($return);
 
         // Verify warehouse stock was decreased
         $warehouseStock = ProductStock::where('location_type', Warehouse::class)
@@ -183,5 +193,70 @@ class VendorReturnStockManagementTest extends TestCase
         // Verify total available stock calculation
         $this->product->refresh();
         $this->assertEquals(140, $this->product->available_stocks); // 90 + 50 = 140
+    }
+
+    /** @test */
+    public function vendor_return_stock_is_applied_exactly_once_across_its_lifecycle()
+    {
+        $returnService = app(ReturnService::class);
+
+        $return = $returnService->createVendorReturn([
+            'supplier_bill_id' => $this->supplierBill->id,
+            'vendor_id' => $this->vendor->id,
+            'product_id' => $this->product->id,
+            'quantity' => 10,
+            'return_reason' => 'Defective product',
+            'return_date' => now(),
+        ]);
+
+        $stockAtWarehouse = fn () => (int) ProductStock::where('location_type', Warehouse::class)
+            ->where('product_id', $this->product->id)
+            ->where('location_id', $this->warehouse->id)
+            ->value('quantity');
+
+        // Recording a return reserves nothing and moves nothing.
+        $this->assertEquals(100, $stockAtWarehouse());
+        $this->assertNull($return->fresh()->stock_posted_at);
+
+        $returnService->approveReturn($return);
+
+        // Approval applies the movement once, and stamps it as applied.
+        $this->assertEquals(90, $stockAtWarehouse());
+        $this->assertNotNull($return->fresh()->stock_posted_at);
+
+        // Completing is a status change - it must not move stock again.
+        $returnService->completeReturn($return->fresh());
+        $this->assertEquals(90, $stockAtWarehouse());
+
+        // Nor may a direct re-post, however it is triggered.
+        $return->fresh()->updateProductStock();
+        $this->assertEquals(90, $stockAtWarehouse());
+    }
+
+    /** @test */
+    public function vendor_return_cannot_drive_warehouse_stock_negative()
+    {
+        $returnService = app(ReturnService::class);
+
+        $return = $returnService->createVendorReturn([
+            'supplier_bill_id' => $this->supplierBill->id,
+            'vendor_id' => $this->vendor->id,
+            'product_id' => $this->product->id,
+            'quantity' => 150, // more than the 100 on hand
+            'return_reason' => 'Defective product',
+            'return_date' => now(),
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+
+        try {
+            $returnService->approveReturn($return);
+        } finally {
+            // Stock is left untouched rather than written negative.
+            $this->assertEquals(100, (int) ProductStock::where('location_type', Warehouse::class)
+                ->where('product_id', $this->product->id)
+                ->where('location_id', $this->warehouse->id)
+                ->value('quantity'));
+        }
     }
 }

@@ -34,9 +34,11 @@ class UnifiedReturnManagementTest extends TestCase
     {
         parent::setUp();
         
-        // Create test user
+        // Create test user. Acting as them so the return audit trail records
+        // a real actor instead of ReturnService's unauthenticated fallback.
         $this->user = User::factory()->create();
-        
+        $this->actingAs($this->user);
+
         // Create test data
         $this->product = Product::factory()->create([
             'name' => 'Test Product',
@@ -118,6 +120,7 @@ class UnifiedReturnManagementTest extends TestCase
         
         $returnData = [
             'supplier_bill_id' => $this->supplierBill->id,
+            'vendor_id' => $this->vendor->id,
             'product_id' => $this->product->id,
             'quantity' => 3,
             'return_reason' => 'Wrong specification',
@@ -134,10 +137,16 @@ class UnifiedReturnManagementTest extends TestCase
         $this->assertEquals('outbound', $return->direction);
         $this->assertEquals(3, $return->quantity);
         $this->assertEquals('Wrong specification', $return->return_reason);
-        $this->assertEquals($this->warehouse->id, $return->location_id);
-        $this->assertEquals(Warehouse::class, $return->location_type);
         $this->assertEquals(SupplierBill::class, $return->reference_type);
         $this->assertEquals($this->supplierBill->id, $return->reference_id);
+
+        // Goods ship back from the warehouse that received them, which is
+        // resolved from the bill's GRN rather than from the submitted form.
+        $this->assertEquals(Warehouse::class, $return->location_type);
+        $this->assertEquals(
+            $this->supplierBill->grn->supply->warehouse_id,
+            $return->location_id
+        );
     }
 
     /** @test */
@@ -156,15 +165,17 @@ class UnifiedReturnManagementTest extends TestCase
 
         $return = $returnService->createRetailerReturn($returnData);
 
-        // Assert return was created as StockTransaction
+        // Assert return was created as StockTransaction. A retailer return is
+        // recorded against the retailer holding the goods, moving them out of
+        // that retailer, and opens as "issued" rather than "pending".
         $this->assertInstanceOf(StockTransaction::class, $return);
         $this->assertEquals(StockTransaction::TYPE_RETAILER_RETURN, $return->transaction_type);
-        $this->assertEquals(StockTransaction::STATUS_PENDING, $return->status);
-        $this->assertEquals('inbound', $return->direction);
+        $this->assertEquals(StockTransaction::STATUS_ISSUED, $return->status);
+        $this->assertEquals('outbound', $return->direction);
         $this->assertEquals(1, $return->quantity);
         $this->assertEquals('Excess inventory', $return->return_reason);
-        $this->assertEquals($this->warehouse->id, $return->location_id);
-        $this->assertEquals(Warehouse::class, $return->location_type);
+        $this->assertEquals($this->retailer->id, $return->location_id);
+        $this->assertEquals(Retailer::class, $return->location_type);
         $this->assertEquals(StockTransfer::class, $return->reference_type);
         $this->assertEquals($this->stockTransfer->id, $return->reference_id);
     }
@@ -262,15 +273,20 @@ class UnifiedReturnManagementTest extends TestCase
 
         $statistics = $returnService->getReturnStatistics();
 
+        // Statistics are grouped per return type, each with count/quantity/value.
         $this->assertIsArray($statistics);
-        $this->assertArrayHasKey('total_returns', $statistics);
         $this->assertArrayHasKey('customer_returns', $statistics);
         $this->assertArrayHasKey('vendor_returns', $statistics);
         $this->assertArrayHasKey('retailer_returns', $statistics);
-        $this->assertArrayHasKey('pending_returns', $statistics);
-        $this->assertArrayHasKey('approved_returns', $statistics);
-        $this->assertArrayHasKey('completed_returns', $statistics);
-        $this->assertArrayHasKey('total_return_amount', $statistics);
+
+        foreach (['customer_returns', 'vendor_returns', 'retailer_returns'] as $group) {
+            $this->assertArrayHasKey('count', $statistics[$group]);
+            $this->assertArrayHasKey('quantity', $statistics[$group]);
+            $this->assertArrayHasKey('value', $statistics[$group]);
+        }
+
+        $this->assertEquals(1, $statistics['customer_returns']['count']);
+        $this->assertEquals(2, $statistics['customer_returns']['quantity']);
     }
 
     /** @test */
@@ -280,10 +296,16 @@ class UnifiedReturnManagementTest extends TestCase
         
         $filterOptions = $returnService->getFilterOptions();
 
+        // Each filter is keyed by the request field it drives.
         $this->assertIsArray($filterOptions);
-        $this->assertArrayHasKey('types', $filterOptions);
-        $this->assertArrayHasKey('statuses', $filterOptions);
-        $this->assertArrayHasKey('locations', $filterOptions);
+        $this->assertArrayHasKey('type', $filterOptions);
+        $this->assertArrayHasKey('status', $filterOptions);
+        $this->assertArrayHasKey('product_id', $filterOptions);
+
+        $this->assertEquals(
+            ['customer_return', 'vendor_return', 'retailer_return'],
+            array_keys($filterOptions['type']['options'])
+        );
     }
 
     /** @test */

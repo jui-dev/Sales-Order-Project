@@ -67,52 +67,106 @@ class ReturnFormSubmissionTest extends TestCase
         $response->assertSessionHasErrors(['items' => 'The items field is required.']);
     }
 
-    /** @test */
-    public function it_accepts_valid_items_array_for_customer_return()
+    /**
+     * The source document is submitted as reference_id, and the location type
+     * as a short name ('warehouse'), not a class string.
+     */
+    private function validPayload(array $overrides = []): array
     {
-        $response = $this->post(route('returns.store'), [
+        return array_merge([
             'return_type' => 'customer_return',
-            'invoice_id' => $this->invoice->id,
-            'return_location_type' => 'App\Models\Warehouse',
+            'reference_id' => $this->invoice->id,
+            'return_reason' => 'Defective product',
+            'return_location_type' => 'warehouse',
             'return_location_id' => $this->warehouse->id,
             'return_date' => now()->format('Y-m-d'),
             'notes' => 'Test return',
             'items' => [
                 [
                     'product_id' => $this->product->id,
-                    'quantity' => 1
-                ]
-            ]
-        ]);
+                    'quantity' => 1,
+                ],
+            ],
+        ], $overrides);
+    }
 
-        $response->assertRedirect(route('returns.index'));
+    /** @test */
+    public function it_accepts_valid_items_array_for_customer_return()
+    {
+        $response = $this->post(route('returns.store'), $this->validPayload());
+
+        $return = StockTransaction::where('transaction_type', StockTransaction::TYPE_CUSTOMER_RETURN)->first();
+
+        $this->assertNotNull($return);
+        $response->assertRedirect(route('returns.show', $return->id));
         $response->assertSessionHas('success');
-        
-        // Verify the return transaction was created
+
+        // The source document is stored polymorphically, not as invoice_id.
         $this->assertDatabaseHas('stock_transactions', [
             'transaction_type' => StockTransaction::TYPE_CUSTOMER_RETURN,
             'product_id' => $this->product->id,
             'quantity' => 1,
-            'invoice_id' => $this->invoice->id,
+            'reference_type' => Invoice::class,
+            'reference_id' => $this->invoice->id,
+            'status' => StockTransaction::STATUS_PENDING,
+        ]);
+    }
+
+    /** @test */
+    public function it_rejects_a_return_for_more_than_was_sold()
+    {
+        // The invoice line is for 2 units.
+        $response = $this->post(route('returns.store'), $this->validPayload([
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 5,
+                ],
+            ],
+        ]));
+
+        $response->assertSessionHas('error');
+
+        // The rule must hold on the server, not only in the form's JavaScript.
+        $this->assertDatabaseMissing('stock_transactions', [
+            'transaction_type' => StockTransaction::TYPE_CUSTOMER_RETURN,
+            'product_id' => $this->product->id,
+        ]);
+    }
+
+    /** @test */
+    public function it_rejects_a_return_for_a_product_not_on_the_invoice()
+    {
+        $otherProduct = Product::factory()->create(['sku' => 'OTHER001']);
+
+        $response = $this->post(route('returns.store'), $this->validPayload([
+            'items' => [
+                [
+                    'product_id' => $otherProduct->id,
+                    'quantity' => 1,
+                ],
+            ],
+        ]));
+
+        $response->assertSessionHas('error');
+
+        $this->assertDatabaseMissing('stock_transactions', [
+            'transaction_type' => StockTransaction::TYPE_CUSTOMER_RETURN,
+            'product_id' => $otherProduct->id,
         ]);
     }
 
     /** @test */
     public function it_validates_items_array_structure()
     {
-        $response = $this->post(route('returns.store'), [
-            'return_type' => 'customer_return',
-            'invoice_id' => $this->invoice->id,
-            'return_location_type' => 'App\Models\Warehouse',
-            'return_location_id' => $this->warehouse->id,
-            'return_date' => now()->format('Y-m-d'),
+        $response = $this->post(route('returns.store'), $this->validPayload([
             'items' => [
                 [
                     'product_id' => $this->product->id,
                     // Missing quantity
-                ]
-            ]
-        ]);
+                ],
+            ],
+        ]));
 
         $response->assertSessionHasErrors(['items.0.quantity' => 'The items.0.quantity field is required.']);
     }
@@ -120,19 +174,14 @@ class ReturnFormSubmissionTest extends TestCase
     /** @test */
     public function it_validates_product_id_exists()
     {
-        $response = $this->post(route('returns.store'), [
-            'return_type' => 'customer_return',
-            'invoice_id' => $this->invoice->id,
-            'return_location_type' => 'App\Models\Warehouse',
-            'return_location_id' => $this->warehouse->id,
-            'return_date' => now()->format('Y-m-d'),
+        $response = $this->post(route('returns.store'), $this->validPayload([
             'items' => [
                 [
                     'product_id' => 99999, // Non-existent product
-                    'quantity' => 1
-                ]
-            ]
-        ]);
+                    'quantity' => 1,
+                ],
+            ],
+        ]));
 
         $response->assertSessionHasErrors(['items.0.product_id' => 'The selected items.0.product_id is invalid.']);
     }
@@ -140,20 +189,15 @@ class ReturnFormSubmissionTest extends TestCase
     /** @test */
     public function it_validates_quantity_is_positive_integer()
     {
-        $response = $this->post(route('returns.store'), [
-            'return_type' => 'customer_return',
-            'invoice_id' => $this->invoice->id,
-            'return_location_type' => 'App\Models\Warehouse',
-            'return_location_id' => $this->warehouse->id,
-            'return_date' => now()->format('Y-m-d'),
+        $response = $this->post(route('returns.store'), $this->validPayload([
             'items' => [
                 [
                     'product_id' => $this->product->id,
-                    'quantity' => 0 // Invalid quantity
-                ]
-            ]
-        ]);
+                    'quantity' => 0, // Invalid quantity
+                ],
+            ],
+        ]));
 
-        $response->assertSessionHasErrors(['items.0.quantity' => 'The items.0.quantity must be at least 1.']);
+        $response->assertSessionHasErrors(['items.0.quantity' => 'The items.0.quantity field must be at least 1.']);
     }
 } 

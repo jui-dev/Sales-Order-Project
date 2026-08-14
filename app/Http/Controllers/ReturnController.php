@@ -177,7 +177,16 @@ class ReturnController extends Controller
             $returns = [];
             foreach ($request->items as $item) {
                 $data = array_merge($request->all(), $item);
-                
+
+                // Enforce the quantity rule here, not just in the form's JS -
+                // a request posted directly would otherwise bypass it entirely.
+                $this->returnService->assertReturnQuantityIsValid(
+                    $request->return_type,
+                    (int) $request->reference_id,
+                    (int) $item['product_id'],
+                    (int) $item['quantity']
+                );
+
                 // Map reference_id to the appropriate field based on return type
                 switch ($request->return_type) {
                     case 'customer_return':
@@ -297,16 +306,25 @@ class ReturnController extends Controller
         ]);
 
         try {
-            // Get existing return data
-            $returnData = $return->return_data ?? [];
-            
-            // Update return data
-            $returnData['return_reason'] = $request->return_reason;
-            $returnData['notes'] = $request->notes;
-            
+            // Re-check the new quantity against the source document, ignoring
+            // this return's own current quantity.
+            $this->returnService->assertReturnQuantityIsValid(
+                $return->transaction_type,
+                (int) $return->reference_id,
+                (int) $return->product_id,
+                (int) $request->quantity,
+                $return->id
+            );
+
+            $returnData = is_array($return->return_data) ? $return->return_data : [];
+            $returnData['internal_notes'] = $request->notes;
+
+            // `notes` holds the return reason and is read back by
+            // getReturnReasonAttribute() - it must stay plain text.
             $return->update([
                 'quantity' => $request->quantity,
-                'notes' => json_encode($returnData),
+                'notes' => $request->return_reason,
+                'return_data' => $returnData,
             ]);
 
             return redirect()->route('returns.show', $return->id)
@@ -526,6 +544,32 @@ class ReturnController extends Controller
                 'return_id' => $return->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
+            ]);
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Reject a return
+     */
+    public function reject(Request $request, StockTransaction $return): RedirectResponse
+    {
+        if (!$return->isReturn()) {
+            abort(404, 'Return not found');
+        }
+
+        $request->validate([
+            'rejection_reason' => 'required|string|max:500',
+        ]);
+
+        try {
+            $this->returnService->rejectReturn($return, $request->rejection_reason);
+
+            return back()->with('success', 'Return rejected. No stock or accounting entries were made.');
+        } catch (\Exception $e) {
+            \Log::error('Return rejection failed:', [
+                'return_id' => $return->id,
+                'error' => $e->getMessage(),
             ]);
             return back()->with('error', $e->getMessage());
         }

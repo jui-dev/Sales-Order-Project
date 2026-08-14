@@ -417,9 +417,10 @@
                                                     <i class="bi bi-check-circle"></i>
                                                 </button>
                                             </form>
-                                        <form action="{{ route('returns.reject', $return->id) }}" method="POST" class="d-inline">
+                                        <form action="{{ route('returns.reject', $return->id) }}" method="POST" class="d-inline" onsubmit="return promptRejectionReason(this)">
                                             @csrf
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject Return" onclick="return confirm('Are you sure you want to reject this return?')">
+                                            <input type="hidden" name="rejection_reason" value="">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject Return">
                                                 <i class="bi bi-x-circle"></i>
                                             </button>
                                         </form>
@@ -453,5 +454,17 @@
     setTimeout(function() {
         location.reload();
     }, 30000);
+
+    // Rejecting a return requires a reason, which is recorded against the return.
+    function promptRejectionReason(form) {
+        var reason = window.prompt('Why is this return being rejected?');
+
+        if (reason === null || reason.trim() === '') {
+            return false;
+        }
+
+        form.querySelector('input[name="rejection_reason"]').value = reason.trim();
+        return true;
+    }
 </script>
 @endsection 

@@ -2,19 +2,31 @@
 
 namespace App\Observers;
 
-use App\Models\StockTransaction;
 use App\Models\Product;
+use App\Models\StockTransaction;
 use Illuminate\Support\Facades\DB;
 
 class StockTransactionObserver
 {
     /**
+     * Returns are deliberately excluded from every hook below. They post their
+     * stock from StockTransaction::approve() instead, so that recording a
+     * return leaves inventory untouched until somebody approves it - which is
+     * what the returns screen tells the user will happen.
+     *
+     * Every other transaction type (stock_in from GRNs, stock_transfer,
+     * order_fulfillment, adjustment) still posts here on creation.
+     */
+
+    /**
      * Update product available_stocks when a stock transaction is created
      */
     public function created(StockTransaction $transaction): void
     {
-        // Call the model's updateProductStock method to update product_stocks table
-        $transaction->updateProductStock();
+        if (! $transaction->isReturn()) {
+            // Call the model's updateProductStock method to update product_stocks table
+            $transaction->updateProductStock();
+        }
 
         // Then update the product's available_stocks
         $this->updateProductAvailableStock($transaction);
@@ -27,8 +39,10 @@ class StockTransactionObserver
     {
         // Only update if quantity or status changed
         if ($transaction->wasChanged(['quantity', 'status', 'direction'])) {
-            // Call the model's updateProductStock method to update product_stocks table
-            $transaction->updateProductStock();
+            if (! $transaction->isReturn()) {
+                // Call the model's updateProductStock method to update product_stocks table
+                $transaction->updateProductStock();
+            }
 
             // Then update the product's available_stocks
             $this->updateProductAvailableStock($transaction);
@@ -40,8 +54,10 @@ class StockTransactionObserver
      */
     public function deleted(StockTransaction $transaction): void
     {
-        // Call the model's updateProductStock method to update product_stocks table
-        $transaction->updateProductStock();
+        if (! $transaction->isReturn()) {
+            // Call the model's updateProductStock method to update product_stocks table
+            $transaction->updateProductStock();
+        }
 
         // Then update the product's available_stocks
         $this->updateProductAvailableStock($transaction);
@@ -54,13 +70,13 @@ class StockTransactionObserver
     private function updateProductAvailableStock(StockTransaction $transaction): void
     {
         $product = $transaction->product;
-        if (!$product) {
+        if (! $product) {
             return;
         }
 
         // Calculate available stock from product_stocks table accounting for reservations
         // Available stock = Total stock - Reserved stock
-        DB::transaction(function() use ($product) {
+        DB::transaction(function () use ($product) {
             $stockBalances = $product->stockBalances()
                 ->whereIn('location_type', ['App\\Models\\Warehouse', 'App\\Models\\Retailer'])
                 ->get();

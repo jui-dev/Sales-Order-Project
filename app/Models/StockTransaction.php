@@ -27,6 +27,16 @@ class StockTransaction extends Model
         'transaction_date',
         'status',
         'notes',
+        'stock_posted_at',
+        'approved_by',
+        'approved_at',
+        'rejected_by',
+        'rejected_at',
+        'completed_by',
+        'completed_at',
+        'cancelled_by',
+        'cancelled_at',
+        'return_data',
     ];
 
     /**
@@ -100,10 +110,12 @@ class StockTransaction extends Model
     protected $casts = [
         'transaction_date' => 'datetime',
         'status' => 'string',
-        'return_amount' => 'decimal:2',
+        'stock_posted_at' => 'datetime',
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
         'completed_at' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'return_data' => 'array',
     ];
 
     public function product(): BelongsTo
@@ -171,46 +183,50 @@ class StockTransaction extends Model
         return $this->notes;
     }
 
+    /**
+     * approved_by/at, rejected_by/at, completed_by/at and cancelled_by/at are
+     * real columns now, so they need no accessors. Only the values that live
+     * inside the return_data payload are read through one.
+     */
     public function getReturnAmountAttribute()
     {
         $returnData = $this->return_data;
         return (is_array($returnData) && isset($returnData['return_amount'])) ? (float) $returnData['return_amount'] : 0.0;
     }
 
-    public function getApprovedByAttribute()
-    {
-        $returnData = $this->return_data;
-        return (is_array($returnData) && isset($returnData['approved_by'])) ? $returnData['approved_by'] : null;
-    }
-
-    public function getApprovedAtAttribute()
-    {
-        $returnData = $this->return_data;
-        return (is_array($returnData) && isset($returnData['approved_at'])) ? $returnData['approved_at'] : null;
-    }
-
-    public function getRejectedByAttribute()
-    {
-        $returnData = $this->return_data;
-        return (is_array($returnData) && isset($returnData['rejected_by'])) ? $returnData['rejected_by'] : null;
-    }
-
-    public function getRejectedAtAttribute()
-    {
-        $returnData = $this->return_data;
-        return (is_array($returnData) && isset($returnData['rejected_at'])) ? $returnData['rejected_at'] : null;
-    }
-
-    public function getCompletedAtAttribute()
-    {
-        $returnData = $this->return_data;
-        return (is_array($returnData) && isset($returnData['completed_at'])) ? $returnData['completed_at'] : null;
-    }
-
     public function getRejectionReasonAttribute()
     {
         $returnData = $this->return_data;
         return (is_array($returnData) && isset($returnData['rejection_reason'])) ? $returnData['rejection_reason'] : null;
+    }
+
+    public function getCancellationNotesAttribute()
+    {
+        $returnData = $this->return_data;
+        return (is_array($returnData) && isset($returnData['cancellation_notes'])) ? $returnData['cancellation_notes'] : null;
+    }
+
+    /**
+     * Users behind the return audit trail.
+     */
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
+    }
+
+    public function completedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'completed_by');
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     /**
@@ -357,13 +373,14 @@ class StockTransaction extends Model
             }
         }
 
-        // Store approval info in a separate field or use a different approach
-        // For now, we'll keep the return reason in notes and store approval info elsewhere
         $this->update([
             'status' => self::STATUS_APPROVED,
+            'approved_by' => $approvedByUserId,
+            'approved_at' => now(),
         ]);
 
-        // Update product stock
+        // The single point at which a return moves stock. StockTransactionObserver
+        // deliberately skips returns, and stock_posted_at makes this idempotent.
         $this->updateProductStock();
 
         // Generate appropriate notes based on return type
@@ -379,13 +396,29 @@ class StockTransaction extends Model
             throw new \InvalidArgumentException('Only return transactions can be rejected');
         }
 
-        if (!$this->isPending()) {
-            throw new \InvalidArgumentException('Only pending returns can be rejected');
+        // Retailer returns open at "issued" rather than "pending", so they are
+        // rejectable from either state - matching the rule in approve().
+        if ($this->isRetailerReturn()) {
+            if (!$this->isIssued() && !$this->isPending()) {
+                throw new \InvalidArgumentException('Only issued or pending retailer returns can be rejected');
+            }
+        } else {
+            if (!$this->isPending()) {
+                throw new \InvalidArgumentException('Only pending returns can be rejected');
+            }
         }
+
+        $returnData = is_array($this->return_data) ? $this->return_data : [];
+        $returnData['rejection_reason'] = $reason;
 
         $this->update([
             'status' => self::STATUS_REJECTED,
+            'rejected_by' => $rejectedByUserId,
+            'rejected_at' => now(),
+            'return_data' => $returnData,
         ]);
+
+        // No stock to reverse: a return only posts stock once approved.
 
         // Log the rejection
         $this->logStatusChange('rejected', $reason);
@@ -401,8 +434,11 @@ class StockTransaction extends Model
             throw new \InvalidArgumentException('Only approved returns can be completed');
         }
 
+        // Stock was already posted at approval; completing is a status change only.
         $this->update([
             'status' => self::STATUS_COMPLETED,
+            'completed_by' => $completedByUserId,
+            'completed_at' => now(),
         ]);
 
         // Log the completion
@@ -415,24 +451,27 @@ class StockTransaction extends Model
             throw new \InvalidArgumentException('Only return transactions can be cancelled');
         }
 
-        if (!$this->isPending()) {
-            throw new \InvalidArgumentException('Only pending returns can be cancelled');
+        // Retailer returns open at "issued" rather than "pending".
+        if ($this->isRetailerReturn()) {
+            if (!$this->isIssued() && !$this->isPending()) {
+                throw new \InvalidArgumentException('Only issued or pending retailer returns can be cancelled');
+            }
+        } else {
+            if (!$this->isPending()) {
+                throw new \InvalidArgumentException('Only pending returns can be cancelled');
+            }
         }
 
-        // Get existing return data from notes
-        $returnData = $this->return_data ?? [];
-        if (!is_array($returnData)) {
-            $returnData = [];
-        }
-
-        // Update return data with cancellation info
-        $returnData['cancelled_by'] = $cancelledByUserId;
-        $returnData['cancelled_at'] = now()->toISOString();
+        $returnData = is_array($this->return_data) ? $this->return_data : [];
         $returnData['cancellation_notes'] = $notes;
 
+        // Cancellation details go to return_data. They used to be json_encode'd
+        // into `notes`, which is where the return reason lives - overwriting it.
         $this->update([
             'status' => self::STATUS_CANCELLED,
-            'notes' => json_encode($returnData),
+            'cancelled_by' => $cancelledByUserId,
+            'cancelled_at' => now(),
+            'return_data' => $returnData,
         ]);
 
         // Log the cancellation
@@ -445,12 +484,11 @@ class StockTransaction extends Model
      */
     public function updateProductStock(): void
     {
-        // Prevent double updates by checking if this transaction has already been processed
-        // This is crucial for GRN-based stock transactions to avoid double counting
-        $cacheKey = "stock_update_processed_{$this->id}";
-        $existingUpdate = \Cache::get($cacheKey);
-        if ($existingUpdate) {
-            return; // This transaction has already been processed
+        // A transaction moves stock exactly once, ever. This is recorded on the
+        // row itself rather than in the cache: the previous cache key expired
+        // after an hour, after which the same transaction posted again.
+        if ($this->stock_posted_at) {
+            return;
         }
 
         // For vendor returns, we don't create product_stocks records for vendors
@@ -474,8 +512,11 @@ class StockTransaction extends Model
                     'quantity' => 0,
                 ]);
 
+                $this->assertSufficientStock($productStock, $warehouse);
+
                 // Decrease warehouse stock for vendor returns
                 $productStock->decrement('quantity', $this->quantity);
+                $this->markStockPosted();
             }
 
             return;
@@ -501,6 +542,9 @@ class StockTransaction extends Model
                     ], [
                         'quantity' => 0,
                     ]);
+
+                    $this->assertSufficientStock($retailerStock, $this->location);
+
                     $retailerStock->decrement('quantity', $this->quantity);
 
                     // Increase stock to warehouse (destination)
@@ -512,6 +556,8 @@ class StockTransaction extends Model
                         'quantity' => 0,
                     ]);
                     $warehouseStock->increment('quantity', $this->quantity);
+
+                    $this->markStockPosted();
                 } else {
                     // Log error if warehouse is not found
                     \Log::error('Warehouse not found for retailer return stock adjustment', [
@@ -580,9 +626,41 @@ class StockTransaction extends Model
                 }
 
                 // Mark this transaction as processed to prevent double updates
-                \Cache::put("stock_update_processed_{$this->id}", true, 3600); // Cache for 1 hour
+                $this->markStockPosted();
             });
         }
+    }
+
+    /**
+     * Record that this transaction's stock effect has been applied, so it can
+     * never be applied a second time. Saved quietly so it does not re-enter
+     * StockTransactionObserver::updated().
+     */
+    private function markStockPosted(): void
+    {
+        $this->forceFill(['stock_posted_at' => now()])->saveQuietly();
+    }
+
+    /**
+     * Guard an outbound movement against driving a location negative.
+     * ProductStock::decrement() writes raw SQL with no floor, and the column is
+     * not unsigned, so without this a return can silently go below zero.
+     */
+    private function assertSufficientStock(ProductStock $productStock, $location): void
+    {
+        if ($productStock->quantity >= $this->quantity) {
+            return;
+        }
+
+        $locationName = $location->name ?? class_basename($location ?? 'location');
+
+        throw new \RuntimeException(sprintf(
+            'Cannot return %d unit(s) of %s from %s: only %d in stock.',
+            $this->quantity,
+            $this->product->name ?? "product #{$this->product_id}",
+            $locationName,
+            $productStock->quantity
+        ));
     }
 
     /**

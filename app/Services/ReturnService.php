@@ -451,7 +451,7 @@ class ReturnService
     /**
      * Validate return quantity
      */
-    public function validateReturnQuantity(string $returnType, int $referenceId, int $productId, int $quantity): array
+    public function validateReturnQuantity(string $returnType, int $referenceId, int $productId, int $quantity, ?int $excludeTransactionId = null): array
     {
         $errors = [];
 
@@ -487,11 +487,13 @@ class ReturnService
                     break;
                 }
 
-                $alreadyReturned = StockTransaction::where('transaction_type', StockTransaction::TYPE_CUSTOMER_RETURN)
-                    ->where('reference_type', Invoice::class)
-                    ->where('reference_id', $referenceId)
-                    ->where('product_id', $productId)
-                    ->sum('quantity');
+                $alreadyReturned = $this->alreadyReturnedQuantity(
+                    StockTransaction::TYPE_CUSTOMER_RETURN,
+                    Invoice::class,
+                    $referenceId,
+                    $productId,
+                    $excludeTransactionId
+                );
 
                 $availableQuantity = $invoiceItem->quantity - $alreadyReturned;
                 if ($quantity > $availableQuantity) {
@@ -512,11 +514,13 @@ class ReturnService
                     break;
                 }
 
-                $alreadyReturned = StockTransaction::where('transaction_type', StockTransaction::TYPE_VENDOR_RETURN)
-                    ->where('reference_type', SupplierBill::class)
-                    ->where('reference_id', $referenceId)
-                    ->where('product_id', $productId)
-                    ->sum('quantity');
+                $alreadyReturned = $this->alreadyReturnedQuantity(
+                    StockTransaction::TYPE_VENDOR_RETURN,
+                    SupplierBill::class,
+                    $referenceId,
+                    $productId,
+                    $excludeTransactionId
+                );
 
                 $availableQuantity = $billItem->quantity - $alreadyReturned;
                 if ($quantity > $availableQuantity) {
@@ -543,11 +547,13 @@ class ReturnService
                     break;
                 }
 
-                $alreadyReturned = StockTransaction::where('transaction_type', StockTransaction::TYPE_RETAILER_RETURN)
-                    ->where('reference_type', StockTransfer::class)
-                    ->where('reference_id', $referenceId)
-                    ->where('product_id', $productId)
-                    ->sum('quantity');
+                $alreadyReturned = $this->alreadyReturnedQuantity(
+                    StockTransaction::TYPE_RETAILER_RETURN,
+                    StockTransfer::class,
+                    $referenceId,
+                    $productId,
+                    $excludeTransactionId
+                );
 
                 $availableQuantity = $transferItem->quantity - $alreadyReturned;
                 if ($quantity > $availableQuantity) {
@@ -565,6 +571,41 @@ class ReturnService
             'valid' => empty($errors),
             'errors' => $errors
         ];
+    }
+
+    /**
+     * How much of a product has already been returned against a reference
+     * document. Rejected and cancelled returns are excluded - they never moved
+     * any stock, so they must not consume the remaining allowance.
+     */
+    private function alreadyReturnedQuantity(string $returnType, string $referenceType, int $referenceId, int $productId, ?int $excludeTransactionId = null): int
+    {
+        return (int) StockTransaction::where('transaction_type', $returnType)
+            ->where('reference_type', $referenceType)
+            ->where('reference_id', $referenceId)
+            ->where('product_id', $productId)
+            ->whereNotIn('status', [
+                StockTransaction::STATUS_REJECTED,
+                StockTransaction::STATUS_CANCELLED,
+            ])
+            // When editing a return, its own quantity must not count against
+            // the allowance it is being measured against.
+            ->when($excludeTransactionId, fn ($query) => $query->where('id', '!=', $excludeTransactionId))
+            ->sum('quantity');
+    }
+
+    /**
+     * Validate a return line and throw if it is not allowed. Used by the
+     * create/update paths so the rule holds regardless of what the browser
+     * sent - the AJAX endpoint is only there for live feedback in the form.
+     */
+    public function assertReturnQuantityIsValid(string $returnType, int $referenceId, int $productId, int $quantity, ?int $excludeTransactionId = null): void
+    {
+        $result = $this->validateReturnQuantity($returnType, $referenceId, $productId, $quantity, $excludeTransactionId);
+
+        if (!($result['valid'] ?? false)) {
+            throw new \InvalidArgumentException(implode(' ', $result['errors'] ?? ['Invalid return quantity.']));
+        }
     }
 
     /**
@@ -737,6 +778,30 @@ class ReturnService
             $userId = auth()->id() ?? 1; // Default to user ID 1 if not authenticated
             $transaction->approve($userId);
             
+            return $transaction->load(['product', 'location', 'reference']);
+        });
+    }
+
+    /**
+     * Reject a return transaction. Nothing to unwind: stock is only posted
+     * once a return is approved.
+     */
+    public function rejectReturn(StockTransaction $transaction, string $reason): StockTransaction
+    {
+        if ($transaction->isRetailerReturn()) {
+            if (!$transaction->isIssued() && !$transaction->isPending()) {
+                throw new \Exception('Only issued or pending retailer returns can be rejected');
+            }
+        } else {
+            if (!$transaction->isPending()) {
+                throw new \Exception('Only pending returns can be rejected');
+            }
+        }
+
+        return DB::transaction(function () use ($transaction, $reason) {
+            $userId = auth()->id() ?? 1; // Default to user ID 1 if not authenticated
+            $transaction->reject($userId, $reason);
+
             return $transaction->load(['product', 'location', 'reference']);
         });
     }

@@ -1,73 +1,35 @@
 <?php
 
-require_once 'vendor/autoload.php';
+/*
+|--------------------------------------------------------------------------
+| Retired - do not run
+|--------------------------------------------------------------------------
+|
+| This was a one-off script that looped over every return transaction and
+| called updateProductStock() on each one. It had no idempotency of its own,
+| so re-running it re-applied every return's stock movement on top of the
+| balances that were already there. It also processed "pending" returns,
+| which must not move stock at all until they are approved.
+|
+| Returns now record stock_posted_at when their stock effect is applied, so
+| this script would mostly no-op today - but it remains the wrong tool.
+|
+| To inspect balance drift, use the read-only replacement:
+|
+|     php artisan returns:reconcile-stock
+|
+*/
 
-$app = require_once 'bootstrap/app.php';
-$app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+fwrite(STDERR, <<<'MESSAGE'
+fix_existing_returns.php has been retired and does nothing.
 
-use App\Models\StockTransaction;
-use App\Models\Product;
+It re-applied return stock movements on every run, compounding any drift
+rather than correcting it.
 
-echo "=== Fixing Existing Return Transactions ===\n\n";
+Use the read-only report instead:
 
-// Get all return transactions that need to be processed
-$returnTransactions = StockTransaction::whereIn('transaction_type', [
-    'customer_return',
-    'vendor_return',
-    'retailer_return'
-])
-->whereIn('status', ['pending', 'approved', 'completed'])
-->get();
+    php artisan returns:reconcile-stock
 
-echo "Found {$returnTransactions->count()} return transactions to process\n\n";
+MESSAGE);
 
-$processed = 0;
-$errors = 0;
-
-foreach ($returnTransactions as $transaction) {
-    try {
-        echo "Processing transaction ID: {$transaction->id} - Type: {$transaction->transaction_type} - Quantity: {$transaction->quantity}\n";
-        
-        // Call the updateProductStock method to update product_stocks table
-        $transaction->updateProductStock();
-        
-        $processed++;
-        echo "  ✅ Processed successfully\n";
-    } catch (Exception $e) {
-        $errors++;
-        echo "  ❌ Error: " . $e->getMessage() . "\n";
-    }
-}
-
-echo "\n=== Summary ===\n";
-echo "Processed: {$processed}\n";
-echo "Errors: {$errors}\n";
-
-// Now recalculate all product stocks
-echo "\n=== Recalculating Product Stocks ===\n";
-
-$products = Product::all();
-$updated = 0;
-
-foreach ($products as $product) {
-    try {
-        $oldStock = $product->available_stocks;
-        
-        // Recalculate based on product_stocks table
-        $newStock = (int) $product->stockBalances()->sum('quantity');
-        $newStock = max(0, $newStock);
-        
-        $product->update(['available_stocks' => $newStock]);
-        
-        if ($oldStock != $newStock) {
-            echo "Product {$product->id} ({$product->name}): {$oldStock} → {$newStock}\n";
-        }
-        
-        $updated++;
-    } catch (Exception $e) {
-        echo "Error updating product {$product->id}: " . $e->getMessage() . "\n";
-    }
-}
-
-echo "\nUpdated {$updated} products\n";
-echo "✅ Fix completed!\n";
+exit(1);

@@ -105,7 +105,7 @@ class ReturnQuantityValidationTest extends TestCase
         );
         
         $this->assertFalse($result['valid']);
-        $this->assertContains('exceeds available quantity', $result['errors'][0]);
+        $this->assertStringContainsString('exceeds available quantity', $result['errors'][0]);
     }
 
     /** @test */
@@ -136,7 +136,7 @@ class ReturnQuantityValidationTest extends TestCase
         );
         
         $this->assertFalse($result['valid']);
-        $this->assertContains('exceeds available quantity', $result['errors'][0]);
+        $this->assertStringContainsString('exceeds available quantity', $result['errors'][0]);
     }
 
     /** @test */
