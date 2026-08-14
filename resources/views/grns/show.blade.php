@@ -10,38 +10,8 @@
     $totalValue  = $items->sum(fn ($item) => $item->subtotal ?? ($item->quantity * $item->unit_cost));
     $receivedOn  = optional($grn->received_date)->format('M d, Y') ?: '—';
 
-    $billIsPosted = $bill && in_array($bill->status, ['posted', 'paid'], true);
-    $billIsPaid   = $bill && $bill->isPaid();
-
     // Where this receipt sits in Record Supply -> Receive Goods -> Supplier Bill -> Payment.
-    $stages = [
-        [
-            'name'  => 'Record Supply',
-            'state' => 'done',
-            'meta'  => optional($supply?->supply_date)->format('M d, Y') ?: 'Recorded',
-            'url'   => $supply ? route('supplies.show', $supply->id) : null,
-        ],
-        [
-            'name'  => 'Receive Goods',
-            'state' => $isPosted ? 'done' : 'current',
-            'meta'  => $isPosted ? $receivedOn : 'Awaiting posting',
-            'url'   => null,
-        ],
-        [
-            'name'  => 'Supplier Bill',
-            'state' => $billIsPosted ? 'done' : ($bill ? 'current' : 'todo'),
-            'meta'  => $bill ? $bill->formatted_id : 'Created when this GRN is posted',
-            'url'   => $bill ? route('supplier-bills.show', $bill) : null,
-        ],
-        [
-            'name'  => 'Payment',
-            'state' => $billIsPaid ? 'done' : ($billIsPosted ? 'current' : 'todo'),
-            'meta'  => $billIsPaid
-                ? (optional($bill->paid_at)->format('M d, Y') ?: 'Paid')
-                : ($billIsPosted ? 'Due to vendor' : 'Not yet due'),
-            'url'   => $billIsPosted ? route('supplier-bills.show', $bill) : null,
-        ],
-    ];
+    $stages = \App\Support\SuppliesWorkflow::forGrn($grn);
 @endphp
 
 @section('page-header')
@@ -96,27 +66,7 @@
     </div>
 @else
     {{-- Where this receipt sits in the purchase workflow --}}
-    <div class="detail-card mb-4">
-        <div class="detail-card__body">
-            <div class="workflow-rail">
-                @foreach($stages as $index => $stage)
-                    {{-- An <a> without href stays plain text, so one element covers both cases --}}
-                    <a class="workflow-stage workflow-stage--{{ $stage['state'] }}"
-                       @if($stage['url']) href="{{ $stage['url'] }}" @endif>
-                        <span class="workflow-stage__marker">
-                            @if($stage['state'] === 'done')
-                                <i class="bi bi-check-lg"></i>
-                            @else
-                                {{ $index + 1 }}
-                            @endif
-                        </span>
-                        <span class="workflow-stage__name">{{ $stage['name'] }}</span>
-                        <span class="workflow-stage__meta">{{ $stage['meta'] }}</span>
-                    </a>
-                @endforeach
-            </div>
-        </div>
-    </div>
+    <x-workflow-rail :stages="$stages" />
 
     {{-- Headline figures --}}
     <div class="detail-card mb-4">

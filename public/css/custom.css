@@ -1202,6 +1202,58 @@ footer.site-footer {
     color: var(--medium-text);
 }
 
+/* ---- Journal ledger -------------------------------------------------- */
+/* Double-entry lines: account on the left, debit and credit columns right. */
+.detail-ledger {
+    width: 100%;
+    font-size: 0.9375rem;
+}
+
+.detail-ledger th {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--medium-text);
+    padding: 0 0.5rem 0.5rem;
+    border-bottom: 1px solid var(--subtle-border);
+}
+
+.detail-ledger td {
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--subtle-border);
+    color: var(--dark-text);
+}
+
+.detail-ledger th:not(:first-child),
+.detail-ledger td:not(:first-child) {
+    text-align: right;
+    width: 8.5rem;
+}
+
+.detail-ledger__code {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--medium-text);
+}
+
+.detail-ledger tfoot td {
+    border-bottom: 0;
+    border-top: 2px solid var(--border-color);
+    font-weight: 700;
+}
+
+.detail-ledger__muted {
+    color: var(--medium-text);
+}
+
+@media (max-width: 575.98px) {
+    .detail-ledger th:not(:first-child),
+    .detail-ledger td:not(:first-child) {
+        width: 6rem;
+    }
+}
+
 /* ---- Workflow rail --------------------------------------------------- */
 /* A record's position in a multi-stage process. Stages are numbered
    because the order is real information, not decoration. */

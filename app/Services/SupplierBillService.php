@@ -33,11 +33,12 @@ class SupplierBillService
     public function getSupplierBillWithDetails(int $id): SupplierBill
     {
         return SupplierBill::with([
-            'vendor', 
-            'items.product', 
-            'grn', 
-            'purchaseJournal.lines.account', 
-            'paymentJournal.lines.account', 
+            'vendor',
+            'items.product',
+            // grn.supply backs the workflow rail's "Record Supply" stage
+            'grn.supply',
+            'purchaseJournal.lines.account',
+            'paymentJournal.lines.account',
             'payment.paymentJournal'
         ])->findOrFail($id);
     }
