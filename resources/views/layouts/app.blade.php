@@ -77,11 +77,20 @@
         .sidebar-nav .nav-link {
             color: var(--light-text);
             padding: 0.5rem 1rem;
+            /* custom.css puts `transition: all` on every .nav-link, which lets padding and
+               margin animate too; only the colours should move here. */
+            transition: background-color 0.15s ease, color 0.15s ease;
         }
         .sidebar-nav .nav-link:hover,
         .sidebar-nav .nav-link.active {
             background-color: rgba(255, 255, 255, 0.15);
             color: var(--light-text);
+        }
+        /* Menus open and close instantly. Bootstrap animates the panel height over 0.35s,
+           and because the sidebar is one accordion it closes another menu at the same
+           time, so every item below the two of them slid up and down on each click. */
+        .sidebar-nav .collapsing {
+            transition: none;
         }
         .sidebar-nav .collapse .nav-link {
             padding-left: 2rem;
@@ -118,6 +127,9 @@
                 transform: none !important;
                 visibility: visible !important;
                 overflow-y: auto;
+                /* Reserve the scrollbar track so opening a long menu doesn't narrow the
+                   sidebar and reflow every label sideways */
+                scrollbar-gutter: stable;
                 background: var(--primary) !important;
             }
             .offcanvas-lg.sidebar-nav {
@@ -190,130 +202,148 @@
         </div>
         <div class="offcanvas-body p-0">
             <nav class="navbar-dark">
+                @php
+                    // Sidebar highlighting is matched on route names, not on the URL path, so
+                    // that links whose paths overlap (e.g. /payments and /supplier-bill-payments)
+                    // cannot light each other up.
+                    $navActive = fn (...$routes) => request()->routeIs(...$routes) ? ' active' : '';
+
+                    // The Returns sub-items all point at returns.index and are told apart by ?type;
+                    // "All Returns" (type null) is the one that wins when no type is filtered.
+                    $onReturns = request()->routeIs('returns.*');
+                    $returnType = $onReturns ? request()->query('type') : false;
+                    $returnActive = fn ($type) => $onReturns && $returnType === $type ? ' active' : '';
+
+                    $procurementOpen = request()->routeIs('supplies.*', 'grns.*', 'supplier-bills.*', 'supplier-bill-payments.*');
+                    $pickingOpen = request()->routeIs('vendor-to-warehouse-picking.*', 'stock-transfers.*', 'warehouse-to-customer-picking.*', 'retailer-to-customer-picking.*', 'picking-lists.*');
+                    $returnsOpen = request()->routeIs('returns.*', 'credit-notes.*', 'debit-notes.*');
+                    $stockOpen = request()->routeIs('stock-management.*', 'stock-locations.*', 'picking.transaction-flow');
+                    $salesOrderOpen = request()->routeIs('orders.*', 'invoices.*', 'payments.*');
+                    $accountingOpen = request()->routeIs('accounting.*', 'journal-entries.*', 'audit-logs.*', 'reports.trial-balance', 'reports.income-statement', 'reports.balance-sheet', 'reports.cash-flow');
+                @endphp
                 <ul class="navbar-nav flex-column" id="sidebarAccordion">
                     <!-- Dashboard -->
                     <li class="nav-item">
-                        <a class="nav-link px-3" href="{{ route('dashboard') }}">
+                        <a class="nav-link px-3{{ $navActive('dashboard') }}" href="{{ route('dashboard') }}">
                             <i class="bi bi-speedometer2 me-2"></i>Dashboard
                         </a>
                     </li>
 
-                    <!-- Inventory -->
+                    <!-- Master Data -->
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#inventoryMenu" role="button" aria-expanded="false" aria-controls="inventoryMenu">
-                            <span><i class="bi bi-box-seam me-2"></i>Inventory</span>
-                            <i class="bi bi-chevron-down small"></i>
-                        </a>
-                        <div class="collapse" id="inventoryMenu" data-bs-parent="#sidebarAccordion">
-                            <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3" href="{{ route('products.index') }}"><i class="bi bi-box me-2"></i>Products</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('supplies.index') }}"><i class="bi bi-truck me-2"></i>Supplies</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('vendors.index') }}"><i class="bi bi-building me-2"></i>Vendors</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('customers.index') }}"><i class="bi bi-people me-2"></i>Customers</a></li>
-                            </ul>
-                        </div>
+                        <a class="nav-link px-3{{ $navActive('products.*') }}" href="{{ route('products.index') }}"><i class="bi bi-box me-2"></i>Products</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3{{ $navActive('vendors.*') }}" href="{{ route('vendors.index') }}"><i class="bi bi-building me-2"></i>Vendors</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3{{ $navActive('customers.*') }}" href="{{ route('customers.index') }}"><i class="bi bi-people me-2"></i>Customers</a>
                     </li>
 
-                    <!-- Purchases -->
+                    <!-- Procurement -->
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#purchasesMenu" role="button" aria-expanded="false" aria-controls="purchasesMenu">
-                            <span><i class="bi bi-cart-check me-2"></i>Purchases</span>
+                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#procurementMenu" role="button" aria-expanded="{{ $procurementOpen ? 'true' : 'false' }}" aria-controls="procurementMenu">
+                            <span><i class="bi bi-cart-check me-2"></i>Procurement</span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
-                        <div class="collapse" id="purchasesMenu" data-bs-parent="#sidebarAccordion">
+                        <div class="collapse{{ $procurementOpen ? ' show' : '' }}" id="procurementMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3" href="{{ route('grns.index') }}"><i class="bi bi-receipt me-2"></i>Good Receipt Notes (GRNs)</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('supplier-bills.index') }}"><i class="bi bi-file-earmark-text me-2"></i>Supplier Bills</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('supplier-bill-payments.index') }}"><i class="bi bi-credit-card me-2"></i>Supplier Bills Payment</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('supplies.*') }}" href="{{ route('supplies.index') }}"><i class="bi bi-truck me-2"></i>Supplies</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('grns.*') }}" href="{{ route('grns.index') }}"><i class="bi bi-receipt me-2"></i>Good Receipt Notes (GRNs)</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('supplier-bills.*') }}" href="{{ route('supplier-bills.index') }}"><i class="bi bi-file-earmark-text me-2"></i>Supplier Bills</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('supplier-bill-payments.*') }}" href="{{ route('supplier-bill-payments.index') }}"><i class="bi bi-credit-card me-2"></i>Supplier Bills Payment</a></li>
                             </ul>
                         </div>
                     </li>
 
                     <!-- Picking & Transfers -->
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#pickingMenu" role="button" aria-expanded="false" aria-controls="pickingMenu">
+                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#pickingMenu" role="button" aria-expanded="{{ $pickingOpen ? 'true' : 'false' }}" aria-controls="pickingMenu">
                             <span><i class="bi bi-list-check me-2"></i>Picking & Transfers</span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
-                        <div class="collapse" id="pickingMenu" data-bs-parent="#sidebarAccordion">
+                        <div class="collapse{{ $pickingOpen ? ' show' : '' }}" id="pickingMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3" href="{{ route('vendor-to-warehouse-picking.index') }}"><i class="bi bi-truck-arrow-right me-2"></i>Vendors → Warehouse</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('stock-transfers.warehouse-to-retailer') }}"><i class="bi bi-building-arrow-right me-2"></i>Warehouse → Retailers</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('warehouse-to-customer-picking.index') }}"><i class="bi bi-house-arrow-right me-2"></i>Warehouse → Customers</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('retailer-to-customer-picking.index') }}"><i class="bi bi-people-arrow-right me-2"></i>Retailers → Customers</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('picking-lists.index') }}"><i class="bi bi-list-ul me-2"></i>All Picking Lists</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 me-2"></i>Transaction Flow</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('vendor-to-warehouse-picking.*') }}" href="{{ route('vendor-to-warehouse-picking.index') }}"><i class="bi bi-truck-arrow-right me-2"></i>Vendors → Warehouse</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('stock-transfers.*') }}" href="{{ route('stock-transfers.warehouse-to-retailer') }}"><i class="bi bi-building-arrow-right me-2"></i>Warehouse → Retailers</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('warehouse-to-customer-picking.*') }}" href="{{ route('warehouse-to-customer-picking.index') }}"><i class="bi bi-house-arrow-right me-2"></i>Warehouse → Customers</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('retailer-to-customer-picking.*') }}" href="{{ route('retailer-to-customer-picking.index') }}"><i class="bi bi-people-arrow-right me-2"></i>Retailers → Customers</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('picking-lists.*') }}" href="{{ route('picking-lists.index') }}"><i class="bi bi-list-ul me-2"></i>All Picking Lists</a></li>
                             </ul>
                         </div>
                     </li>
 
                     <!-- Returns -->
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#returnsMenu" role="button" aria-expanded="false" aria-controls="returnsMenu">
+                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#returnsMenu" role="button" aria-expanded="{{ $returnsOpen ? 'true' : 'false' }}" aria-controls="returnsMenu">
                             <span><i class="bi bi-arrow-return-left me-2"></i>Returns</span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
-                        <div class="collapse" id="returnsMenu" data-bs-parent="#sidebarAccordion">
+                        <div class="collapse{{ $returnsOpen ? ' show' : '' }}" id="returnsMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3" href="{{ route('returns.index') }}"><i class="bi bi-list me-2"></i>All Returns</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('credit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Credit Notes</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('debit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Debit Notes</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('returns.index', ['type' => 'customer_return']) }}"><i class="bi bi-arrow-return-left text-danger me-2"></i>Customer Returns</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('returns.index', ['type' => 'vendor_return']) }}"><i class="bi bi-arrow-return-right text-info me-2"></i>Vendor Returns</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('returns.index', ['type' => 'retailer_return']) }}"><i class="bi bi-arrow-return-left text-warning me-2"></i>Retailer Returns</a></li>
+                                <li><a class="nav-link px-3{{ $returnActive(null) }}" href="{{ route('returns.index') }}"><i class="bi bi-list me-2"></i>All Returns</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('credit-notes.*') }}" href="{{ route('credit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Credit Notes</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('debit-notes.*') }}" href="{{ route('debit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Debit Notes</a></li>
+                                <li><a class="nav-link px-3{{ $returnActive('customer_return') }}" href="{{ route('returns.index', ['type' => 'customer_return']) }}"><i class="bi bi-arrow-return-left text-danger me-2"></i>Customer Returns</a></li>
+                                <li><a class="nav-link px-3{{ $returnActive('vendor_return') }}" href="{{ route('returns.index', ['type' => 'vendor_return']) }}"><i class="bi bi-arrow-return-right text-info me-2"></i>Vendor Returns</a></li>
+                                <li><a class="nav-link px-3{{ $returnActive('retailer_return') }}" href="{{ route('returns.index', ['type' => 'retailer_return']) }}"><i class="bi bi-arrow-return-left text-warning me-2"></i>Retailer Returns</a></li>
                             </ul>
                         </div>
                     </li>
 
                     <!-- Stock Management -->
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#stockMenu" role="button" aria-expanded="false" aria-controls="stockMenu">
+                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#stockMenu" role="button" aria-expanded="{{ $stockOpen ? 'true' : 'false' }}" aria-controls="stockMenu">
                             <span><i class="bi bi-boxes me-2"></i>Stock Management</span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
-                        <div class="collapse" id="stockMenu" data-bs-parent="#sidebarAccordion">
+                        <div class="collapse{{ $stockOpen ? ' show' : '' }}" id="stockMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3" href="{{ route('stock-management.index') }}"><i class="bi bi-boxes me-2"></i>Stock Management</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('stock-locations.index') }}"><i class="bi bi-geo-alt me-2"></i>Stock Locations</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 me-2"></i>Transaction Flow</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('stock-management.*') }}" href="{{ route('stock-management.index') }}"><i class="bi bi-boxes me-2"></i>Stock Management</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('stock-locations.*') }}" href="{{ route('stock-locations.index') }}"><i class="bi bi-geo-alt me-2"></i>Stock Locations</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('picking.transaction-flow') }}" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 me-2"></i>Transaction Flow</a></li>
                             </ul>
                         </div>
                     </li>
 
-                    <!-- Sales -->
+                    <!-- Sales Order -->
                     <li class="nav-item">
-                        <a class="nav-link px-3" href="{{ route('orders.index') }}"><i class="bi bi-cart me-2"></i>Orders</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link px-3" href="{{ route('invoices.index') }}"><i class="bi bi-receipt me-2"></i>Invoices</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link px-3" href="{{ route('payments.index') }}"><i class="bi bi-credit-card me-2"></i>Invoice Payments</a>
+                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#salesOrderMenu" role="button" aria-expanded="{{ $salesOrderOpen ? 'true' : 'false' }}" aria-controls="salesOrderMenu">
+                            <span><i class="bi bi-cart me-2"></i>Sales Order</span>
+                            <i class="bi bi-chevron-down small"></i>
+                        </a>
+                        <div class="collapse{{ $salesOrderOpen ? ' show' : '' }}" id="salesOrderMenu" data-bs-parent="#sidebarAccordion">
+                            <ul class="navbar-nav ps-3">
+                                <li><a class="nav-link px-3{{ $navActive('orders.*') }}" href="{{ route('orders.index') }}"><i class="bi bi-cart me-2"></i>Orders</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('invoices.*') }}" href="{{ route('invoices.index') }}"><i class="bi bi-receipt me-2"></i>Invoices</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('payments.*') }}" href="{{ route('payments.index') }}"><i class="bi bi-credit-card me-2"></i>Invoice Payments</a></li>
+                            </ul>
+                        </div>
                     </li>
 
                     <!-- Accounting -->
                     <li class="nav-item mt-3">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#accountingMenu" role="button" aria-expanded="false" aria-controls="accountingMenu">
+                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#accountingMenu" role="button" aria-expanded="{{ $accountingOpen ? 'true' : 'false' }}" aria-controls="accountingMenu">
                             <span><i class="bi bi-journal-bookmark me-2"></i>Accounting</span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
-                        <div class="collapse" id="accountingMenu" data-bs-parent="#sidebarAccordion">
+                        <div class="collapse{{ $accountingOpen ? ' show' : '' }}" id="accountingMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3" href="{{ route('accounting.chart-of-accounts') }}"><i class="bi bi-journal me-2"></i>Chart of Accounts</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('reports.trial-balance') }}"><i class="bi bi-calculator me-2"></i>Trial Balance</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('reports.income-statement') }}"><i class="bi bi-clipboard-data me-2"></i>Income Statement</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('reports.balance-sheet') }}"><i class="bi bi-columns-gap me-2"></i>Balance Sheet</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('reports.cash-flow') }}"><i class="bi bi-cash-stack me-2"></i>Cash Flow Statement</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('accounting.chart-of-accounts', 'accounting.chart-of-accounts.*') }}" href="{{ route('accounting.chart-of-accounts') }}"><i class="bi bi-journal me-2"></i>Chart of Accounts</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('reports.trial-balance') }}" href="{{ route('reports.trial-balance') }}"><i class="bi bi-calculator me-2"></i>Trial Balance</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('reports.income-statement') }}" href="{{ route('reports.income-statement') }}"><i class="bi bi-clipboard-data me-2"></i>Income Statement</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('reports.balance-sheet') }}" href="{{ route('reports.balance-sheet') }}"><i class="bi bi-columns-gap me-2"></i>Balance Sheet</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('reports.cash-flow') }}" href="{{ route('reports.cash-flow') }}"><i class="bi bi-cash-stack me-2"></i>Cash Flow Statement</a></li>
                                 <li><hr></li>
-                                <li><a class="nav-link px-3" href="{{ route('journal-entries.index') }}"><i class="bi bi-journal-text me-2"></i>Journal Entries</a></li>
-                                <li><a class="nav-link px-3" href="{{ route('audit-logs.index') }}"><i class="bi bi-shield-check me-2"></i>Audit Trail</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('journal-entries.*') }}" href="{{ route('journal-entries.index') }}"><i class="bi bi-journal-text me-2"></i>Journal Entries</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('audit-logs.*') }}" href="{{ route('audit-logs.index') }}"><i class="bi bi-shield-check me-2"></i>Audit Trail</a></li>
                             </ul>
                         </div>
                     </li>
 
                     <!-- Reports -->
                     <li class="nav-item">
-                        <a class="nav-link px-3" href="{{ route('reports.daily-profit') }}"><i class="bi bi-file-earmark-bar-graph me-2"></i>Daily Profit</a>
+                        <a class="nav-link px-3{{ $navActive('reports.daily-profit') }}" href="{{ route('reports.daily-profit') }}"><i class="bi bi-file-earmark-bar-graph me-2"></i>Daily Profit</a>
                     </li>
                 </ul>
             </nav>
@@ -545,20 +575,9 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             try {
-                const currentPath = window.location.pathname;
-                document.querySelectorAll('#sidebar .nav-link').forEach(link => {
-                    const href = link.getAttribute('href');
-                    if (href && currentPath.includes(href.split('/').filter(Boolean).pop())) {
-                        link.classList.add('active');
-                        // If the link is inside a collapsed menu, expand it
-                        const parentCollapse = link.closest('.collapse');
-                        if (parentCollapse) {
-                            const collapseInstance = bootstrap.Collapse.getOrCreateInstance(parentCollapse, { toggle: false });
-                            collapseInstance.show();
-                        }
-                    }
-                });
-                
+                // Sidebar active state and menu expansion are rendered server-side in the
+                // blade above, matched on route names rather than guessed from the URL.
+
                 // Automatically show bootstrap toasts if present
                 const toastElList = [].slice.call(document.querySelectorAll('.toast'));
                 toastElList.forEach(function (toastEl) {
