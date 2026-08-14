@@ -122,6 +122,17 @@ final class OrderWorkflow
     }
 
     /**
+     * Stages as seen from an invoice, or from a payment recorded against it.
+     *
+     * The invoice and payment stages both point at the invoice page, so calling
+     * from either lands on the same suppressed link.
+     */
+    public static function forInvoice(Invoice $invoice): array
+    {
+        return self::forOrder($invoice->order, self::STAGE_INVOICE);
+    }
+
+    /**
      * What is still owed on a raised invoice.
      *
      * PaymentService writes 'partially_paid' once a payment lands that does not

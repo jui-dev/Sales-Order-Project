@@ -287,6 +287,9 @@
                     <li class="nav-item">
                         <a class="nav-link px-3" href="{{ route('invoices.index') }}"><i class="bi bi-receipt me-2"></i>Invoices</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link px-3" href="{{ route('payments.index') }}"><i class="bi bi-credit-card me-2"></i>Invoice Payments</a>
+                    </li>
 
                     <!-- Accounting -->
                     <li class="nav-item mt-3">

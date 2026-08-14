@@ -64,6 +64,12 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice): View
     {
         $invoice = $this->invoiceService->getInvoiceWithDetails($invoice->id);
+
+        // Loaded here rather than in the service so the API response shape stays
+        // as it is: the detail page reads the workflow off the order's picking
+        // list, and lists the items by product.
+        $invoice->load(['items.product', 'order.pickingList']);
+
         return view('invoices.show', compact('invoice'));
     }
 

@@ -1071,6 +1071,16 @@ Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
 Route::get('invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');
 Route::post('invoices/{invoice}/payments', [\App\Http\Controllers\PaymentController::class, 'store'])->name('invoices.pay');
 
+/**
+ * Customer Payment Routes
+ *
+ * The sales-side counterpart of supplier-bill-payments: payments are recorded
+ * against an invoice (invoices.pay above) and browsed here.
+ */
+Route::get('/payments', [\App\Http\Controllers\PaymentController::class, 'index'])->name('payments.index');
+Route::get('/payments/{payment}', [\App\Http\Controllers\PaymentController::class, 'show'])
+    ->whereNumber('payment')->name('payments.show');
+
 // Additional invoice routes for edit, update, destroy
 Route::get('invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
 Route::put('invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
