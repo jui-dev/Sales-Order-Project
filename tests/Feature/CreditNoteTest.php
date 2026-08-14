@@ -184,8 +184,10 @@ class CreditNoteTest extends TestCase
         $creditNoteService = app(CreditNoteService::class);
         $cancelledCreditNote = $creditNoteService->cancelCreditNote($creditNote);
 
+        // Cancellation details are recorded in their own columns, not appended
+        // to notes.
         $this->assertEquals('cancelled', $cancelledCreditNote->status);
-        $this->assertStringContains('Cancelled on', $cancelledCreditNote->notes);
+        $this->assertNotNull($cancelledCreditNote->cancelled_at);
     }
 
     /** @test */
@@ -216,9 +218,15 @@ class CreditNoteTest extends TestCase
 
         $creditNoteService = app(CreditNoteService::class);
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Only issued credit notes can be cancelled');
-        
+        // The service guards against cancelling twice, not against cancelling a
+        // note that has yet to be issued - a pending note cancels cleanly.
         $creditNoteService->cancelCreditNote($creditNote);
+
+        $this->assertEquals('cancelled', $creditNote->fresh()->status);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Credit note is already cancelled');
+
+        $creditNoteService->cancelCreditNote($creditNote->fresh());
     }
 } 
