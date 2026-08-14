@@ -3,9 +3,6 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="bi bi-building-arrow-right me-2"></i>Warehouse to Retailer Picking</h1>
         <div>
-            <a href="{{ route('stock-transfers.warehouse-to-retailer.pending') }}" class="btn btn-warning me-2">
-                <i class="bi bi-clock me-1"></i> Pending Transfers
-            </a>
             <a href="{{ route('stock-transfers.warehouse-to-retailer.create') }}" class="btn btn-primary">
                 <i class="bi bi-plus-circle me-1"></i> Create Stock Transfer
             </a>
@@ -304,21 +301,19 @@
                                 @endif
                             </td>
                             <td>
-                                <span class="badge bg-{{ $transfer->status === 'pending' ? 'warning' : ($transfer->status === 'in_progress' ? 'primary' : ($transfer->status === 'completed' ? 'success' : 'danger')) }}">
-                                    {{ ucfirst(str_replace('_', ' ', $transfer->status)) }}
+                                @php
+                                    // 'pending' is accepted for rows predating the confirmed/completed rename.
+                                    $isConfirmed = in_array($transfer->status, ['confirmed', 'pending'], true);
+                                    $statusColour = match (true) {
+                                        $transfer->status === 'completed' => 'success',
+                                        $transfer->status === 'cancelled' => 'danger',
+                                        $isConfirmed                      => 'info',
+                                        default                           => 'secondary',
+                                    };
+                                @endphp
+                                <span class="badge bg-{{ $statusColour }}">
+                                    {{ $isConfirmed ? 'Confirmed' : ucfirst($transfer->status) }}
                                 </span>
-                                @if($transfer->reference_type === 'retailer_order')
-                                    <br><small class="text-info">
-                                        <i class="bi bi-lightning me-1"></i>Auto-processed
-                                    </small>
-                                @elseif($transfer->reference_type === 'stock_transfer' && $transfer->status === 'completed')
-                                    <br><small class="text-success">
-                                        <i class="bi bi-zap me-1"></i>Immediate transfer
-                                    </small>
-                                @endif
-                                @if($transfer->picked_by)
-                                    <br><small class="text-muted">by {{ $transfer->picked_by }}</small>
-                                @endif
                             </td>
                             <td>
                                 <div class="text-dark">{{ $transfer->picking_date->format('M d, Y H:i') }}</div>
@@ -329,99 +324,33 @@
                                 @endif
                             </td>
                             <td>
-                                <div class="d-flex flex-column gap-1">
-                                    <!-- Primary Actions Row -->
-                                    <div class="d-flex gap-1">
-                                        <a href="{{ route('stock-transfers.warehouse-to-retailer.show', $transfer) }}" 
-                                           class="btn btn-sm btn-primary" 
-                                           title="View Details">
-                                            <i class="bi bi-eye me-1"></i>View
-                                        </a>
-                                        
-                                        @if($transfer->reference_type === 'retailer_order' && $transfer->order)
-                                            <a href="{{ route('orders.show', $transfer->order) }}" 
-                                               class="btn btn-sm btn-info" 
-                                               title="View Order">
-                                                <i class="bi bi-cart me-1"></i>Order
-                                            </a>
-                                        @endif
-                                    </div>
-                                    
-                                    <!-- Status-based Actions Row -->
-                                    @if($transfer->status === 'pending')
-                                        @if($transfer->reference_type === 'retailer_order')
-                                            <div class="d-flex gap-1">
-                                                <form action="{{ route('stock-transfers.warehouse-to-retailer.quick-complete', $transfer) }}" 
-                                                      method="POST" class="d-inline">
-                                                    @csrf
-                                                    @method('PATCH')
-                                                    <button type="submit" 
-                                                            class="btn btn-sm btn-success" 
-                                                            onclick="return confirm('Complete transfer with all requested quantities?')"
-                                                            title="Quick Complete">
-                                                        <i class="bi bi-check-double me-1"></i>Complete
-                                                    </button>
-                                                </form>
-                                                
-                                                <span class="btn btn-sm btn-secondary disabled" 
-                                                      title="Order-generated transfers cannot be cancelled">
-                                                    <i class="bi bi-shield-check me-1"></i>Protected
-                                                </span>
-                                            </div>
-                                        @else
-                                            <div class="d-flex gap-1">
-                                                <form action="{{ route('stock-transfers.warehouse-to-retailer.quick-complete', $transfer) }}" 
-                                                      method="POST" class="d-inline">
-                                                    @csrf
-                                                    @method('PATCH')
-                                                    <button type="submit" 
-                                                            class="btn btn-sm btn-success" 
-                                                            onclick="return confirm('Complete transfer with all requested quantities?')"
-                                                            title="Quick Complete">
-                                                        <i class="bi bi-check-double me-1"></i>Complete
-                                                    </button>
-                                                </form>
-                                                
-                                                <form action="{{ route('stock-transfers.warehouse-to-retailer.cancel', $transfer) }}" 
-                                                      method="POST" class="d-inline">
-                                                    @csrf
-                                                    @method('PATCH')
-                                                    <button type="submit" 
-                                                            class="btn btn-sm btn-danger" 
-                                                            title="Cancel Transfer">
-                                                        <i class="bi bi-times me-1"></i>Cancel
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        @endif
-                                    @elseif($transfer->status === 'completed')
-                                        <div class="d-flex gap-1">
-                                            @if($transfer->reference_type === 'retailer_order')
-                                                <span class="btn btn-sm btn-success disabled" 
-                                                      title="Auto-completed from order">
-                                                    <i class="bi bi-lightning me-1"></i>Auto-Complete
-                                                </span>
-                                            @else
-                                                <span class="btn btn-sm btn-success disabled" 
-                                                      title="Manual transfer completed">
-                                                    <i class="bi bi-check-circle me-1"></i>Completed
-                                                </span>
-                                            @endif
-                                        </div>
-                                    @elseif($transfer->status === 'cancelled')
-                                        <div class="d-flex gap-1">
-                                            <span class="btn btn-sm btn-danger disabled" 
-                                                  title="Transfer cancelled">
-                                                <i class="bi bi-x-circle me-1"></i>Cancelled
-                                            </span>
-                                        </div>
-                                    @else
-                                        <div class="d-flex gap-1">
-                                            <span class="btn btn-sm btn-secondary disabled" 
-                                                  title="Transfer status: {{ ucfirst($transfer->status) }}">
-                                                <i class="bi bi-info-circle me-1"></i>{{ ucfirst($transfer->status) }}
-                                            </span>
-                                        </div>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <a href="{{ route('stock-transfers.warehouse-to-retailer.show', $transfer->reference_id) }}"
+                                       class="btn btn-sm btn-info d-inline-flex align-items-center gap-1"
+                                       data-bs-toggle="tooltip" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+
+                                    {{-- Complete and Cancel only while the transfer is still open --}}
+                                    @if($isConfirmed)
+                                        <button type="button"
+                                                class="btn btn-sm btn-success d-inline-flex align-items-center gap-1"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#completeTransferModal{{ $transfer->id }}"
+                                                title="Complete Transfer">
+                                            <i class="bi bi-check-circle"></i>
+                                        </button>
+
+                                        <form action="{{ route('stock-transfers.warehouse-to-retailer.cancel', $transfer) }}"
+                                              method="POST" class="d-inline">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1"
+                                                    data-bs-toggle="tooltip" title="Cancel Transfer">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        </form>
                                     @endif
                                 </div>
                             </td>
@@ -432,6 +361,19 @@
             </div>
         </div>
     </div>
+
+    {{-- Completion modals live outside the table: a modal is not valid markup
+         inside tbody, and the browser would hoist it out anyway. Same component
+         the detail page uses, so completing reads identically from either place. --}}
+    @foreach($transfers as $transfer)
+        @if(in_array($transfer->status, ['confirmed', 'pending'], true))
+            <x-transfer-complete-modal
+                :picking-list="$transfer"
+                :from-name="$transfer->fromLocation->name ?? 'the warehouse'"
+                :to-name="$transfer->toLocation->name ?? 'the retailer'"
+                :units="$transfer->pickingItems ? $transfer->pickingItems->sum('quantity_requested') : 0" />
+        @endif
+    @endforeach
 @else
     <!-- Enhanced Empty State -->
     <div class="card mb-4">
@@ -480,7 +422,9 @@
     </div>
 
     <!-- Recent Orders -->
-    @if($recentOrders->count() > 0)
+    {{-- The index route does not supply $recentOrders, so this block would fatal
+         the moment the listing is empty. Guarded until it is either wired up or removed. --}}
+    @if(isset($recentOrders) && $recentOrders->count() > 0)
         <div class="card">
             <div class="card-header">
                 <h6 class="mb-0">

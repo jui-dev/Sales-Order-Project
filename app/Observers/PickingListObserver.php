@@ -49,15 +49,26 @@ class PickingListObserver
                     ]);
                 }
 
-                $qty = $item->quantity_requested;
+                // What was held versus what actually goes. A short pick still
+                // releases the whole reservation - the rest of the line is not
+                // going anywhere once the list is closed - but only the picked
+                // quantity is allowed to move.
+                $reservedQty = $item->quantity_requested;
+                $qty         = (int) $item->quantity_picked;
 
                 // Release reservation first (cannot go below 0)
-                $reservedAfter = max(0, $stock->reserved_quantity - $qty);
+                $reservedAfter = max(0, $stock->reserved_quantity - $reservedQty);
                 $stock->reserved_quantity = $reservedAfter;
 
                 // Deduct physical stock
                 $stock->quantity = $stock->quantity - $qty;
                 $stock->save();
+
+                // Nothing was picked on this line, so there is no movement to
+                // record on either side.
+                if ($qty <= 0) {
+                    continue;
+                }
 
                 // Determine correct transaction type (transfer vs order)
                 $txnType = $list->reference_type === \App\Models\StockTransfer::class

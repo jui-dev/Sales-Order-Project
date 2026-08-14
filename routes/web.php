@@ -369,10 +369,11 @@ Route::get('/stock-transfers/warehouse-to-retailer/create', function () {
 })->name('stock-transfers.warehouse-to-retailer.create');
 
 Route::get('/stock-transfers/warehouse-to-retailer/pending', function () {
+    // Confirmed transfers are the ones still awaiting completion.
     $pendingTransfers = \App\Models\PickingList::with(['fromLocation','toLocation','items'])
         ->where('from_location_type', \App\Models\Warehouse::class)
         ->where('to_location_type', \App\Models\Retailer::class)
-        ->where('status', 'pending')
+        ->where('status', 'confirmed')
         ->latest('created_at')
         ->get();
 
@@ -423,7 +424,9 @@ Route::get('/stock-transfers/warehouse-to-retailer/{id}', function ($id) {
     // Ensure picking number is set
     $pickingList->picking_number ??= 'PL-' . str_pad($pickingList->id, 6, '0', STR_PAD_LEFT);
 
-    return view('stock-transfers.warehouse-to-retailer.show', compact('pickingList'));
+    // The view needs the transfer too: transfer_date and notes live on
+    // stock_transfers, and picking_lists has no notes column at all.
+    return view('stock-transfers.warehouse-to-retailer.show', compact('pickingList', 'stockTransfer'));
 })->whereNumber('id')->name('stock-transfers.warehouse-to-retailer.show');
 
 // Warehouse Receiving UI Routes
@@ -835,7 +838,7 @@ Route::post('/stock-transfers/warehouse-to-retailer', function () {
                 'from_location_type' => \App\Models\Warehouse::class,
                 'to_location_id'     => $retailer->id,
                 'to_location_type'   => \App\Models\Retailer::class,
-                'status'             => 'pending',
+                'status'             => 'confirmed',
                 'transfer_date'      => now(),
                 'notes'              => $data['notes'] ?? null,
             ]);
@@ -848,7 +851,7 @@ Route::post('/stock-transfers/warehouse-to-retailer', function () {
                 'from_location_type' => \App\Models\Warehouse::class,
                 'to_location_id'     => $retailer->id,
                 'to_location_type'   => \App\Models\Retailer::class,
-                'status'             => 'pending', // will be completed later
+                'status'             => 'confirmed', // stock reserved; moves on completion
                 'picking_date'       => now(),
             ]);
 
@@ -889,7 +892,7 @@ Route::post('/stock-transfers/warehouse-to-retailer', function () {
                     'product_id'         => $product->id,
                     'quantity_requested' => $quantity,
                     'quantity_picked'    => 0,
-                    'status'             => 'pending',
+                    'status'             => 'confirmed',
                 ]);
 
                 // Prepare transfer item for later creation after picking complete
@@ -903,6 +906,12 @@ Route::post('/stock-transfers/warehouse-to-retailer', function () {
             $transfer->items()->createMany($transferItemsData);
         });
     } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Error creating warehouse-to-retailer transfer', [
+            'message' => $e->getMessage(),
+            'file'    => $e->getFile(),
+            'line'    => $e->getLine(),
+        ]);
+
         if (request()->expectsJson() || request()->ajax()) {
             return response()->json([
                 'success' => false,
@@ -929,7 +938,9 @@ Route::post('/stock-transfers/warehouse-to-retailer', function () {
 
 
 
-    $redirectUrl = route('stock-transfers.warehouse-to-retailer.show', $pickingList->id);
+    // The show route resolves its {id} as a StockTransfer, so redirect with the
+    // transfer id - picking_lists is an independent auto-increment sequence.
+    $redirectUrl = route('stock-transfers.warehouse-to-retailer.show', $transfer->id);
 
     if (request()->expectsJson() || request()->ajax()) {
         return response()->json([
@@ -945,10 +956,10 @@ Route::post('/stock-transfers/warehouse-to-retailer', function () {
 // Add actions for Warehouse → Retailer picking lists
 Route::prefix('stock-transfers/warehouse-to-retailer')->name('stock-transfers.warehouse-to-retailer.')->group(function () {
     // Process with per-item quantities (POST)
-    Route::post('/{pickingList}/process', function (\App\Models\PickingList $pickingList) {
+    Route::post('/{pickingList}/process', function (\App\Models\PickingList $pickingList, \App\Services\StockTransferService $transfers) {
         request()->validate(['items' => 'required|array']);
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($pickingList) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($pickingList, $transfers) {
             foreach (request('items', []) as $itemData) {
                 $pickingItem = \App\Models\PickingListItem::find($itemData['picking_item_id'] ?? 0);
                 if (! $pickingItem || $pickingItem->picking_list_id !== $pickingList->id) {
@@ -961,70 +972,33 @@ Route::prefix('stock-transfers/warehouse-to-retailer')->name('stock-transfers.wa
                 ]);
             }
 
-            $pickingList->update([
-                'status'       => 'completed',
-                'completed_at' => now(),
-                'notes'        => request('notes'),
-            ]);
-
-            // Also mark linked transfer completed
-            if ($pickingList->reference_type === \App\Models\StockTransfer::class) {
-                \App\Models\StockTransfer::where('id', $pickingList->reference_id)->update(['status' => 'completed']);
-            }
+            // Books the stock movement, releases the reservation and marks both
+            // the picking list and its transfer completed.
+            $transfers->complete($pickingList->load('items'));
         });
 
         return back()->with('success', 'Transfer processed and marked completed.');
     })->whereNumber('pickingList')->name('process');
 
     // Quick-complete all quantities as requested (PATCH)
-    Route::patch('/{pickingList}/quick-complete', function (\App\Models\PickingList $pickingList) {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($pickingList) {
+    Route::patch('/{pickingList}/quick-complete', function (\App\Models\PickingList $pickingList, \App\Services\StockTransferService $transfers) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($pickingList, $transfers) {
             foreach ($pickingList->items as $item) {
                 $item->update([
                     'quantity_picked' => $item->quantity_requested,
                     'status'          => 'picked',
                 ]);
             }
-            $pickingList->update([
-                'status'       => 'completed',
-                'completed_at' => now(),
-            ]);
 
-            if ($pickingList->reference_type === \App\Models\StockTransfer::class) {
-                \App\Models\StockTransfer::where('id', $pickingList->reference_id)->update(['status' => 'completed']);
-            }
+            $transfers->complete($pickingList->load('items'));
         });
 
         return back()->with('success', 'Transfer completed successfully.');
     })->whereNumber('pickingList')->name('quick-complete');
 
     // Cancel transfer (PATCH)
-    Route::patch('/{pickingList}/cancel', function (\App\Models\PickingList $pickingList) {
-        \Illuminate\Support\Facades\DB::transaction(function () use ($pickingList) {
-            // Rollback any reservations
-            foreach ($pickingList->items as $item) {
-                $stock = \App\Models\ProductStock::where([
-                    'product_id'    => $item->product_id,
-                    'location_id'   => $pickingList->from_location_id,
-                    'location_type' => $pickingList->from_location_type,
-                ])->first();
-                if ($stock) {
-                    $stock->reserved_quantity = max(0, $stock->reserved_quantity - $item->quantity_requested);
-                    $stock->save();
-                }
-
-                // Update item status to cancelled
-                $item->update([
-                    'status' => 'cancelled',
-                    'quantity_picked' => 0
-                ]);
-            }
-
-            $pickingList->update(['status' => 'cancelled']);
-            if ($pickingList->reference_type === \App\Models\StockTransfer::class) {
-                \App\Models\StockTransfer::where('id', $pickingList->reference_id)->update(['status' => 'cancelled']);
-            }
-        });
+    Route::patch('/{pickingList}/cancel', function (\App\Models\PickingList $pickingList, \App\Services\StockTransferService $transfers) {
+        $transfers->cancel($pickingList->load('items'));
 
         return back()->with('success', 'Transfer cancelled.');
     })->whereNumber('pickingList')->name('cancel');

@@ -769,19 +769,34 @@ document.getElementById('transferForm').addEventListener('submit', async functio
                 method: 'POST',
                 body: formData,
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
                 }
             });
-            
-            // Check if response is ok before trying to parse JSON
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Server error: ${response.status} - ${errorText}`);
+
+            // Always read the body first - the server reports why it failed in there.
+            let result = null;
+            const rawBody = await response.text();
+            try {
+                result = JSON.parse(rawBody);
+            } catch (parseError) {
+                result = null;
             }
-            
-            const result = await response.json();
-            
-            if (result.success) {
+
+            if (!response.ok) {
+                // Laravel returns a 422 with an `errors` bag for validation failures.
+                const validationMessages = result && result.errors
+                    ? Object.values(result.errors).flat().join('\n')
+                    : null;
+
+                throw new Error(
+                    validationMessages
+                    || (result && result.message)
+                    || `Server error ${response.status}: ${rawBody.slice(0, 300)}`
+                );
+            }
+
+            if (result && result.success) {
                 // Redirect immediately without showing alert
                 if (result.redirect_url) {
                     window.location.href = result.redirect_url;
@@ -790,11 +805,11 @@ document.getElementById('transferForm').addEventListener('submit', async functio
                 }
             } else {
                 // Show error message from server
-                alert(result.message || 'An error occurred while processing the transfer.');
+                throw new Error((result && result.message) || 'An error occurred while processing the transfer.');
             }
         } catch (error) {
             console.error('Error submitting form:', error);
-            alert('An error occurred while processing the transfer. Please try again.');
+            alert(error.message || 'An error occurred while processing the transfer. Please try again.');
         } finally {
             // Reset button state
             submitButton.disabled = false;

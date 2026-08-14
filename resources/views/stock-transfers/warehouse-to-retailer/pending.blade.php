@@ -6,7 +6,7 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4>Pending Warehouse to Retailer Transfers</h4>
+                    <h4>Confirmed Warehouse to Retailer Transfers</h4>
                     <div>
                         <a href="{{ route('stock-transfers.warehouse-to-retailer') }}" class="btn btn-secondary btn-sm">
                             <i class="fas fa-list"></i> All Transfers
@@ -35,7 +35,7 @@
                                 @foreach($pendingTransfers as $transfer)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('stock-transfers.warehouse-to-retailer.show', $transfer) }}">
+                                        <a href="{{ route('stock-transfers.warehouse-to-retailer.show', $transfer->reference_id) }}">
                                             {{ $transfer->picking_number }}
                                         </a>
                                     </td>
@@ -56,16 +56,16 @@
                                     <td>{{ $transfer->created_at->format('M d, Y H:i') }}</td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
-                                            <a href="{{ route('stock-transfers.warehouse-to-retailer.show', $transfer) }}" 
+                                            <a href="{{ route('stock-transfers.warehouse-to-retailer.show', $transfer->reference_id) }}"
                                                class="btn btn-outline-primary btn-sm">
                                                 <i class="fas fa-eye"></i> Process
                                             </a>
-                                            
-                                            <form action="{{ route('stock-transfers.warehouse-to-retailer.quick-complete', $transfer) }}" 
+
+                                            <form action="{{ route('stock-transfers.warehouse-to-retailer.quick-complete', $transfer) }}"
                                                   method="POST" class="d-inline">
                                                 @csrf
                                                 @method('PATCH')
-                                                <button type="submit" class="btn btn-outline-success btn-sm" 
+                                                <button type="submit" class="btn btn-outline-success btn-sm"
                                                         onclick="return confirm('Complete transfer with all requested quantities?')">
                                                     <i class="fas fa-check-double"></i>
                                                 </button>
@@ -80,8 +80,8 @@
                     @else
                     <div class="text-center py-4">
                         <i class="fas fa-clock fa-3x text-muted mb-3"></i>
-                        <h5>No Pending Transfers</h5>
-                        <p class="text-muted">All warehouse to retailer transfers have been processed.</p>
+                        <h5>No Confirmed Transfers</h5>
+                        <p class="text-muted">Every warehouse to retailer transfer has been completed.</p>
                         <a href="{{ route('stock-transfers.warehouse-to-retailer.create') }}" class="btn btn-primary">
                             <i class="fas fa-plus"></i> Create New Transfer
                         </a>
@@ -92,4 +92,4 @@
         </div>
     </div>
 </div>
-@endsection 
+@endsection

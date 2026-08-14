@@ -25,6 +25,7 @@ class PickingList extends Model
         'to_location_type',
         'status',
         'picking_date',
+        'completed_at',
     ];
 
     protected $casts = [

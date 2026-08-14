@@ -29,9 +29,15 @@ class GlobalErrorHandler
                 }
                 
                 $data = $response->getData(true);
-                
-                // If the response is empty or contains empty data, standardize it
-                if (empty($data) || (is_array($data) && empty($data['data']))) {
+
+                // Standardize *empty collection listings* only. A response that carries no
+                // `data` key at all is not an empty collection - it is some other payload
+                // (e.g. {"success": true, "redirect_url": ...}) and must pass through
+                // untouched. Mutations never return a listing, so restrict this to GET.
+                $isEmptyListing = empty($data)
+                    || (is_array($data) && array_key_exists('data', $data) && empty($data['data']));
+
+                if ($request->isMethod('GET') && $response->getStatusCode() === 200 && $isEmptyListing) {
                     $resourceName = $this->extractResourceNameFromRequest($request);
                     $standardizedResponse = [
                         'status' => 'empty',

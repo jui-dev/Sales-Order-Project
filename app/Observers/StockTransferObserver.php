@@ -55,20 +55,22 @@ class StockTransferObserver
         /** @var \App\Models\Account|null $inventoryParent */
         $inventoryParent = \App\Models\Account::where('code', '1200')->first();
 
+        // from/to_location_type stores the model FQCN (e.g. App\Models\Warehouse),
+        // so match on the class names rather than lowercase labels.
         $buildCode = function (?string $type, ?int $id): string {
             $prefix = match ($type) {
-                'warehouse' => 'WH',
-                'retailer'  => 'RT',
-                default     => 'LO',
+                \App\Models\Warehouse::class => 'WH',
+                \App\Models\Retailer::class  => 'RT',
+                default                      => 'LO',
             };
             return '1200-' . $prefix . (string) $id;
         };
 
         $buildName = function (?string $type, ?int $id): string {
             return match ($type) {
-                'warehouse' => "Inventory – Warehouse #{$id}",
-                'retailer'  => "Inventory – Retailer #{$id}",
-                default     => "Inventory – Location #{$id}",
+                \App\Models\Warehouse::class => "Inventory – Warehouse #{$id}",
+                \App\Models\Retailer::class  => "Inventory – Retailer #{$id}",
+                default                      => "Inventory – Location #{$id}",
             };
         };
 
