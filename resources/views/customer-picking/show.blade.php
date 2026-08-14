@@ -22,9 +22,16 @@
 
     // fromLocation answers withDefault() through an accessor that re-queries on
     // every read, so it is resolved once and checked with exists.
-    $warehouse     = $pickingList->fromLocation;
-    $hasWarehouse  = $warehouse && $warehouse->exists;
-    $warehouseName = $hasWarehouse ? $warehouse->name : 'the warehouse';
+    // An order is picked from wherever it is fulfilled, which is a warehouse or a
+    // retailer, so the source is read off the list rather than assumed.
+    $source     = $pickingList->fromLocation;
+    $hasSource  = $source && $source->exists;
+    $sourceRole = match ($pickingList->from_location_type) {
+        \App\Models\Warehouse::class => 'Warehouse',
+        \App\Models\Retailer::class  => 'Retailer',
+        default                      => 'Location',
+    };
+    $sourceName = $hasSource ? $source->name : 'the ' . strtolower($sourceRole);
 
     $status      = $pickingList->status;
     $isCompleted = in_array($status, ['completed', 'closed', 'verified'], true);
@@ -41,9 +48,10 @@
     $picked    = $items->sum(fn ($item) => $item->quantity_picked ?? 0);
     $progress  = $pickingList->progress_percentage ?? 0;
 
-    // Stock rows for the source warehouse, keyed by product so each line can
-    // report what is physically on the shelf.
-    $stocks = $hasWarehouse ? $warehouse->productStocks->keyBy('product_id') : collect();
+    // Stock rows for the source location, keyed by product so each line can
+    // report what is physically on the shelf. Warehouse and Retailer both expose
+    // productStocks as a morphMany, so this reads the same either way.
+    $stocks = $hasSource ? $source->productStocks->keyBy('product_id') : collect();
 
     // Lines the shelf cannot cover. Compared against physical quantity, not
     // quantity - reserved: the reservation being netted off is this pick's own.
@@ -59,7 +67,7 @@
             <h1 class="mb-1">Picking {{ $pickingList->picking_number ?: $pickingList->formatted_id }}</h1>
             <p class="text-muted mb-0">
                 <span class="badge bg-{{ $statusColour }}">{{ ucfirst($status) }}</span>
-                <span class="ms-2">{{ $warehouseName }}</span>
+                <span class="ms-2">{{ $sourceName }}</span>
                 <span class="ms-2">→</span>
                 <span class="ms-2">{{ $destinationName ?: 'No destination' }}</span>
             </p>
@@ -107,7 +115,7 @@
                     <span class="detail-figure__label">Units to Pick</span>
                     <span class="detail-figure__value detail-figure__value--lead">{{ number_format($requested) }}</span>
                     <span class="detail-figure__note">
-                        Held at {{ $warehouseName }}
+                        Held at {{ $sourceName }}
                     </span>
                 </div>
                 <div class="detail-figure">
@@ -115,7 +123,7 @@
                     <span class="detail-figure__value">{{ number_format($picked) }}</span>
                     <span class="detail-figure__note">
                         @if($isCompleted)
-                            Left the warehouse
+                            Left {{ $sourceName }}
                         @elseif($isCancelled)
                             Picking cancelled
                         @else
@@ -197,14 +205,14 @@
 
                     <div class="detail-panel mt-3 mb-0">
                         @if($isCompleted)
-                            The goods have left {{ $warehouseName }} and the reservation is released.
+                            The goods have left {{ $sourceName }} and the reservation is released.
                             @if($order)
                                 Order {{ $order->formatted_id }} is completed and its invoice raised.
                             @endif
                         @elseif($isCancelled)
-                            This pick was cancelled. Nothing left {{ $warehouseName }}.
+                            This pick was cancelled. Nothing left {{ $sourceName }}.
                         @else
-                            The stock is still on the shelf at {{ $warehouseName }}, held against this
+                            The stock is still on the shelf at {{ $sourceName }}, held against this
                             pick so nothing else can sell it. Completing the pick is what moves it out.
                         @endif
                     </div>
@@ -225,26 +233,26 @@
                     </div>
                 </div>
                 <div class="detail-card__body">
-                    @if($hasWarehouse)
+                    @if($hasSource)
                         <div class="detail-kv">
-                            <span class="detail-kv__label">Warehouse</span>
-                            <span class="detail-kv__value">{{ $warehouse->name ?: '—' }}</span>
+                            <span class="detail-kv__label">{{ $sourceRole }}</span>
+                            <span class="detail-kv__value">{{ $source->name ?: '—' }}</span>
                         </div>
-                        @if($warehouse->contact_person)
+                        @if($source->contact_person)
                             <div class="detail-kv">
                                 <span class="detail-kv__label">Contact</span>
-                                <span class="detail-kv__value">{{ $warehouse->contact_person }}</span>
+                                <span class="detail-kv__value">{{ $source->contact_person }}</span>
                             </div>
                         @endif
-                        @if($warehouse->address)
+                        @if($source->address)
                             <div class="detail-kv">
                                 <span class="detail-kv__label">Address</span>
-                                <span class="detail-kv__value detail-kv__value--muted">{{ $warehouse->address }}</span>
+                                <span class="detail-kv__value detail-kv__value--muted">{{ $source->address }}</span>
                             </div>
                         @endif
                     @else
                         <div class="detail-panel mb-0">
-                            No source warehouse is recorded on this picking list, so there is nothing to
+                            No source location is recorded on this picking list, so there is nothing to
                             pick from.
                         </div>
                     @endif
@@ -365,7 +373,7 @@
             <div>
                 <h2 class="detail-card__title">Items to Pick</h2>
                 <p class="detail-card__subtitle">
-                    What to take off the shelf at {{ $warehouseName }}, and whether it is there.
+                    What to take off the shelf at {{ $sourceName }}, and whether it is there.
                 </p>
             </div>
         </div>
@@ -420,7 +428,7 @@
                                             <i class="bi bi-exclamation-triangle me-1"></i>Short by
                                             {{ number_format($item->quantity_requested - $onHand) }}
                                         @else
-                                            At {{ $warehouseName }}
+                                            At {{ $sourceName }}
                                         @endif
                                     </span>
                                 </td>
@@ -479,7 +487,7 @@
                                 {{ Str::plural('unit', $requested) }} as picked in full
                             </li>
                             <li class="mb-1">
-                                Take that stock out of <strong>{{ $warehouseName }}</strong> and release
+                                Take that stock out of <strong>{{ $sourceName }}</strong> and release
                                 the reservation holding it
                             </li>
                             @if($order)
@@ -495,7 +503,7 @@
                         </ul>
                         <div class="detail-panel mb-0">
                             <span class="d-block mb-1">
-                                This is the point the goods actually leave {{ $warehouseName }}. It cannot
+                                This is the point the goods actually leave {{ $sourceName }}. It cannot
                                 be undone from this page.
                             </span>
                             @if($shortLines->isNotEmpty())
@@ -515,7 +523,7 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <form action="{{ route('warehouse-to-customer-picking.update-status', $pickingList) }}" method="POST">
+                        <form action="{{ route('customer-picking.update-status', $pickingList) }}" method="POST">
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="completed">

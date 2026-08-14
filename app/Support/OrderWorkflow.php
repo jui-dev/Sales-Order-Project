@@ -46,7 +46,7 @@ final class OrderWorkflow
         $paid   = $invoice && $invoice->payment_status === 'paid';
 
         $orderUrl   = route('orders.show', $order->id);
-        $pickingUrl = $picking ? route('warehouse-to-customer-picking.show', $picking->id) : null;
+        $pickingUrl = $picking ? route('customer-picking.show', $picking->id) : null;
         $invoiceUrl = $invoice ? route('invoices.show', $invoice->id) : null;
 
         $stages = [

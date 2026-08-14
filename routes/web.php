@@ -578,8 +578,11 @@ Route::get('/warehouse-to-customer-picking', function () {
     $warehouses = \App\Models\Warehouse::all();
     $customers  = \App\Models\Customer::all();
 
-    // Fetch picking lists destined to customers (warehouse → customer)
+    // Warehouse-sourced picking lists destined to customers. Both sides are
+    // filtered: an order fulfilled from a retailer raises a Retailer → Customer
+    // list, which belongs on the retailer index, not this one.
     $pickingLists = \App\Models\PickingList::with(['fromLocation', 'order', 'items'])
+        ->where('from_location_type', \App\Models\Warehouse::class)
         ->where('to_location_type', \App\Models\Customer::class)
         ->latest('created_at')
         ->get();
@@ -587,8 +590,10 @@ Route::get('/warehouse-to-customer-picking', function () {
     return view('warehouse-to-customer-picking.index', compact('warehouses', 'customers', 'pickingLists'));
 })->name('warehouse-to-customer-picking.index');
 
-// Warehouse to Customer Picking (show)
-Route::get('/warehouse-to-customer-picking/{id}', function ($id) {
+// Customer-bound picking (show). Shared by both sources: an order is picked from
+// wherever it is fulfilled, so the page reads the source off the list rather than
+// assuming a warehouse. The two index pages both link here.
+Route::get('/customer-picking/{id}', function ($id) {
     $pickingList = \App\Models\PickingList::with([
         'items.product',
         'fromLocation.productStocks',
@@ -603,8 +608,8 @@ Route::get('/warehouse-to-customer-picking/{id}', function ($id) {
     // Create alias relation for backward compatibility with the view
     $pickingList->setRelation('pickingItems', $pickingList->items);
 
-    return view('warehouse-to-customer-picking.show', compact('pickingList'));
-})->whereNumber('id')->name('warehouse-to-customer-picking.show');
+    return view('customer-picking.show', compact('pickingList'));
+})->whereNumber('id')->name('customer-picking.show');
 
 // Statistics JSON endpoint for warehouse-to-customer dashboard
 Route::get('/warehouse-to-customer-picking/statistics', function () {
@@ -637,28 +642,10 @@ Route::get('/retailer-to-customer-picking/create', function () {
     return view('retailer-to-customer-picking.create');
 })->name('retailer-to-customer-picking.create');
 
-// Retailer to Customer Picking (show)
+// Retailer to Customer Picking (show). Retailer-sourced customer picking now uses
+// the shared customer-picking page, so this only keeps old links working.
 Route::get('/retailer-to-customer-picking/{id}', function ($id) {
-    $pickingList = \App\Models\PickingList::with([
-        'items.product',
-        'fromLocation',
-        'toLocation',
-        'order.customer',
-    ])->find($id) ?? new \App\Models\PickingList([
-        'id'           => $id,
-        'status'       => 'pending',
-        'picking_date' => now(),
-    ]);
-    $pickingList->setRelation('pickingItems', $pickingList->items ?? collect());
-    if (! $pickingList->fromLocation) {
-        $pickingList->fromLocation = (object) ['name' => 'Retailer', 'address' => null];
-    }
-    if (! $pickingList->toLocation) {
-        $pickingList->toLocation   = (object) ['name' => 'Customer', 'address' => null];
-    }
-    $pickingList->picking_number ??= 'PL-' . str_pad($pickingList->id, 6, '0', STR_PAD_LEFT);
-
-    return view('retailer-to-customer-picking.show', compact('pickingList'));
+    return redirect()->route('customer-picking.show', $id);
 })->whereNumber('id')->name('retailer-to-customer-picking.show');
 
 Route::prefix('retailer-to-customer-picking')->name('retailer-to-customer-picking.')->group(function () {
@@ -770,8 +757,10 @@ Route::prefix('orders')->name('orders.')->group(function () {
     Route::patch('/{id}/update-status', [\App\Http\Controllers\OrderController::class, 'updateStatus'])->whereNumber('id')->name('update-status');
 });
 
-// Warehouse to Customer Picking – update status (complete / cancel etc.)
-Route::patch('/warehouse-to-customer-picking/{id}/update-status', function ($id) {
+// Customer-bound picking – update status (complete / cancel etc.). Shared by
+// warehouse- and retailer-sourced lists; PickingListObserver reads the source off
+// the list, so the stock leaves the right place either way.
+Route::patch('/customer-picking/{id}/update-status', function ($id) {
     request()->validate(['status' => 'required|string']);
     $status = request('status');
 
@@ -810,7 +799,7 @@ Route::patch('/warehouse-to-customer-picking/{id}/update-status', function ($id)
     }
 
     return back()->with('error', 'Picking list not found.');
-})->whereNumber('id')->name('warehouse-to-customer-picking.update-status');
+})->whereNumber('id')->name('customer-picking.update-status');
 
 
 

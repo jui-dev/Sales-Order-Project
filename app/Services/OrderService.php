@@ -318,17 +318,20 @@ class OrderService
                     ->first();
 
                 if (!$pickingList) {
-                    // Create picking list for this order (for manual completion)
+                    // Create picking list for this order (for manual completion).
+                    // Same shape as confirm() raises: picking_date is NOT NULL with
+                    // no default, and the destination is the customer so the list
+                    // lands on the same index as a normally confirmed order.
+                    // picking_lists has no picking_type or notes column.
                     $pickingList = \App\Models\PickingList::create([
                         'reference_type' => \App\Models\Order::class,
                         'reference_id' => $order->id,
                         'from_location_type' => $order->fulfillment_location_type,
                         'from_location_id' => $order->fulfillment_location_id,
-                        'to_location_type' => null, // Customer delivery
-                        'to_location_id' => null,
+                        'to_location_type' => \App\Models\Customer::class,
+                        'to_location_id' => $order->customer_id,
+                        'picking_date' => now(),
                         'status' => 'pending',
-                        'picking_type' => 'order_fulfillment',
-                        'notes' => 'Auto-generated for manual order completion'
                     ]);
 
                     // Create picking list items from order items

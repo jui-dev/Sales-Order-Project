@@ -219,9 +219,9 @@
                                 <td data-label="Created At">{{ $pickingList->created_at->format('M d, Y H:i') }}</td>
                                 <td data-label="Actions">
                                     <div class="btn-group" role="group">
-                                        <a href="{{ route('warehouse-to-customer-picking.show', $pickingList) }}" class="btn btn-sm btn-info">View</a>
+                                        <a href="{{ route('customer-picking.show', $pickingList) }}" class="btn btn-sm btn-info">View</a>
                                         @if($pickingList->status !== 'completed')
-                                        <form action="{{ route('warehouse-to-customer-picking.update-status', $pickingList) }}" method="POST" class="d-inline">
+                                        <form action="{{ route('customer-picking.update-status', $pickingList) }}" method="POST" class="d-inline">
                                             @csrf
                                             @method('PATCH')
                                             <input type="hidden" name="status" value="completed">

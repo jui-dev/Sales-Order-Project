@@ -114,7 +114,7 @@ class OrderController extends Controller
             if ($request->status === 'confirmed' && $order->status !== 'confirmed') {
                 try {
                     $pickingList = $this->service->confirm($order);
-                    return redirect()->route('warehouse-to-customer-picking.show', $pickingList->id)
+                    return redirect()->route('customer-picking.show', $pickingList->id)
                         ->with('success', 'Order confirmed and picking list created successfully. You can now process the picking.');
                 } catch (\Throwable $e) {
                     return back()->with('error', $e->getMessage());

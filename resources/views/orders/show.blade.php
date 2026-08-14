@@ -73,7 +73,7 @@
                 {{-- A confirmed order is not completed from here: PickingListObserver
                      completes it, and raises the invoice, once the goods are picked. --}}
                 @if($picking && ! $isPicked)
-                    <a href="{{ route('warehouse-to-customer-picking.show', $picking->id) }}" class="btn btn-primary">
+                    <a href="{{ route('customer-picking.show', $picking->id) }}" class="btn btn-primary">
                         <i class="bi bi-box-seam me-1"></i> Go to Picking
                     </a>
                 @endif
@@ -294,7 +294,7 @@
                         <span class="detail-kv__label">Picking List</span>
                         <span class="detail-kv__value">
                             @if($picking)
-                                <a href="{{ route('warehouse-to-customer-picking.show', $picking->id) }}">
+                                <a href="{{ route('customer-picking.show', $picking->id) }}">
                                     {{ $picking->picking_number ?: $picking->formatted_id }}
                                 </a>
                                 <span class="text-muted small d-block">
