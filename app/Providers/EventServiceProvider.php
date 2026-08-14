@@ -26,8 +26,11 @@ class EventServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Register model observers
+        //
+        // InvoiceObserver is deliberately not registered here: AppServiceProvider
+        // already registers it alongside the rest of them, and observing a model
+        // twice fires the handler twice.
         \App\Models\Payment::observe(\App\Observers\PaymentObserver::class);
-        \App\Models\Invoice::observe(\App\Observers\InvoiceObserver::class);
     }
 
     /**

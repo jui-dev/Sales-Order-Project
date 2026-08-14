@@ -1058,7 +1058,9 @@ Route::put('/picking/{pickingList}/item/{item}', function (\App\Models\PickingLi
 
     $item->update([
         'quantity_picked' => $quantity,
-        'status'          => $quantity === $item->quantity_requested ? 'picked' : 'partial',
+        // 'short' is what the status enum calls an incomplete line; 'partial' is
+        // not one of its values and the write was rejected by the database.
+        'status'          => $quantity === $item->quantity_requested ? 'picked' : 'short',
     ]);
 
     return back()->with('success', 'Item quantity updated.');

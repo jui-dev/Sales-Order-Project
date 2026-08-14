@@ -78,7 +78,16 @@
                                 <tr>
                                     <td>{{ $row['account']->code }}</td>
                                     <td>{{ $row['account']->name }}</td>
-                                    <td class="text-end">{{ $row['amount'] > 0 ? '$'.number_format($row['amount'], 2) : '' }}</td>
+                                    {{-- Contra accounts carry a negative amount and reduce the
+                                         total, so they are shown in brackets rather than hidden -
+                                         a blank cell would leave the column not adding up. --}}
+                                    <td class="text-end">
+                                        @if($row['amount'] < 0)
+                                            (${{ number_format(abs($row['amount']), 2) }})
+                                        @elseif($row['amount'] > 0)
+                                            ${{ number_format($row['amount'], 2) }}
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
@@ -97,7 +106,13 @@
                                 <tr>
                                     <td>{{ $row['account']->code }}</td>
                                     <td>{{ $row['account']->name }}</td>
-                                    <td class="text-end">{{ $row['amount'] > 0 ? '$'.number_format($row['amount'], 2) : '' }}</td>
+                                    <td class="text-end">
+                                        @if($row['amount'] < 0)
+                                            (${{ number_format(abs($row['amount']), 2) }})
+                                        @elseif($row['amount'] > 0)
+                                            ${{ number_format($row['amount'], 2) }}
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>

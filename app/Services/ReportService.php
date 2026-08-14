@@ -105,23 +105,38 @@ class ReportService
         $startDate = Arr::get($filters, 'start_date', Carbon::now()->startOfYear()->toDateString());
         $endDate = Arr::get($filters, 'end_date', Carbon::now()->toDateString());
 
-        // Get revenue accounts (4000-4999) with their balances
-        $revenueAccounts = \App\Models\Account::whereBetween('code', [4000, 4999])->get();
+        // Accounts are picked by their type rather than by code range. Contra
+        // accounts do not sit in the band their sign suggests - Sales Returns &
+        // Allowances (5200) is contra revenue despite its 5xxx code - so a range
+        // read it as an expense and net income came out wrong twice over.
+        $revenueAccounts = \App\Models\Account::whereHas('accountType', function ($q) {
+            $q->where('name', 'Revenue');
+        })->orderBy('code')->get();
+
         $revenues = $revenueAccounts->map(function ($account) use ($startDate, $endDate) {
+            // Revenue is earned as a credit, so the signed balance is negative.
+            // Flipping it - rather than taking the absolute value - is what lets a
+            // contra account, which carries a debit balance, come out negative and
+            // reduce the total instead of inflating it.
             $balance = $this->calculateAccountsBalance(collect([$account]), $startDate, $endDate);
-            // For income statement display, revenue should be positive (convert from negative balance)
+
             return [
                 'account' => $account,
-                'amount' => abs($balance),
+                'amount' => -$balance,
             ];
         });
         $totalRevenue = $revenues->sum('amount');
 
-        // Get expense accounts (5000-5999) with their balances
-        $expenseAccounts = \App\Models\Account::whereBetween('code', [5000, 5999])->get();
+        $expenseAccounts = \App\Models\Account::whereHas('accountType', function ($q) {
+            $q->where('name', 'Expense');
+        })->orderBy('code')->get();
+
         $expenses = $expenseAccounts->map(function ($account) use ($startDate, $endDate) {
+            // Expenses are incurred as a debit, so the signed balance is already
+            // positive; a contra expense such as Purchase Returns (5100) carries a
+            // credit balance and correctly subtracts.
             $balance = $this->calculateAccountsBalance(collect([$account]), $startDate, $endDate);
-            // For income statement display, expenses should be positive (already positive balance)
+
             return [
                 'account' => $account,
                 'amount' => $balance,
@@ -379,7 +394,9 @@ class ReportService
     {
         $query = \App\Models\JournalEntryLine::whereIn('account_id', $accounts->pluck('id'))
             ->whereHas('journalEntry', function ($q) use ($startDate, $endDate) {
-                $q->where('status', 'posted');
+                // Matches AccountingService::trialBalance, so an approved entry
+                // cannot appear in one report and be missing from the other.
+                $q->whereIn('status', ['posted', 'approved']);
                 if ($startDate) {
                     $q->whereDate('entry_date', '>=', $startDate);
                 }

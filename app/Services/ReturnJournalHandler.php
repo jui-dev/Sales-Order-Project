@@ -165,58 +165,51 @@ class ReturnJournalHandler
             }
 
             $lines = [];
-            $totalAmount = $debitNote->total_amount;
+            $totalAmount = round($debitNote->total_amount, 2);
 
             // ========================================
             // REVERSE THE ORIGINAL PURCHASE JOURNAL ENTRY
             // ========================================
-            
-            // 1. Reverse Purchase Expense → Purchase Returns (Contra Expense)
-            // Original: Debit Inventory (1200), Credit Accounts Payable (2100)
-            // Reverse:  Debit Purchase Returns (5100), Credit Accounts Payable (2100)
+            //
+            // The original was Debit Inventory (1200) / Credit Accounts Payable
+            // (2000): purchases land in inventory, not in an expense account, so
+            // sending goods back is the mirror of that and nothing else. In
+            // particular it never touches Cost of Goods Sold - stock returned to a
+            // vendor was never sold.
+
+            // 1. Reduce what is owed to the vendor.
             $lines[] = [
-                'account_code' => '5100', // Purchase Returns (Contra Expense)
+                'account_code' => '2000', // Accounts Payable
                 'debit' => $totalAmount,
                 'credit' => 0,
-                'description' => "Vendor Return - Reverse Purchase Expense #{$debitNote->debit_note_number}",
-            ];
-
-            // 2. Reverse Accounts Payable
-            // Original: Credit Accounts Payable (2100)
-            // Reverse:  Credit Accounts Payable (2100) - reduces payable
-            $lines[] = [
-                'account_code' => '2100', // Accounts Payable
-                'debit' => 0,
-                'credit' => $totalAmount,
                 'description' => "Vendor Return - Reverse Accounts Payable #{$debitNote->debit_note_number}",
             ];
 
-            // ========================================
-            // INVENTORY AND COGS ADJUSTMENT
-            // ========================================
-            
-            // Calculate total cost of returned items for inventory adjustment
-            $totalCost = $debitNote->items->sum(function ($item) {
+            // 2. Take the returned goods back out of inventory, at cost.
+            $totalCost = round($debitNote->items->sum(function ($item) {
                 return $item->quantity * ($item->product->purchase_price ?? 0);
-            });
+            }), 2);
 
             if ($totalCost > 0) {
-                // 3. Reduce inventory (reverse the inventory entry)
-                // Original: Debit Inventory (1200)
-                // Reverse: Credit Inventory (1200)
                 $lines[] = [
                     'account_code' => '1200', // Inventory
                     'debit' => 0,
                     'credit' => $totalCost,
                     'description' => "Vendor Return - Inventory Reduction #{$debitNote->debit_note_number}",
                 ];
+            }
 
-                // 4. Reverse Cost of Goods Sold (if applicable)
+            // 3. Anything credited to the vendor beyond the cost of the goods -
+            // or short of it - is a price adjustment rather than a stock movement,
+            // so it goes to Purchase Returns and keeps the entry balanced.
+            $difference = round($totalAmount - $totalCost, 2);
+
+            if ($difference != 0.0) {
                 $lines[] = [
-                    'account_code' => '5000', // Cost of Goods Sold
-                    'debit' => $totalCost,
-                    'credit' => 0,
-                    'description' => "Vendor Return - Reverse COGS #{$debitNote->debit_note_number}",
+                    'account_code' => '5100', // Purchase Returns (Contra Expense)
+                    'debit' => $difference < 0 ? abs($difference) : 0,
+                    'credit' => $difference > 0 ? $difference : 0,
+                    'description' => "Vendor Return - Purchase Returns #{$debitNote->debit_note_number}",
                 ];
             }
 
@@ -448,8 +441,8 @@ class ReturnJournalHandler
                 : 'Increases accounts receivable (customer owes more)';
         }
 
-        if ($accountCode === '2100') { // Accounts Payable
-            return $type === 'credit' 
+        if ($accountCode === '2000') { // Accounts Payable
+            return $type === 'debit'
                 ? 'Reduces accounts payable (owe vendor less)'
                 : 'Increases accounts payable (owe vendor more)';
         }
@@ -524,10 +517,9 @@ class ReturnJournalHandler
                 'amount' => $debitNote->total_amount,
             ];
             $explanation['reverse_entries'] = [
-                'Inventory (1200) → Purchase Returns (5100) - Debit',
-                'Accounts Payable (2100) → Accounts Payable (2100) - Credit',
-                'Inventory (1200) → Inventory (1200) → Inventory (1200) - Credit (if applicable)',
-                'Cost of Goods Sold (5000) → Cost of Goods Sold (5000) - Debit (if applicable)',
+                'Accounts Payable (2000) - Debit (reduces what is owed to the vendor)',
+                'Inventory (1200) - Credit (goods leave stock at cost)',
+                'Purchase Returns (5100) - Debit or Credit (only the price difference, if any)',
             ];
             
             if ($journalEntry->status === 'posted') {
@@ -563,8 +555,8 @@ class ReturnJournalHandler
                 return false;
             }
         } elseif ($journalEntry->source_type === DebitNote::class) {
-            // Vendor return should have Purchase Returns (5100) and Accounts Payable (2100)
-            $requiredAccounts = ['5100', '2100'];
+            // Vendor return should reduce Accounts Payable (2000) and Inventory (1200)
+            $requiredAccounts = ['2000', '1200'];
             if (!array_intersect($accountCodes, $requiredAccounts)) {
                 return false;
             }
@@ -610,10 +602,9 @@ class ReturnJournalHandler
             ];
         } else {
             $summary['key_effects'] = [
-                'Expenses reduced via Purchase Returns',
                 'Accounts Payable reduced',
-                'Inventory decreased (if applicable)',
-                'Cost of Goods Sold adjusted (if applicable)',
+                'Inventory decreased at cost (if applicable)',
+                'Purchase Returns adjusted for any price difference',
             ];
         }
 

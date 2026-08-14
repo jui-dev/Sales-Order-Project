@@ -34,8 +34,10 @@ class ChartOfAccountsSeeder extends Seeder
             '1100' => ['Accounts Receivable', 'Asset', 'Money owed by customers for goods or services delivered on credit.'],
             '1200' => ['Inventory', 'Asset', 'Value of products or raw materials held for sale or production.'],
             '1300' => ['Intercompany Receivable', 'Asset', 'Amounts owed by related companies or subsidiaries.'],
+            // 2000 is the only Accounts Payable. A second one at 2100 used to be
+            // seeded alongside it, which let supplier bills and vendor returns post
+            // to different accounts so a return could never offset its own bill.
             '2000' => ['Accounts Payable', 'Liability', 'Amounts the business owes to suppliers for goods or services received.'],
-            '2100' => ['Accounts Payable', 'Liability', 'Amounts the business owes to suppliers for goods or services received.'],
             '3000' => ["Owner's Equity", 'Equity', 'Owner\'s initial and additional investment in the business.'],
             '3010' => ['Retained Earnings', 'Equity', 'Accumulated net income not distributed as dividends'],
             '4000' => ['Sales Revenue', 'Revenue', 'Income earned from selling goods or services to customers.'],
