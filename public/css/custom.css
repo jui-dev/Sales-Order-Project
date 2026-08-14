@@ -1308,11 +1308,13 @@ footer.site-footer {
     color: #fff;
 }
 
+/* Left unfilled on purpose: a filled green disc reads as "finished", so the
+   stage still being worked on stays grey. Green on the rail means done. */
 .workflow-stage--current .workflow-stage__marker {
-    border-color: var(--primary);
-    background-color: var(--primary);
-    color: #fff;
-    box-shadow: 0 0 0 4px rgba(44, 110, 73, 0.15);
+    border-color: var(--medium-text);
+    background-color: var(--light-panel);
+    color: var(--medium-text);
+    box-shadow: 0 0 0 4px rgba(79, 93, 117, 0.12);
 }
 
 .workflow-stage--todo .workflow-stage__marker {
@@ -1332,7 +1334,7 @@ footer.site-footer {
 }
 
 .workflow-stage--current .workflow-stage__name {
-    color: var(--primary);
+    color: var(--dark-text);
 }
 
 .workflow-stage__meta {
