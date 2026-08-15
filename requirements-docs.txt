@@ -1,0 +1,5 @@
+# Documentation tooling (MkDocs + Material theme).
+# Install with: python -m pip install -r requirements-docs.txt
+# Serve locally: python -m mkdocs serve
+# Build static site into ./site: python -m mkdocs build
+mkdocs-material

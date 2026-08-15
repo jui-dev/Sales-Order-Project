@@ -27,13 +27,6 @@ yarn-error.log
 
 # Claude Code local tooling
 /.claude
-/CLAUDE.md
-
-# Documentation (not committed yet)
-/docs
-/docs-site
-/mkdocs.yml
-/requirements-docs.txt
 
 # Ad-hoc debug scripts
 /check_stock_data.php
