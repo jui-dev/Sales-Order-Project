@@ -229,6 +229,11 @@ trait HasErrorHandling
         } catch (DataNotFoundException $e) {
             // Re-throw DataNotFoundException as-is
             throw $e;
+        } catch (\InvalidArgumentException $e) {
+            // Validation failures describe what the caller did wrong, so the
+            // message is worth showing. Masking these as "try again later"
+            // hides the actual reason the operation was refused.
+            throw $e;
         } catch (\Exception $e) {
             // Log the actual error details for debugging
             Log::error("Service operation failed", [
