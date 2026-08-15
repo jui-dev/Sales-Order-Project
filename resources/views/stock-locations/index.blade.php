@@ -96,12 +96,6 @@
         color: #9ca3af;
     }
 
-    .locations-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 1.5rem;
-    }
-
     .section-title {
         font-size: 1.125rem;
         font-weight: 600;
@@ -114,205 +108,6 @@
 
     .section-title i {
         color: #6b7280;
-    }
-
-    .location-card {
-        background: #f0fdf4;  /* Light green */
-        border: 1px solid rgba(44, 110, 73, 0.12);
-        border-radius: 0.75rem;
-        overflow: hidden;
-        box-shadow: var(--card-shadow);
-        transition: box-shadow 0.3s ease;
-    }
-
-    .card-header {
-        padding: 1rem;
-        border-bottom: 1px solid #e5e7eb;
-        position: relative;
-    }
-
-    .location-name {
-        font-size: 1rem;
-        font-weight: 500;
-        color: #1f2937;
-        margin-bottom: 0.5rem;
-    }
-
-    .location-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.375rem;
-        font-size: 0.75rem;
-        padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        background: #f3f4f6;
-        color: #4b5563;
-    }
-
-    .status-badge {
-        position: absolute;
-        top: 1rem;
-        right: 1rem;
-        padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        font-size: 0.75rem;
-        font-weight: 500;
-    }
-
-    .status-active {
-        background: #dcfce7;
-        color: #15803d;
-    }
-
-    .status-inactive {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-
-    .card-body {
-        padding: 1rem;
-    }
-
-    .info-list {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        margin-bottom: 1rem;
-    }
-
-    .info-item {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        font-size: 0.875rem;
-        color: #4b5563;
-    }
-
-    .info-item i {
-        color: #6b7280;
-        width: 1rem;
-        text-align: center;
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.5rem;
-        padding: 0.75rem;
-        background: #f9fafb;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .stat-item {
-        text-align: center;
-        padding: 0.5rem;
-    }
-
-    .stat-value {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: #1f2937;
-    }
-
-    .stat-label {
-        font-size: 0.75rem;
-        color: #6b7280;
-        margin-top: 0.25rem;
-    }
-
-    .card-actions {
-        display: flex;
-        gap: 0.75rem;
-        padding: 1rem;
-        background: #f8fafc;
-        border-radius: 0.5rem;
-        border: 1px solid #e5e7eb;
-    }
-
-    .action-btn {
-        flex: 1;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.625rem;
-        padding: 0.625rem 1rem;
-        border-radius: 0.375rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        text-decoration: none;
-        transition: all 0.2s ease;
-        border: 1px solid transparent;
-        cursor: pointer;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .action-btn::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 120%;
-        height: 120%;
-        background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 50%);
-        transform: translate(-50%, -50%) scale(0);
-        transition: transform 0.5s ease;
-        pointer-events: none;
-    }
-
-    .action-btn:hover::before {
-        transform: translate(-50%, -50%) scale(2);
-    }
-
-    .action-btn i {
-        font-size: 0.875rem;
-        transition: transform 0.2s ease;
-    }
-
-    .action-btn:hover i {
-        transform: scale(1.1);
-    }
-
-    .btn-view {
-        background: white;
-        color: var(--medium-text);
-        border: 1px solid var(--border-color);
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    }
-
-    .btn-view:hover {
-        background: var(--light-bg);
-        border-color: var(--border-color);
-        color: var(--dark-text);
-    }
-
-    .btn-edit {
-        background: var(--primary);
-        color: white;
-        box-shadow: 0 2px 4px rgba(44, 110, 73, 0.2);
-    }
-
-    .btn-edit:hover {
-        background: var(--primary-dark);
-        box-shadow: 0 4px 6px rgba(44, 110, 73, 0.3);
-        transform: translateY(-1px);
-    }
-
-    .btn-delete {
-        background: white;
-        color: var(--danger);
-        border: 1px solid rgba(231, 111, 81, 0.2);
-    }
-
-    .btn-delete:hover {
-        background: rgba(231, 111, 81, 0.1);
-        border-color: rgba(231, 111, 81, 0.3);
-        color: #d63030;
-    }
-
-    .btn-delete:focus {
-        box-shadow: 0 0 0 3px rgba(231, 111, 81, 0.1);
     }
 
     .empty-state {
@@ -358,35 +153,12 @@
             justify-content: center;
         }
 
-        .locations-grid {
-            grid-template-columns: 1fr;
-            gap: 1rem;
-        }
-
         .section-nav {
             padding: 1rem 1rem 0.75rem;
         }
 
         .section-content {
             padding: 0 1rem 1rem;
-        }
-
-        .card-actions {
-            flex-direction: column;
-        }
-
-        .action-btn {
-            width: 100%;
-        }
-    }
-
-    @media (hover: hover) {
-        .action-btn:hover {
-            transform: translateY(-1px);
-        }
-
-        .location-card:hover {
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
         }
     }
 
@@ -463,78 +235,7 @@
                 </div>
             </div>
             <div class="section-content">
-                <div class="locations-grid">
-                    @foreach($warehouses as $location)
-                        <div class="location-card" data-location-name="{{ strtolower($location->name) }}">
-                            <div class="card-header">
-                                <div class="location-name">
-                                    {{ $location->name }}
-                                    <span class="badge bg-secondary ms-2">ID: {{ $location->id }}</span>
-                                </div>
-                                <div class="location-badge">
-                                    <i class="fas fa-warehouse"></i>
-                                    Warehouse
-                                </div>
-                                <div class="status-badge {{ $location->status === 'active' ? 'status-active' : 'status-inactive' }}">
-                                    <i class="fas fa-circle"></i>
-                                    {{ ucfirst($location->status) }}
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <div class="info-list">
-                                    <div class="info-item">
-                                        <i class="fas fa-user"></i>
-                                        {{ $location->contact_person ?: 'No contact person' }}
-                                    </div>
-                                    <div class="info-item">
-                                        <i class="fas fa-phone"></i>
-                                        {{ $location->contact_number ?: 'No phone number' }}
-                                    </div>
-                                    <div class="info-item">
-                                        <i class="fas fa-envelope"></i>
-                                        {{ $location->email ?: 'No email' }}
-                                    </div>
-                                </div>
-
-                                <div class="stats-grid">
-                                    <div class="stat-item">
-                                        <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->count() : 0 }}</div>
-                                        <div class="stat-label">Products</div>
-                                    </div>
-                                    <div class="stat-item">
-                                        <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->sum('quantity') : 0 }}</div>
-                                        <div class="stat-label">Stock</div>
-                                    </div>
-                                    <div class="stat-item">
-                                        <div class="stat-value">{{ $location->stockTransactions ? $location->stockTransactions->count() : 0 }}</div>
-                                        <div class="stat-label">Transactions</div>
-                                    </div>
-                                </div>
-
-                                <div class="card-actions">
-                                    <a href="{{ route('stock-locations.show', $location) }}" class="action-btn btn-view">
-                                        <i class="fas fa-eye"></i>
-                                        View
-                                    </a>
-                                    <a href="{{ route('stock-locations.edit', $location) }}" class="action-btn btn-edit">
-                                        <i class="fas fa-edit"></i>
-                                        Edit
-                                    </a>
-                                    @if(!$location->is_default)
-                                        <form action="{{ route('stock-locations.destroy', $location) }}" method="POST" style="flex: 1">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="action-btn btn-delete" onclick="return confirm('Are you sure you want to delete this location? This action cannot be undone.')">
-                                                <i class="fas fa-trash"></i>
-                                                Delete
-                                            </button>
-                                        </form>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
+                @include('stock-locations.partials.location-table', ['locations' => $warehouses])
             </div>
         </div>
         @endif
@@ -552,78 +253,7 @@
                 </div>
             </div>
             <div class="section-content">
-                <div class="locations-grid">
-                    @foreach($retailers as $location)
-                        <div class="location-card" data-location-name="{{ strtolower($location->name) }}">
-                            <div class="card-header">
-                                <div class="location-name">
-                                    {{ $location->name }}
-                                    <span class="badge bg-secondary ms-2">ID: {{ $location->id }}</span>
-                                </div>
-                                <div class="location-badge">
-                                    <i class="fas fa-store"></i>
-                                    Retailer
-                                </div>
-                                <div class="status-badge {{ $location->status === 'active' ? 'status-active' : 'status-inactive' }}">
-                                    <i class="fas fa-circle"></i>
-                                    {{ ucfirst($location->status) }}
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <div class="info-list">
-                                    <div class="info-item">
-                                        <i class="fas fa-user"></i>
-                                        {{ $location->contact_person ?: 'No contact person' }}
-                                    </div>
-                                    <div class="info-item">
-                                        <i class="fas fa-phone"></i>
-                                        {{ $location->contact_number ?: 'No phone number' }}
-                                    </div>
-                                    <div class="info-item">
-                                        <i class="fas fa-envelope"></i>
-                                        {{ $location->email ?: 'No email' }}
-                                    </div>
-                                </div>
-
-                                <div class="stats-grid">
-                                    <div class="stat-item">
-                                        <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->count() : 0 }}</div>
-                                        <div class="stat-label">Products</div>
-                                    </div>
-                                    <div class="stat-item">
-                                        <div class="stat-value">{{ $location->stockBalances ? $location->stockBalances->sum('quantity') : 0 }}</div>
-                                        <div class="stat-label">Stock</div>
-                                    </div>
-                                    <div class="stat-item">
-                                        <div class="stat-value">{{ $location->stockTransactions ? $location->stockTransactions->count() : 0 }}</div>
-                                        <div class="stat-label">Transactions</div>
-                                    </div>
-                                </div>
-
-                                <div class="card-actions">
-                                    <a href="{{ route('stock-locations.show', $location) }}" class="action-btn btn-view">
-                                        <i class="fas fa-eye"></i>
-                                        View
-                                    </a>
-                                    <a href="{{ route('stock-locations.edit', $location) }}" class="action-btn btn-edit">
-                                        <i class="fas fa-edit"></i>
-                                        Edit
-                                    </a>
-                                    @if(!$location->is_default)
-                                        <form action="{{ route('stock-locations.destroy', $location) }}" method="POST" style="flex: 1">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="action-btn btn-delete" onclick="return confirm('Are you sure you want to delete this location? This action cannot be undone.')">
-                                                <i class="fas fa-trash"></i>
-                                                Delete
-                                            </button>
-                                        </form>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
+                @include('stock-locations.partials.location-table', ['locations' => $retailers])
             </div>
         </div>
         @endif
@@ -633,26 +263,22 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('locationSearch');
-    const locationCards = document.querySelectorAll('.location-card');
+    const locationRows = document.querySelectorAll('.location-row');
     const locationSections = document.querySelectorAll('.location-section');
 
     searchInput.addEventListener('input', function() {
         const searchTerm = this.value.toLowerCase();
 
-        locationCards.forEach(card => {
-            const locationName = card.dataset.locationName;
-            if (locationName.includes(searchTerm)) {
-                card.style.display = '';
-            } else {
-                card.style.display = 'none';
-            }
+        locationRows.forEach(row => {
+            const locationName = row.dataset.locationName;
+            row.style.display = locationName.includes(searchTerm) ? '' : 'none';
         });
 
-        // Hide a whole section once none of its cards match
+        // Hide a whole section once none of its rows match
         locationSections.forEach(section => {
-            const hasVisibleCard = Array.from(section.querySelectorAll('.location-card'))
-                .some(card => card.style.display !== 'none');
-            section.style.display = hasVisibleCard ? '' : 'none';
+            const hasVisibleRow = Array.from(section.querySelectorAll('.location-row'))
+                .some(row => row.style.display !== 'none');
+            section.style.display = hasVisibleRow ? '' : 'none';
         });
     });
 });
