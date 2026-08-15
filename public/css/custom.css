@@ -1426,6 +1426,262 @@ a.workflow-stage:hover .workflow-stage__name {
 }
 
 /* =====================================================================
+   Financial statements
+   ---------------------------------------------------------------------
+   The four statements (trial balance, income statement, balance sheet,
+   cash flow) are set as ruled documents rather than data tables. A
+   statement is read down a single column of figures, so the figures get
+   one hard right edge and tabular digits; the rules carry the meaning
+   that a striped table row cannot - a single rule means "subtotal", a
+   double rule means "this line is the answer".
+   ===================================================================== */
+.statement {
+    /* Statements are read, not scanned across. Holding the body narrow
+       keeps the label and its figure close enough to associate. */
+    max-width: 46rem;
+}
+
+.statement--wide {
+    max-width: none;
+}
+
+.statement__group + .statement__group {
+    margin-top: 1.75rem;
+}
+
+.statement__group-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--medium-text);
+    margin-bottom: 0.5rem;
+}
+
+.statement__row {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.4rem 0;
+}
+
+.statement__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--dark-text);
+}
+
+.statement__code {
+    display: inline-block;
+    min-width: 3.4rem;
+    margin-right: 0.6rem;
+    font-size: 0.78rem;
+    color: var(--medium-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.statement__amount {
+    flex: 0 0 auto;
+    min-width: 9rem;
+    text-align: right;
+    color: var(--dark-text);
+    /* Digits must sit in the same column down the whole statement, or the
+       eye cannot compare two figures without re-reading them. */
+    font-variant-numeric: tabular-nums;
+}
+
+/* Contra accounts reduce the section they sit in. Indenting them and
+   prefixing "less:" says that in the statement's own vocabulary, rather
+   than relying on the reader to notice a negative sign. */
+.statement__row--deduction .statement__label {
+    padding-left: 1.25rem;
+    color: var(--medium-text);
+}
+
+.statement__row--subtotal {
+    margin-top: 0.25rem;
+    border-top: 1px solid var(--border-color);
+    font-weight: 600;
+}
+
+/* A derived line the reader came for - gross profit, net cash. Heavier
+   than a subtotal, quieter than the final answer. */
+.statement__row--result {
+    margin-top: 0.25rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.6rem;
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.statement__row--total {
+    margin-top: 0.5rem;
+    padding-top: 0.7rem;
+    border-top: 3px double var(--dark-text);
+    font-weight: 700;
+    font-size: 1.15rem;
+}
+
+.statement__row--total .statement__label,
+.statement__row--result .statement__label {
+    color: var(--dark-text);
+}
+
+/* Only the answer lines carry colour. Line items stay neutral so the
+   parentheses do the work and the page does not read as an alarm. */
+.statement__amount--negative {
+    color: var(--danger);
+}
+
+.statement__amount--muted {
+    color: var(--medium-text);
+}
+
+.statement__meta {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding-top: 0.2rem;
+    font-size: 0.8rem;
+    color: var(--medium-text);
+}
+
+.statement__empty {
+    padding: 0.4rem 0;
+    color: var(--medium-text);
+}
+
+/* ---- What the statement is built from -------------------------------- */
+/* Every statement here counts posted entries only. Without saying so, a
+   page showing almost nothing looks broken rather than incomplete. */
+.statement-basis {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1rem;
+    padding: 0.85rem 1.1rem;
+    border-radius: 8px;
+    border-left: 3px solid var(--primary);
+    background-color: #f5f8f6;
+    color: var(--dark-text);
+    font-size: 0.9rem;
+}
+
+.statement-basis--pending {
+    border-left-color: var(--warning);
+    background-color: #fdf6ec;
+}
+
+.statement-basis__text {
+    flex: 1 1 18rem;
+    min-width: 0;
+}
+
+.statement-basis__figure {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Balanced / not balanced verdict --------------------------------- */
+.statement-verdict {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 1rem;
+    padding: 0.85rem 1.1rem;
+    border-radius: 8px;
+    background-color: #f5f8f6;
+    font-size: 0.9rem;
+}
+
+.statement-verdict--ok {
+    color: var(--primary-dark);
+}
+
+.statement-verdict--off {
+    background-color: #fdeeea;
+    color: #a1412b;
+}
+
+.statement-verdict__equation {
+    font-variant-numeric: tabular-nums;
+    color: var(--medium-text);
+}
+
+/* ---- Period control -------------------------------------------------- */
+/* Two date inputs never needed a card with a header above them. */
+.statement-period {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+}
+
+.statement-period__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.statement-period__label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--medium-text);
+}
+
+.statement-period__presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-left: auto;
+}
+
+/* ---- Statement switcher ---------------------------------------------- */
+.report-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.report-tabs__link {
+    padding: 0.5rem 0.9rem;
+    border-bottom: 2px solid transparent;
+    color: var(--medium-text);
+    text-decoration: none;
+    font-size: 0.92rem;
+}
+
+.report-tabs__link:hover,
+.report-tabs__link:focus-visible {
+    color: var(--primary);
+}
+
+.report-tabs__link--active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+}
+
+@media (max-width: 575.98px) {
+    .statement__amount {
+        min-width: 7rem;
+    }
+
+    .statement__code {
+        display: block;
+        margin-bottom: 0.1rem;
+    }
+
+    .statement-period__presets {
+        margin-left: 0;
+    }
+}
+
+/* =====================================================================
    Print
    ---------------------------------------------------------------------
    Turns any page into a plain document: drop the app chrome and the
@@ -1494,5 +1750,37 @@ a.workflow-stage:hover .workflow-stage__name {
     .workflow-stage::after {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+    }
+
+    /* A printed statement is handed to someone who cannot see the filters
+       that produced it, so what it was built from has to travel with it. */
+    .statement-basis,
+    .statement-verdict {
+        border: 1px solid #999;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .statement {
+        max-width: none;
+    }
+
+    /* Rules carry the meaning of the figures; losing them to background
+       stripping would leave an undifferentiated column of numbers. */
+    .statement__row--subtotal,
+    .statement__row--result {
+        border-top: 1px solid #000 !important;
+    }
+
+    .statement__row--total {
+        border-top: 3px double #000 !important;
+    }
+
+    .statement__amount--negative {
+        color: #000 !important;
+    }
+
+    .statement__group {
+        break-inside: avoid;
     }
 }
