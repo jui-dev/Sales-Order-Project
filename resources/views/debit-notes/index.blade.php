@@ -203,15 +203,14 @@
                                             {{ $debitNote->issue_date ? $debitNote->issue_date->format('M d, Y') : '-' }}
                                         </td>
                                         <td>
+                                            {{-- Solid so the action reads by colour at rest. Download
+                                                 lives on the note itself, alongside the actions that
+                                                 need its status. --}}
                                             <div class="btn-group" role="group">
-                                                <a href="{{ route('debit-notes.show', $debitNote) }}" class="btn btn-sm btn-outline-primary">
+                                                <a href="{{ route('debit-notes.show', $debitNote) }}"
+                                                   class="btn btn-sm btn-primary" title="View debit note">
                                                     <i class="bi bi-eye"></i>
                                                 </a>
-                                                @if($debitNote->status === 'issued')
-                                                    <a href="{{ route('debit-notes.download', $debitNote) }}" class="btn btn-sm btn-outline-secondary">
-                                                        <i class="bi bi-download"></i>
-                                                    </a>
-                                                @endif
                                             </div>
                                         </td>
                                     </tr>

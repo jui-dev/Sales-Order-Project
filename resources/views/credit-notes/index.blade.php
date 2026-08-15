@@ -197,15 +197,14 @@
                                         @endif
                                     </td>
                                     <td>
+                                        {{-- Solid so the action reads by colour at rest. Download
+                                             lives on the note itself, alongside the actions that
+                                             need its status. --}}
                                         <div class="btn-group" role="group">
-                                            <a href="{{ route('credit-notes.show', $creditNote) }}" class="btn btn-sm btn-outline-primary">
+                                            <a href="{{ route('credit-notes.show', $creditNote) }}"
+                                               class="btn btn-sm btn-primary" title="View credit note">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            @if($creditNote->status === 'issued')
-                                                <a href="{{ route('credit-notes.download', $creditNote) }}" class="btn btn-sm btn-outline-secondary">
-                                                    <i class="bi bi-download"></i>
-                                                </a>
-                                            @endif
                                         </div>
                                     </td>
                                 </tr>
