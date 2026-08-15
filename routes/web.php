@@ -613,18 +613,6 @@ Route::get('/customer-picking/{id}', function ($id) {
     return view('customer-picking.show', compact('pickingList'));
 })->whereNumber('id')->name('customer-picking.show');
 
-// Statistics JSON endpoint for warehouse-to-customer dashboard
-Route::get('/warehouse-to-customer-picking/statistics', function () {
-    return response()->json([
-        'total_pickings'      => 0,
-        'completed_today'     => 0,
-        'pending_pickings'    => 0,
-        'total_items_shipped' => 0,
-        'active_warehouses'   => 0,
-        'active_customers'    => 0,
-    ]);
-})->name('warehouse-to-customer-picking.statistics');
-
 // Retailer to Customer Picking UI Routes
 Route::get('/retailer-to-customer-picking', function () {
     $retailers = \App\Models\Retailer::all();
@@ -994,30 +982,6 @@ Route::prefix('stock-transfers/warehouse-to-retailer')->name('stock-transfers.wa
         return back()->with('success', 'Transfer cancelled.');
     })->whereNumber('pickingList')->name('cancel');
 });
-
-// Statistics JSON endpoint for retailer-to-customer dashboard (used by AJAX in the UI)
-Route::get('/api/retailer-to-customer-picking/statistics', function () {
-    $baseQuery = \App\Models\PickingList::where('from_location_type', \App\Models\Retailer::class)
-        ->where('to_location_type', \App\Models\Customer::class);
-
-    $total       = (clone $baseQuery)->count();
-    $completed   = (clone $baseQuery)->where('status', 'completed')->count();
-    $pending     = (clone $baseQuery)->where('status', 'pending')->count();
-    $inProgress  = (clone $baseQuery)->whereIn('status', ['processing', 'in_progress'])->count();
-
-    $totalItems = \App\Models\PickingListItem::whereHas('pickingList', function ($q) {
-        $q->where('from_location_type', \App\Models\Retailer::class)
-          ->where('to_location_type',   \App\Models\Customer::class);
-    })->sum('quantity_picked');
-
-    return response()->json([
-        'total'        => $total,
-        'completed'    => $completed,
-        'pending'      => $pending,
-        'in_progress'  => $inProgress,
-        'total_items'  => $totalItems,
-    ]);
-})->name('retailer-to-customer-picking.statistics');
 
 // Generic Picking List (show)
 Route::get('/picking/{id}', function ($id) {

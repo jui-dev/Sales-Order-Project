@@ -285,7 +285,7 @@
                                     $progressPercentage = $totalRequested > 0 ? ($totalPicked / $totalRequested) * 100 : 0;
                                 @endphp
                                 <div class="progress" style="height: 20px;">
-                                    <div class="progress-bar bg-{{ $progressPercentage == 100 ? 'success' : ($progressPercentage > 0 ? 'warning' : 'secondary') }}" 
+                                    <div class="progress-bar progress-bar--theme"
                                          role="progressbar" 
                                          style="width: {{ $progressPercentage }}%"
                                          aria-valuenow="{{ $progressPercentage }}" 

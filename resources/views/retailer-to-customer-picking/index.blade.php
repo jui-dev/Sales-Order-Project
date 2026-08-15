@@ -6,9 +6,6 @@
                 <a href="{{ route('orders.index') }}" class="btn btn-outline-primary me-2">
                     <i class="bi bi-cart me-1"></i> View Orders
                 </a>
-                <button class="btn btn-info" onclick="loadStatistics()">
-                    <i class="bi bi-graph-up me-1"></i> Statistics
-                </button>
             </div>
         </div>
 @endsection
@@ -42,6 +39,14 @@
     </div>
 
     <!-- System Overview Cards -->
+    @php
+        // Counted straight off the collection the route already loaded, so the
+        // cards paint with the page instead of arriving later over AJAX.
+        $totalPickings     = $pickingLists->count();
+        $completedPickings = $pickingLists->where('status', 'completed')->count();
+        $pendingPickings   = $pickingLists->whereIn('status', ['pending', 'processing', 'in_progress'])->count();
+        $totalItemsShipped = $pickingLists->sum(fn ($list) => $list->items->sum('quantity_picked'));
+    @endphp
     <div class="summary-panel mb-4">
         <div class="row g-3">
         <div class="col-md-3">
@@ -50,7 +55,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title text-primary">Total Pickings</h6>
-                            <h3 id="total-pickings">-</h3>
+                            <h3>{{ number_format($totalPickings) }}</h3>
                         </div>
                         <i class="bi bi-list-check text-primary summary-card__icon" style="font-size: 2rem;"></i>
                     </div>
@@ -63,7 +68,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title text-success">Completed</h6>
-                            <h3 id="completed-pickings">-</h3>
+                            <h3>{{ number_format($completedPickings) }}</h3>
                         </div>
                         <i class="bi bi-check-circle text-success summary-card__icon" style="font-size: 2rem;"></i>
                     </div>
@@ -76,7 +81,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title text-warning-emphasis">Pending</h6>
-                            <h3 id="pending-pickings">-</h3>
+                            <h3>{{ number_format($pendingPickings) }}</h3>
                         </div>
                         <i class="bi bi-clock text-warning-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                     </div>
@@ -89,7 +94,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title text-info-emphasis">Items Shipped</h6>
-                            <h3 id="total-items">-</h3>
+                            <h3>{{ number_format($totalItemsShipped) }}</h3>
                         </div>
                         <i class="bi bi-box text-info-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                     </div>
@@ -165,7 +170,7 @@
                                             $totalPicked = $pickingList->pickingItems ? $pickingList->pickingItems->sum('quantity_picked') : 0;
                                             $progressPercentage = $totalRequested > 0 ? ($totalPicked / $totalRequested) * 100 : 0;
                                         @endphp
-                                        <div class="progress-bar bg-{{ $progressPercentage == 100 ? 'success' : ($progressPercentage > 0 ? 'warning' : 'secondary') }}" 
+                                        <div class="progress-bar progress-bar--theme"
                                              role="progressbar" 
                                              style="width: {{ $progressPercentage }}%"
                                              aria-valuenow="{{ $progressPercentage }}" 
@@ -287,36 +292,6 @@
     @endif
 </div>
 
-@push('scripts')
-<script>
-function loadStatistics() {
-    fetch('/api/retailer-to-customer-picking/statistics')
-        .then(response => response.json())
-        .then(data => {
-            // Format numbers with commas for better readability
-            document.getElementById('total-pickings').textContent = data.total ? data.total.toLocaleString() : '0';
-            document.getElementById('completed-pickings').textContent = data.completed ? data.completed.toLocaleString() : '0';
-            document.getElementById('pending-pickings').textContent = ((data.pending || 0) + (data.in_progress || 0)).toLocaleString();
-            document.getElementById('total-items').textContent = data.total_items ? data.total_items.toLocaleString() : '0';
-        })
-        .catch(error => {
-            console.error('Error loading statistics:', error);
-            // Set default values in case of error
-            document.getElementById('total-pickings').textContent = '0';
-            document.getElementById('completed-pickings').textContent = '0';
-            document.getElementById('pending-pickings').textContent = '0';
-            document.getElementById('total-items').textContent = '0';
-        });
-}
-
-// Load statistics on page load
-document.addEventListener('DOMContentLoaded', loadStatistics);
-
-// Refresh statistics every 30 seconds
-setInterval(loadStatistics, 30000);
-</script>
-@endpush
-
 @push('styles')
 <style>
 /* White container holding the summary cards */
@@ -348,4 +323,4 @@ setInterval(loadStatistics, 30000);
 </style>
 @endpush
 </div>
-@endsection 
+@endsection

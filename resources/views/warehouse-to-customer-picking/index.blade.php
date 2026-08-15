@@ -6,9 +6,6 @@
             <a href="{{ route('orders.index') }}" class="btn btn-outline-primary me-2">
                 <i class="bi bi-cart me-1"></i> View Orders
             </a>
-            <button class="btn btn-info" onclick="loadStatistics()">
-                <i class="bi bi-graph-up me-1"></i> Statistics
-            </button>
         </div>
     </div>
 @endsection
@@ -117,62 +114,6 @@
     </div>
 </div>
 
-<!-- Statistics Cards (Hidden by default) -->
-<div class="row mb-4" id="statistics-cards" style="display: none;">
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm summary-card summary-card--blue">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title text-primary">Total Pickings</h6>
-                        <h3 id="total-pickings">-</h3>
-                    </div>
-                    <i class="bi bi-list-check text-primary summary-card__icon" style="font-size: 2rem;"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm summary-card summary-card--green">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title text-success">Completed Today</h6>
-                        <h3 id="completed-today">-</h3>
-                    </div>
-                    <i class="bi bi-check-circle text-success summary-card__icon" style="font-size: 2rem;"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm summary-card summary-card--amber">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title text-warning-emphasis">Pending</h6>
-                        <h3 id="pending-pickings">-</h3>
-                    </div>
-                    <i class="bi bi-clock text-warning-emphasis summary-card__icon" style="font-size: 2rem;"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm summary-card summary-card--cyan">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title text-info-emphasis">Items Shipped</h6>
-                        <h3 id="total-items">-</h3>
-                    </div>
-                    <i class="bi bi-box text-info-emphasis summary-card__icon" style="font-size: 2rem;"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 @if($pickingLists->count() > 0)
     <div class="card">
         <div class="card-header">
@@ -212,7 +153,7 @@
                                 </td>
                                 <td data-label="Progress">
                                     <div class="progress" style="height: 6px; width: 100px;">
-                                        <div class="progress-bar bg-{{ $pickingList->progress_percentage == 100 ? 'success' : 'info' }}" role="progressbar" style="width: {{ $pickingList->progress_percentage }}%;"></div>
+                                        <div class="progress-bar progress-bar--theme" role="progressbar" style="width: {{ $pickingList->progress_percentage }}%;"></div>
                                     </div>
                                     <small>{{ number_format($pickingList->progress_percentage, 0) }}%</small>
                                 </td>
@@ -373,33 +314,6 @@
 </div>
 </div>
 
-@endsection
-
-@section('scripts')
-<script>
-function loadStatistics() {
-    const statisticsCards = document.getElementById('statistics-cards');
-    
-    if (statisticsCards.style.display === 'none') {
-        fetch('{{ route("warehouse-to-customer-picking.statistics") }}')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('total-pickings').textContent = data.total_pickings || '0';
-                document.getElementById('completed-today').textContent = data.completed_today || '0';
-                document.getElementById('pending-pickings').textContent = data.pending_pickings || '0';
-                document.getElementById('total-items').textContent = data.total_items_shipped || '0';
-                
-                statisticsCards.style.display = 'block';
-            })
-            .catch(error => {
-                console.error('Error loading statistics:', error);
-                alert('Error loading statistics');
-            });
-    } else {
-        statisticsCards.style.display = 'none';
-    }
-}
-</script>
 @endsection
 
 @push('styles')
