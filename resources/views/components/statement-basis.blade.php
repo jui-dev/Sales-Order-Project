@@ -17,11 +17,17 @@
 
     $hasBacklog = $pending > 0;
 
-    // Name the statuses only when both are present; "3 draft and 1 approved"
-    // is worth the words, "3 draft" on its own is not.
-    $breakdown = ($drafts > 0 && $approved > 0)
-        ? " ({$drafts} draft, {$approved} approved)"
-        : '';
+    // Approved entries have cleared review and are one action from the ledger,
+    // so they are always named - that is the state where the reader most needs
+    // to know why the figures have not moved. A backlog of drafts alone needs
+    // no breakdown; "3 draft" only repeats the count already given.
+    if ($drafts > 0 && $approved > 0) {
+        $breakdown = " ({$drafts} draft, {$approved} approved)";
+    } elseif ($approved > 0) {
+        $breakdown = " ({$approved} approved, ready to post)";
+    } else {
+        $breakdown = '';
+    }
 
     // Built here rather than with directives inline in the sentence: Blade will
     // not compile an @if that sits flush against the preceding word, and the
@@ -51,9 +57,11 @@
     </span>
 
     @if($hasBacklog)
-        <a href="{{ route('journal-entries.index', ['status' => 'draft']) }}"
+        {{-- Send the reader to the entries they can act on. Approved ones are a
+             single click from the ledger, so they take priority over drafts. --}}
+        <a href="{{ route('journal-entries.index', ['status' => $approved > 0 ? 'approved' : 'draft']) }}"
            class="btn btn-sm btn-outline-primary d-print-none">
-            Review entries
+            {{ $approved > 0 ? 'Post approved entries' : 'Review entries' }}
         </a>
     @endif
 </div>
