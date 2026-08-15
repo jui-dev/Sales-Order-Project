@@ -99,4 +99,4 @@ A working project, still being built on.
 
 **There is no authentication** — no login, roles or permissions. It is built as a single-operator internal tool, and adding auth would be the first step toward anything wider. One consequence worth knowing: the audit trail records actions but cannot meaningfully attribute them.
 
-Some screens are further along than others. [docs/FEATURES.md](docs/FEATURES.md) §12–13 lists what is stubbed or known to be wrong; it is kept honest deliberately, so read it before relying on any single flow.
+Some screens are further along than others. [docs/FEATURES.md](docs/FEATURES.md) §15–16 lists what is stubbed or known to be wrong; it is kept honest deliberately, so read it before relying on any single flow.
