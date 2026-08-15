@@ -380,7 +380,23 @@ class DebitNoteService
     }
 
     /**
-     * Post journal entry (change from draft to posted)
+     * Approve the journal entry (draft -> approved)
+     *
+     * Review step only; the ledger is untouched until the entry is posted.
+     */
+    public function approveJournalEntry(DebitNote $debitNote): DebitNote
+    {
+        if (!$debitNote->journalEntry) {
+            throw new \InvalidArgumentException('No journal entry found for this debit note');
+        }
+
+        app(ReturnJournalHandler::class)->approveVendorReturnJournal($debitNote);
+
+        return $debitNote->load('journalEntry');
+    }
+
+    /**
+     * Post journal entry (change from approved to posted)
      */
     public function postJournalEntry(DebitNote $debitNote): DebitNote
     {
@@ -388,7 +404,7 @@ class DebitNoteService
             throw new \InvalidArgumentException('No journal entry found for this debit note');
         }
 
-        if ($debitNote->journalEntry->status === 'posted') {
+        if ($debitNote->journalEntry->isPosted()) {
             throw new \InvalidArgumentException('Journal entry is already posted');
         }
 

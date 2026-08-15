@@ -230,6 +230,7 @@ Route::post('returns/{return}/generate-credit-note', [\App\Http\Controllers\Cred
 Route::post('credit-notes/{creditNote}/cancel', [\App\Http\Controllers\CreditNoteController::class, 'cancel'])->name('credit-notes.cancel');
 Route::get('credit-notes/{creditNote}/download', [\App\Http\Controllers\CreditNoteController::class, 'download'])->name('credit-notes.download');
 Route::post('credit-notes/{creditNote}/post', [\App\Http\Controllers\CreditNoteController::class, 'post'])->name('credit-notes.post');
+Route::post('credit-notes/{creditNote}/approve-journal-entry', [\App\Http\Controllers\CreditNoteController::class, 'approveJournalEntry'])->name('credit-notes.approve-journal-entry');
 Route::post('credit-notes/{creditNote}/post-journal-entry', [\App\Http\Controllers\CreditNoteController::class, 'postJournalEntry'])->name('credit-notes.post-journal-entry');
 
 // Debit Notes Routes
@@ -239,6 +240,7 @@ Route::post('returns/{return}/generate-debit-note', [\App\Http\Controllers\Debit
 Route::post('debit-notes/{debitNote}/cancel', [\App\Http\Controllers\DebitNoteController::class, 'cancel'])->name('debit-notes.cancel');
 Route::get('debit-notes/{debitNote}/download', [\App\Http\Controllers\DebitNoteController::class, 'download'])->name('debit-notes.download');
 Route::post('debit-notes/{debitNote}/post', [\App\Http\Controllers\DebitNoteController::class, 'post'])->name('debit-notes.post');
+Route::post('debit-notes/{debitNote}/approve-journal-entry', [\App\Http\Controllers\DebitNoteController::class, 'approveJournalEntry'])->name('debit-notes.approve-journal-entry');
 Route::post('debit-notes/{debitNote}/post-journal-entry', [\App\Http\Controllers\DebitNoteController::class, 'postJournalEntry'])->name('debit-notes.post-journal-entry');
 
 // Picking UI Routes

@@ -394,9 +394,12 @@ class ReportService
     {
         $query = \App\Models\JournalEntryLine::whereIn('account_id', $accounts->pluck('id'))
             ->whereHas('journalEntry', function ($q) use ($startDate, $endDate) {
-                // Matches AccountingService::trialBalance, so an approved entry
-                // cannot appear in one report and be missing from the other.
-                $q->whereIn('status', ['posted', 'approved']);
+                // Posted is the single gate onto the books, matching
+                // calculateAccountBalance and AccountingService::trialBalance. When
+                // this accepted approved entries too, the balance sheet drew its
+                // line items from one set and its totals from the other, so the
+                // rows stopped adding up to the total printed beneath them.
+                $q->where('status', \App\Models\JournalEntry::STATUS_POSTED);
                 if ($startDate) {
                     $q->whereDate('entry_date', '>=', $startDate);
                 }

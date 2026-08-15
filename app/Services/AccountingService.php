@@ -49,14 +49,16 @@ class AccountingService
                 // patch them to a self-reference so the morph columns are never left empty.
                 'source_type' => $source ? $source->getMorphClass() : '',
                 'source_id'   => $source ? $source->getKey() : 0,
+                // The real reference needs the primary key, which only exists once
+                // the row is in. A unique placeholder holds the slot until then.
                 'formatted_id'=> (string) Str::uuid(),
             ]);
 
-            // Generate formatted_id (e.g., JE-000001) and save once
-            if (empty($entry->formatted_id)) {
-                $entry->formatted_id = 'JE-' . str_pad((string) $entry->id, 6, '0', STR_PAD_LEFT);
-                $entry->saveQuietly();
-            }
+            // Store the same reference the entry displays. The column used to keep
+            // the placeholder UUID forever - the branch that replaced it tested
+            // `empty()` on a value that had just been filled - which left search
+            // and the uniqueness rule matching against a string no user ever saw.
+            $entry->forceFill(['formatted_id' => $entry->code])->saveQuietly();
 
             foreach ($lines as $line) {
                 $account = null;
@@ -114,7 +116,7 @@ class AccountingService
         $account = $account instanceof Account ? $account : Account::findOrFail($account);
 
         return $account->journalEntryLines()
-            ->whereHas('journalEntry', fn($j) => $j->whereIn('status', ['posted','approved']))
+            ->whereHas('journalEntry', fn($j) => $j->where('status', JournalEntry::STATUS_POSTED))
             ->when($from, fn($q) => $q->whereHas('journalEntry', fn($j) => $j->whereDate('entry_date', '>=', $from)))
             ->when($to, fn($q) => $q->whereHas('journalEntry', fn($j) => $j->whereDate('entry_date', '<=', $to)))
             ->with('journalEntry')
@@ -137,8 +139,9 @@ class AccountingService
             $query->whereHas('journalEntry', fn($q) => $q->whereDate('entry_date', '<=', $to));
         }
 
-        // Only approved journal entries
-        $query->whereHas('journalEntry', fn($q) => $q->whereIn('status', ['posted','approved']));
+        // Posting is the only thing that puts an entry on the books; an approved
+        // entry has cleared review but has not been booked yet.
+        $query->whereHas('journalEntry', fn($q) => $q->where('status', JournalEntry::STATUS_POSTED));
 
         return $query->get()->mapWithKeys(function ($row) {
             return [$row->account->code => [
@@ -151,6 +154,7 @@ class AccountingService
 
     public function approveEntry(JournalEntry $entry): void
     {
+        // Guarded on the model: draft is the only status that can be approved.
         $entry->approve();
 
         // Optional: dispatch events, audit log
@@ -184,21 +188,17 @@ class AccountingService
     }
 
     /**
-     * Post a journal entry (change status from draft to posted)
+     * Post a journal entry (change status from approved to posted)
      *
      * Credit- and debit-note entries are built by ReturnJournalHandler, which is
-     * the only place that logic lives.
+     * the only place that logic lives. They used to jump straight from draft to
+     * posted here while every other entry had to be approved first, which is why
+     * a return could reach the trial balance ahead of the sale it reverses.
      */
     public function postJournalEntry(JournalEntry $journalEntry): void
     {
-        if ($journalEntry->status !== 'draft') {
-            throw new InvalidArgumentException('Only draft journal entries can be posted');
-        }
-
-        $journalEntry->update([
-            'status' => 'posted',
-            'posted_at' => now(),
-        ]);
+        // Throws unless the entry is approved and balanced.
+        $journalEntry->post();
 
         // Log the posting
         AuditLog::create([

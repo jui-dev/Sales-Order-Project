@@ -48,19 +48,22 @@ class JournalEntryController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
+        // Keep the return value: `validated()` does not exist on a plain Request,
+        // so reaching for it threw BadMethodCallException, which the catch below
+        // swallowed into a flash message - manual entries could never be saved.
+        $validated = $request->validate([
             'entry_date' => ['required', 'date'],
             'reference' => ['nullable', 'string', 'max:255', 'unique:journal_entries,formatted_id'],
             'description' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:2'],
             'lines.*.account_id' => ['required', 'exists:accounts,id'],
-            'lines.*.debit' => ['required_without:lines.*.credit', 'nullable'],
-            'lines.*.credit' => ['required_without:lines.*.debit', 'nullable'],
+            'lines.*.debit' => ['required_without:lines.*.credit', 'nullable', 'numeric', 'min:0'],
+            'lines.*.credit' => ['required_without:lines.*.debit', 'nullable', 'numeric', 'min:0'],
             'lines.*.description' => ['nullable', 'string', 'max:255'],
         ]);
 
         try {
-            $journalEntry = $this->journalEntryService->createManualEntry($request->validated());
+            $journalEntry = $this->journalEntryService->createManualEntry($validated);
             return redirect()->route('journal-entries.show', $journalEntry)
                 ->with('success', "Journal entry #{$journalEntry->formatted_id} created successfully.");
         } catch (\Exception $e) {
@@ -99,19 +102,19 @@ class JournalEntryController extends Controller
      */
     public function update(Request $request, JournalEntry $journalEntry): RedirectResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'entry_date' => ['required', 'date'],
             'reference' => ['nullable', 'string', 'max:255', 'unique:journal_entries,formatted_id,' . $journalEntry->id],
             'description' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:2'],
             'lines.*.account_id' => ['required', 'exists:accounts,id'],
-            'lines.*.debit' => ['required_without:lines.*.credit', 'nullable'],
-            'lines.*.credit' => ['required_without:lines.*.debit', 'nullable'],
+            'lines.*.debit' => ['required_without:lines.*.credit', 'nullable', 'numeric', 'min:0'],
+            'lines.*.credit' => ['required_without:lines.*.debit', 'nullable', 'numeric', 'min:0'],
             'lines.*.description' => ['nullable', 'string', 'max:255'],
         ]);
 
         try {
-            $journalEntry = $this->journalEntryService->updateEntry($journalEntry, $request->validated());
+            $journalEntry = $this->journalEntryService->updateEntry($journalEntry, $validated);
             return redirect()->route('journal-entries.show', $journalEntry)
                 ->with('success', "Journal entry #{$journalEntry->formatted_id} updated successfully.");
         } catch (\Exception $e) {

@@ -36,6 +36,12 @@ class JournalEntryService
                 'purchase' => \App\Models\SupplierBill::class,
                 'stock'    => \App\Models\StockTransfer::class,
                 'payment'  => \App\Models\Payment::class,
+                // Cost of goods sold is raised against the picking list that
+                // shipped the goods, and returns against the note that issued
+                // them. Without these the entries exist but cannot be filtered to.
+                'cogs'           => \App\Models\PickingList::class,
+                'customer_return'=> \App\Models\CreditNote::class,
+                'vendor_return'  => \App\Models\DebitNote::class,
             ];
 
             if (array_key_exists($type, $map)) {
@@ -98,15 +104,29 @@ class JournalEntryService
                 throw new \Exception('Total debits must equal total credits.');
             }
 
-            // Create journal entry
+            // Create journal entry. A manual entry starts as a draft like every
+            // generated one and reaches the ledger only once approved and posted.
+            //
+            // formatted_id and source_id are both NOT NULL, so the row goes in
+            // with placeholders and is patched below once the key exists. The
+            // source points at the entry itself, matching AccountingService, so
+            // the morph columns are never left empty.
             $journalEntry = JournalEntry::create([
-                'entry_date' => $data['entry_date'],
-                'formatted_id' => $data['reference'] ?? $this->generateFormattedId(),
-                'description' => $data['description'],
-                'source_type' => JournalEntry::class,
-                'source_id' => null,
-                'status' => 'draft',
+                'entry_date'   => $data['entry_date'],
+                'description'  => $data['description'] ?? null,
+                'source_type'  => JournalEntry::class,
+                'source_id'    => 0,
+                'status'       => JournalEntry::STATUS_DRAFT,
+                'formatted_id' => (string) Str::uuid(),
             ]);
+
+            // Fall back to the entry's own code so a manual entry carries the same
+            // JE-0000 reference shape as a generated one; a reference the user
+            // typed wins over it.
+            $journalEntry->forceFill([
+                'formatted_id' => ($data['reference'] ?? null) ?: $journalEntry->code,
+                'source_id'    => $journalEntry->getKey(),
+            ])->saveQuietly();
 
             // Create journal entry lines
             foreach ($data['lines'] as $line) {
@@ -119,15 +139,13 @@ class JournalEntryService
             }
 
             // Log the creation
-            AuditLog::create([
-                'user_id' => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
-                'action' => 'created',
-                'model_type' => JournalEntry::class,
-                'model_id' => $journalEntry->id,
-                'description' => "Created manual journal entry #{$journalEntry->formatted_id}",
-                'old_values' => null,
-                'new_values' => $journalEntry->toArray(),
-            ]);
+            // audit_logs keys the subject morphically and has no columns for
+            // before/after snapshots. Writing model_type/old_values here put a
+            // NOT NULL subject_type in breach on every call, so each of these
+            // logs threw a QueryException that the controller turned into a
+            // flash message - which is what made approving and posting from the
+            // journal page fail silently.
+            $this->log($journalEntry, 'created', "Created manual journal entry #{$journalEntry->formatted_id}");
 
             return $journalEntry;
         });
@@ -140,7 +158,7 @@ class JournalEntryService
     {
         return DB::transaction(function () use ($journalEntry, $data) {
             // Check if entry can be edited
-            if ($journalEntry->status !== 'draft') {
+            if ($journalEntry->status !== JournalEntry::STATUS_DRAFT) {
                 throw new \Exception('Only draft entries can be edited.');
             }
 
@@ -152,14 +170,11 @@ class JournalEntryService
                 throw new \Exception('Total debits must equal total credits.');
             }
 
-            // Store old values for audit
-            $oldValues = $journalEntry->toArray();
-
             // Update journal entry
             $journalEntry->update([
                 'entry_date' => $data['entry_date'],
-                'formatted_id' => $data['reference'] ?? $journalEntry->formatted_id,
-                'description' => $data['description'],
+                'formatted_id' => ($data['reference'] ?? null) ?: $journalEntry->formatted_id,
+                'description' => $data['description'] ?? null,
             ]);
 
             // Delete existing lines and create new ones
@@ -175,15 +190,7 @@ class JournalEntryService
             }
 
             // Log the update
-            AuditLog::create([
-                'user_id' => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
-                'action' => 'updated',
-                'model_type' => JournalEntry::class,
-                'model_id' => $journalEntry->id,
-                'description' => "Updated journal entry #{$journalEntry->formatted_id}",
-                'old_values' => $oldValues,
-                'new_values' => $journalEntry->fresh()->toArray(),
-            ]);
+            $this->log($journalEntry, 'updated', "Updated journal entry #{$journalEntry->formatted_id}");
 
             return $journalEntry->fresh();
         });
@@ -194,21 +201,10 @@ class JournalEntryService
      */
     public function approveEntry(JournalEntry $journalEntry): JournalEntry
     {
-        if ($journalEntry->status !== 'draft') {
-            throw new \Exception('Only draft entries can be approved.');
-        }
+        // Guarded on the model, which also stamps approved_at.
+        $journalEntry->approve();
 
-        $journalEntry->update(['status' => 'approved']);
-
-        AuditLog::create([
-            'user_id' => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
-            'action' => 'approved',
-            'model_type' => JournalEntry::class,
-            'model_id' => $journalEntry->id,
-            'description' => "Approved journal entry #{$journalEntry->formatted_id}",
-            'old_values' => ['status' => 'draft'],
-            'new_values' => ['status' => 'approved'],
-        ]);
+        $this->log($journalEntry, 'approved', "Approved journal entry #{$journalEntry->formatted_id}. Not on the ledger until posted.");
 
         return $journalEntry;
     }
@@ -218,21 +214,13 @@ class JournalEntryService
      */
     public function rejectEntry(JournalEntry $journalEntry): JournalEntry
     {
-        if ($journalEntry->status !== 'draft') {
+        if ($journalEntry->status !== JournalEntry::STATUS_DRAFT) {
             throw new \Exception('Only draft entries can be rejected.');
         }
 
-        $journalEntry->update(['status' => 'rejected']);
+        $journalEntry->reject();
 
-        AuditLog::create([
-            'user_id' => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
-            'action' => 'rejected',
-            'model_type' => JournalEntry::class,
-            'model_id' => $journalEntry->id,
-            'description' => "Rejected journal entry #{$journalEntry->formatted_id}",
-            'old_values' => ['status' => 'draft'],
-            'new_values' => ['status' => 'rejected'],
-        ]);
+        $this->log($journalEntry, 'rejected', "Rejected journal entry #{$journalEntry->formatted_id}");
 
         return $journalEntry;
     }
@@ -242,45 +230,26 @@ class JournalEntryService
      */
     public function postEntry(JournalEntry $journalEntry): JournalEntry
     {
-        if ($journalEntry->status !== 'approved') {
-            throw new \Exception('Only approved entries can be posted.');
-        }
+        // Guarded on the model: approved only, must balance, stamps posted_at.
+        // This is the point at which the entry starts counting in the ledger.
+        $journalEntry->post();
 
-        $journalEntry->update(['status' => 'posted']);
-
-        AuditLog::create([
-            'user_id' => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
-            'action' => 'posted',
-            'model_type' => JournalEntry::class,
-            'model_id' => $journalEntry->id,
-            'description' => "Posted journal entry #{$journalEntry->formatted_id}",
-            'old_values' => ['status' => 'approved'],
-            'new_values' => ['status' => 'posted'],
-        ]);
+        $this->log($journalEntry, 'posted', "Posted journal entry #{$journalEntry->formatted_id} to the ledger.");
 
         return $journalEntry;
     }
 
     /**
-     * Generate a formatted ID for journal entries
+     * Record an audit trail entry against a journal entry.
      */
-    private function generateFormattedId(): string
+    private function log(JournalEntry $journalEntry, string $action, string $description): void
     {
-        $prefix = 'JE';
-        $year = date('Y');
-        $month = date('m');
-        
-        $lastEntry = JournalEntry::where('formatted_id', 'like', "{$prefix}{$year}{$month}%")
-            ->orderBy('formatted_id', 'desc')
-            ->first();
-
-        if ($lastEntry) {
-            $lastNumber = (int) substr($lastEntry->formatted_id, -4);
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
-        }
-
-        return sprintf('%s%s%s%04d', $prefix, $year, $month, $newNumber);
+        AuditLog::create([
+            'user_id'      => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
+            'action'       => $action,
+            'description'  => $description,
+            'subject_type' => $journalEntry->getMorphClass(),
+            'subject_id'   => $journalEntry->getKey(),
+        ]);
     }
 } 

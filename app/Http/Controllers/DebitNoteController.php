@@ -203,7 +203,22 @@ class DebitNoteController extends Controller
     }
 
     /**
-     * Post the journal entry (change from draft to posted)
+     * Approve the journal entry (change from draft to approved)
+     */
+    public function approveJournalEntry(DebitNote $debitNote): RedirectResponse
+    {
+        try {
+            $debitNote = $this->debitNoteService->approveJournalEntry($debitNote);
+
+            return redirect()->route('debit-notes.show', $debitNote)
+                           ->with('success', "Journal entry for debit note #{$debitNote->debit_note_number} has been approved. Post it to put the reversal on the ledger.");
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Failed to approve journal entry: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Post the journal entry (change from approved to posted)
      */
     public function postJournalEntry(DebitNote $debitNote): RedirectResponse
     {

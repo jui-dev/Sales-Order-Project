@@ -221,7 +221,22 @@ class CreditNoteController extends Controller
     }
 
     /**
-     * Post the journal entry (change from draft to posted)
+     * Approve the journal entry (change from draft to approved)
+     */
+    public function approveJournalEntry(CreditNote $creditNote): RedirectResponse
+    {
+        try {
+            $creditNote = $this->creditNoteService->approveJournalEntry($creditNote);
+
+            return redirect()->route('credit-notes.show', $creditNote)
+                           ->with('success', "Journal entry for credit note #{$creditNote->credit_note_number} has been approved. Post it to put the reversal on the ledger.");
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Failed to approve journal entry: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Post the journal entry (change from approved to posted)
      */
     public function postJournalEntry(CreditNote $creditNote): RedirectResponse
     {

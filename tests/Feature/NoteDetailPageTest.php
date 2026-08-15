@@ -159,9 +159,29 @@ class NoteDetailPageTest extends TestCase
         $response = $this->get(route('credit-notes.show', $note->fresh()));
 
         $response->assertOk();
-        // A draft entry exists but must be reported as having no effect yet.
-        $response->assertSee('has not been posted');
+        // A draft entry exists but must be reported as having no effect yet, and
+        // approval - not posting - is the next step available on it.
+        $response->assertSee('neither has happened yet');
+        $response->assertSee('Approve Journal Entry');
+        $response->assertDontSee('Post Journal Entry');
+    }
+
+    /** @test */
+    public function it_offers_posting_only_once_the_credit_note_journal_is_approved()
+    {
+        $note = $this->creditNote();
+
+        $service = app(CreditNoteService::class);
+        $service->postCreditNote($note);
+        $service->approveJournalEntry($note->fresh());
+
+        $response = $this->get(route('credit-notes.show', $note->fresh()));
+
+        $response->assertOk();
+        // Approved is still off the ledger; posting is what books it.
+        $response->assertSee('but not posted');
         $response->assertSee('Post Journal Entry');
+        $response->assertDontSee('Approve Journal Entry');
     }
 
     /** @test */

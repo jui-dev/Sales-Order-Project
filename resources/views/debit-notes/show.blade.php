@@ -11,12 +11,18 @@
     $isPosted    = $debitNote->status === 'posted';
     $isCancelled = $debitNote->status === 'cancelled';
 
-    // Two separate steps: posting the note writes a draft journal entry,
-    // posting that entry is what actually moves the accounts.
-    $hasJournal     = $journal !== null;
-    $journalPosted  = $hasJournal && $journal->status === 'posted';
-    $awaitingNote   = $isIssued && ! $hasJournal;
-    $awaitingLedger = $hasJournal && ! $journalPosted;
+    // Separate steps: posting the note writes a draft journal entry, that entry
+    // is then reviewed, and only posting it moves the accounts.
+    $hasJournal       = $journal !== null;
+    $journalPosted    = $hasJournal && $journal->status === 'posted';
+    $journalApproved  = $hasJournal && $journal->status === 'approved';
+    $journalDraft     = $hasJournal && $journal->status === 'draft';
+    $awaitingNote     = $isIssued && ! $hasJournal;
+    $awaitingApproval = $journalDraft;
+    $awaitingLedger   = $journalApproved;
+
+    $journalStateLabel = $journalPosted ? 'posted' : ($journalApproved ? 'approved' : 'draft');
+    $journalStateColor = $journalPosted ? 'success' : ($journalApproved ? 'info' : 'secondary');
 
     $totalUnits = $items->sum('quantity');
 
@@ -31,8 +37,8 @@
             <p class="text-muted mb-0">
                 <span class="badge bg-{{ $debitNote->status_color }}">{{ $debitNote->status_display }}</span>
                 @if($hasJournal)
-                    <span class="ms-2 badge bg-{{ $journalPosted ? 'success' : 'secondary' }}">
-                        Journal {{ $journalPosted ? 'posted' : 'draft' }}
+                    <span class="ms-2 badge bg-{{ $journalStateColor }}">
+                        Journal {{ $journalStateLabel }}
                     </span>
                 @endif
                 <span class="ms-2">${{ number_format($debitNote->total_amount, 2) }}</span>
@@ -44,6 +50,10 @@
             @if($awaitingNote)
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#postNoteModal">
                     <i class="bi bi-check-circle me-1"></i> Post Debit Note
+                </button>
+            @elseif($awaitingApproval)
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#approveJournalModal">
+                    <i class="bi bi-check2-square me-1"></i> Approve Journal Entry
                 </button>
             @elseif($awaitingLedger)
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#postJournalModal">
@@ -108,11 +118,13 @@
                 <div class="detail-figure">
                     <span class="detail-figure__label">Ledger</span>
                     <span class="detail-figure__value">
-                        {{ $journalPosted ? 'Posted' : ($hasJournal ? 'Draft' : 'None') }}
+                        {{ $hasJournal ? ucfirst($journalStateLabel) : 'None' }}
                     </span>
                     <span class="detail-figure__note">
                         @if($journalPosted)
                             Affecting the accounts
+                        @elseif($journalApproved)
+                            Reviewed, not yet posted
                         @elseif($hasJournal)
                             No effect until posted
                         @else
@@ -168,10 +180,13 @@
                     The entry is posted. Accounts payable has been reduced by
                     ${{ number_format($debitNote->total_amount, 2) }} and the goods have come out of
                     inventory, so this now shows in the financial statements.
-                @elseif($hasJournal)
-                    A <strong>draft</strong> journal entry exists but has not been posted, so what we owe
+                @elseif($journalApproved)
+                    The journal entry has been <strong>approved</strong> but not posted, so what we owe
                     {{ $vendor->name ?? 'the vendor' }} has not changed yet. Posting it is what gives this
                     debit note its financial effect.
+                @elseif($hasJournal)
+                    A <strong>draft</strong> journal entry exists. It has to be approved and then posted
+                    before what we owe {{ $vendor->name ?? 'the vendor' }} changes; neither has happened yet.
                 @else
                     This debit note is issued but has no journal entry, so it has no effect on the accounts
                     yet. Posting it creates a draft entry against
@@ -390,7 +405,52 @@
         </div>
     @endif
 
-    {{-- Draft journal entry -> posted --}}
+    {{-- Draft journal entry -> approved --}}
+    @if($awaitingApproval)
+        <div class="modal fade" id="approveJournalModal" tabindex="-1" aria-labelledby="approveJournalModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="approveJournalModalLabel">Approve Journal Entry</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <span class="badge bg-secondary">Draft</span>
+                            <i class="bi bi-arrow-right text-muted"></i>
+                            <span class="badge bg-info">Approved</span>
+                            <i class="bi bi-arrow-right text-muted"></i>
+                            <span class="badge bg-light text-muted">Posted</span>
+                        </div>
+                        <p class="mb-3">
+                            This marks {{ $journal->formatted_id ?? 'the draft entry' }} as reviewed and
+                            correct. <strong>The accounts do not move yet.</strong> The
+                            ${{ number_format($debitNote->total_amount, 2) }} comes off what we owe
+                            {{ $vendor->name ?? 'the vendor' }} only when the entry is posted, which is a
+                            separate step.
+                        </p>
+                        <div class="detail-panel mb-0">
+                            <span class="text-muted small">
+                                An approved entry can still be corrected by posting a further entry, but it
+                                can no longer be edited.
+                            </span>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <form action="{{ route('debit-notes.approve-journal-entry', $debitNote) }}" method="POST">
+                            @csrf
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check2-square me-1"></i> Approve Journal Entry
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Approved journal entry -> posted --}}
     @if($awaitingLedger)
         <div class="modal fade" id="postJournalModal" tabindex="-1" aria-labelledby="postJournalModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
@@ -401,12 +461,12 @@
                     </div>
                     <div class="modal-body">
                         <div class="d-flex align-items-center gap-2 mb-3">
-                            <span class="badge bg-secondary">Draft</span>
+                            <span class="badge bg-info">Approved</span>
                             <i class="bi bi-arrow-right text-muted"></i>
                             <span class="badge bg-success">Posted</span>
                         </div>
                         <p class="mb-3">
-                            This posts {{ $journal->formatted_id ?? 'the draft entry' }} to the ledger.
+                            This posts {{ $journal->formatted_id ?? 'the approved entry' }} to the ledger.
                             From that point the
                             <strong>${{ number_format($debitNote->total_amount, 2) }}</strong> comes off what
                             we owe {{ $vendor->name ?? 'the vendor' }} in the trial balance and balance sheet.

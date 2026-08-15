@@ -360,7 +360,24 @@ class CreditNoteService
     }
 
     /**
-     * Post journal entry (change from draft to posted)
+     * Approve the journal entry (draft -> approved)
+     *
+     * Review step only. The reversal reaches the trial balance at posting, not
+     * here.
+     */
+    public function approveJournalEntry(CreditNote $creditNote): CreditNote
+    {
+        if (!$creditNote->journalEntry) {
+            throw new \InvalidArgumentException('No journal entry found for this credit note');
+        }
+
+        app(ReturnJournalHandler::class)->approveCustomerReturnJournal($creditNote);
+
+        return $creditNote->load('journalEntry');
+    }
+
+    /**
+     * Post journal entry (change from approved to posted)
      */
     public function postJournalEntry(CreditNote $creditNote): CreditNote
     {
@@ -368,7 +385,7 @@ class CreditNoteService
             throw new \InvalidArgumentException('No journal entry found for this credit note');
         }
 
-        if ($creditNote->journalEntry->status === 'posted') {
+        if ($creditNote->journalEntry->isPosted()) {
             throw new \InvalidArgumentException('Journal entry is already posted');
         }
 

@@ -253,7 +253,36 @@ class ReturnJournalHandler
     }
 
     /**
-     * Post a customer return journal entry (change status from draft to posted)
+     * Approve a customer return journal entry (draft -> approved)
+     *
+     * Approval is review only. The entry still carries no financial impact until
+     * it is posted, which keeps return entries on the same draft -> approved ->
+     * posted path as every other entry in the ledger.
+     */
+    public function approveCustomerReturnJournal(CreditNote $creditNote): JournalEntry
+    {
+        $journalEntry = $creditNote->journalEntry;
+        if (!$journalEntry) {
+            throw new \InvalidArgumentException('No journal entry found for this credit note');
+        }
+
+        return DB::transaction(function () use ($journalEntry, $creditNote) {
+            $this->accountingService->approveEntry($journalEntry);
+
+            AuditLog::create([
+                'user_id' => auth()->id() ?? 1,
+                'action' => 'customer_return_journal_approved',
+                'description' => "Customer return journal entry #{$journalEntry->formatted_id} approved for credit note #{$creditNote->credit_note_number}. Not yet on the ledger.",
+                'subject_type' => $creditNote->getMorphClass(),
+                'subject_id' => $creditNote->getKey(),
+            ]);
+
+            return $journalEntry->fresh();
+        });
+    }
+
+    /**
+     * Post a customer return journal entry (change status from approved to posted)
      * This triggers financial statement impact
      */
     public function postCustomerReturnJournal(CreditNote $creditNote): JournalEntry
@@ -263,8 +292,8 @@ class ReturnJournalHandler
             throw new \InvalidArgumentException('No journal entry found for this credit note');
         }
 
-        if ($journalEntry->status !== 'draft') {
-            throw new \InvalidArgumentException('Journal entry is not in draft status');
+        if (! $journalEntry->canBePosted()) {
+            throw new \InvalidArgumentException('Journal entry must be approved before it can be posted');
         }
 
         return DB::transaction(function () use ($journalEntry, $creditNote) {
@@ -297,7 +326,34 @@ class ReturnJournalHandler
     }
 
     /**
-     * Post a vendor return journal entry (change status from draft to posted)
+     * Approve a vendor return journal entry (draft -> approved)
+     *
+     * Review only; the ledger is untouched until the entry is posted.
+     */
+    public function approveVendorReturnJournal(DebitNote $debitNote): JournalEntry
+    {
+        $journalEntry = $debitNote->journalEntry;
+        if (!$journalEntry) {
+            throw new \InvalidArgumentException('No journal entry found for this debit note');
+        }
+
+        return DB::transaction(function () use ($journalEntry, $debitNote) {
+            $this->accountingService->approveEntry($journalEntry);
+
+            AuditLog::create([
+                'user_id' => auth()->id() ?? 1,
+                'action' => 'vendor_return_journal_approved',
+                'description' => "Vendor return journal entry #{$journalEntry->formatted_id} approved for debit note #{$debitNote->debit_note_number}. Not yet on the ledger.",
+                'subject_type' => $debitNote->getMorphClass(),
+                'subject_id' => $debitNote->getKey(),
+            ]);
+
+            return $journalEntry->fresh();
+        });
+    }
+
+    /**
+     * Post a vendor return journal entry (change status from approved to posted)
      * This triggers financial statement impact
      */
     public function postVendorReturnJournal(DebitNote $debitNote): JournalEntry
@@ -307,8 +363,8 @@ class ReturnJournalHandler
             throw new \InvalidArgumentException('No journal entry found for this debit note');
         }
 
-        if ($journalEntry->status !== 'draft') {
-            throw new \InvalidArgumentException('Journal entry is not in draft status');
+        if (! $journalEntry->canBePosted()) {
+            throw new \InvalidArgumentException('Journal entry must be approved before it can be posted');
         }
 
         return DB::transaction(function () use ($journalEntry, $debitNote) {
