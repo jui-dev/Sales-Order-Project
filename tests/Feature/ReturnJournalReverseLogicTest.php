@@ -187,6 +187,9 @@ class ReturnJournalReverseLogicTest extends TestCase
         // Verify it's in draft status
         $this->assertEquals('draft', $journalEntry->status);
 
+        // Approve before posting: posting is only open to approved entries.
+        $returnJournalHandler->approveCustomerReturnJournal($creditNote);
+
         // Post the journal entry
         $returnJournalHandler->postCustomerReturnJournal($creditNote);
 
@@ -256,8 +259,11 @@ class ReturnJournalReverseLogicTest extends TestCase
         $isValid = $returnJournalHandler->validateReverseLogic($journalEntry);
         $this->assertTrue($isValid, 'Return journal entry should pass reverse logic validation');
 
-        // Test with an unbalanced journal entry
+        // Test with an unbalanced journal entry. This is built directly rather
+        // than through AccountingService::post(), which refuses to create an
+        // unbalanced entry at all - so formatted_id has to be supplied here.
         $unbalancedEntry = JournalEntry::create([
+            'formatted_id' => 'JE-TEST-UNBALANCED',
             'entry_date' => now(),
             'description' => 'Test unbalanced entry',
             'status' => 'draft',

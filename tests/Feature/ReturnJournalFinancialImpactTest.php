@@ -186,6 +186,9 @@ class ReturnJournalFinancialImpactTest extends TestCase
         $beforeIncomeStatement = $reportService->generateIncomeStatementReport();
         $beforeBalanceSheet = $reportService->generateBalanceSheetReport();
 
+        // Approve before posting: posting is only open to approved entries.
+        $returnJournalHandler->approveCustomerReturnJournal($creditNote);
+
         // Post the journal entry
         $returnJournalHandler->postCustomerReturnJournal($creditNote);
 
@@ -285,6 +288,7 @@ class ReturnJournalFinancialImpactTest extends TestCase
         // Create and post journal entry
         $returnJournalHandler = app(ReturnJournalHandler::class);
         $journalEntry = $returnJournalHandler->createCustomerReturnJournal($creditNote);
+        $returnJournalHandler->approveCustomerReturnJournal($creditNote);
         $returnJournalHandler->postCustomerReturnJournal($creditNote);
 
         // Get financial impact summary
@@ -372,8 +376,11 @@ class ReturnJournalFinancialImpactTest extends TestCase
         $isValid = $returnJournalHandler->validateReverseLogic($journalEntry);
         $this->assertTrue($isValid, 'Customer return journal entry should pass reverse logic validation');
 
-        // Test with an invalid journal entry (wrong account codes)
+        // Test with an invalid journal entry (wrong account codes). Built
+        // directly rather than through AccountingService::post(), which would
+        // reject it - so formatted_id has to be supplied here.
         $invalidEntry = JournalEntry::create([
+            'formatted_id' => 'JE-TEST-INVALID',
             'entry_date' => now(),
             'description' => 'Invalid customer return entry',
             'status' => 'draft',
@@ -454,7 +461,7 @@ class ReturnJournalFinancialImpactTest extends TestCase
         $initialTrialBalance = $accountingService->trialBalance();
         $initialIncomeStatement = $reportService->generateIncomeStatementReport();
         $initialBalanceSheet = $reportService->generateBalanceSheetReport();
-        $initialCashFlow = $reportService->generateCashFlowReport();
+        $initialCashFlow = $reportService->generateCashFlowStatementReport();
 
         // Create journal entry (draft status)
         $returnJournalHandler = app(ReturnJournalHandler::class);
@@ -467,7 +474,7 @@ class ReturnJournalFinancialImpactTest extends TestCase
         $draftTrialBalance = $accountingService->trialBalance();
         $draftIncomeStatement = $reportService->generateIncomeStatementReport();
         $draftBalanceSheet = $reportService->generateBalanceSheetReport();
-        $draftCashFlow = $reportService->generateCashFlowReport();
+        $draftCashFlow = $reportService->generateCashFlowStatementReport();
 
         // Verify NO financial impact from draft journal entry
         $this->assertEquals(
@@ -489,8 +496,8 @@ class ReturnJournalFinancialImpactTest extends TestCase
         );
 
         $this->assertEquals(
-            $initialCashFlow['netCashFlow'],
-            $draftCashFlow['netCashFlow'],
+            $initialCashFlow['netChange'],
+            $draftCashFlow['netChange'],
             'Cash flow should not be affected by draft journal entry'
         );
 
