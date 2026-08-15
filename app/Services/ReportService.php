@@ -13,6 +13,64 @@ use Barryvdh\DomPDF\Facade\Pdf;
 class ReportService
 {
     /**
+     * Accounts that make up cost of sales rather than operating expense.
+     *
+     * 5000 is cost of goods sold and 5100 is its contra (goods sent back to a
+     * vendor), so they belong above the gross profit line. Everything else in
+     * the expense range is an operating cost below it.
+     */
+    private const COST_OF_SALES_CODES = ['5000', '5100'];
+
+    /** The account cash actually moves through. */
+    private const CASH_CODE = '1000';
+
+    /**
+     * Describe what a statement was built from.
+     *
+     * Every statement counts posted entries only. Entries that are still draft
+     * or approved carry no financial effect yet, so a period with a large
+     * backlog produces a statement that looks empty rather than incomplete.
+     * Reporting the backlog alongside the figures is what tells those two
+     * situations apart.
+     */
+    public function statementBasis(?string $startDate = null, ?string $endDate = null): array
+    {
+        $inPeriod = function ($query) use ($startDate, $endDate) {
+            if ($startDate) {
+                $query->whereDate('entry_date', '>=', $startDate);
+            }
+            if ($endDate) {
+                $query->whereDate('entry_date', '<=', $endDate);
+            }
+
+            return $query;
+        };
+
+        $postedCount = $inPeriod(
+            \App\Models\JournalEntry::where('status', \App\Models\JournalEntry::STATUS_POSTED)
+        )->count();
+
+        $pending = $inPeriod(
+            \App\Models\JournalEntry::whereIn('status', [
+                \App\Models\JournalEntry::STATUS_DRAFT,
+                \App\Models\JournalEntry::STATUS_APPROVED,
+            ])
+        )->withSum('lines as total_debit', 'debit')->get();
+
+        $draftCount = $pending->where('status', \App\Models\JournalEntry::STATUS_DRAFT)->count();
+        $approvedCount = $pending->where('status', \App\Models\JournalEntry::STATUS_APPROVED)->count();
+
+        return [
+            'posted_count'   => $postedCount,
+            'pending_count'  => $pending->count(),
+            'pending_total'  => round((float) $pending->sum('total_debit'), 2),
+            'draft_count'    => $draftCount,
+            'approved_count' => $approvedCount,
+            'is_complete'    => $pending->isEmpty(),
+        ];
+    }
+
+    /**
      * Generate daily profit report data
      */
     public function generateDailyProfitReport(array $filters = []): array
@@ -73,7 +131,7 @@ class ReportService
         $asOfDate = Arr::get($filters, 'as_of_date', Carbon::now()->toDateString());
         
         // Get all accounts with their balances
-        $balances = \App\Models\Account::with(['accountType'])
+        $allAccounts = \App\Models\Account::with(['accountType'])
             ->orderBy('code')
             ->get()
             ->map(function ($account) use ($asOfDate) {
@@ -85,8 +143,16 @@ class ReportService
                 ];
             });
 
-        $totalDebit = $balances->sum('debit');
-        $totalCredit = $balances->sum('credit');
+        // An account with no balance contributes nothing to either column, and
+        // the seeded chart plus per-location inventory sub-accounts leave enough
+        // of them to bury the accounts that are actually carrying value. The
+        // count is reported so the omission is stated rather than silent.
+        $balances = $allAccounts
+            ->reject(fn($row) => $row['debit'] < 0.005 && $row['credit'] < 0.005)
+            ->values();
+
+        $totalDebit = round($balances->sum('debit'), 2);
+        $totalCredit = round($balances->sum('credit'), 2);
 
         return [
             'endDate' => $asOfDate,
@@ -94,6 +160,9 @@ class ReportService
             'totalDebit' => $totalDebit,
             'totalCredit' => $totalCredit,
             'isBalanced' => abs($totalDebit - $totalCredit) < 0.01,
+            'difference' => round($totalDebit - $totalCredit, 2),
+            'emptyAccountCount' => $allAccounts->count() - $balances->count(),
+            'accountCount' => $allAccounts->count(),
         ];
     }
 
@@ -146,14 +215,57 @@ class ReportService
 
         $netIncome = $totalRevenue - $totalExpense;
 
+        // ------------------------------------------------------------------
+        // Group the same figures into the shape an income statement is read in.
+        // A flat list of revenue accounts and expense accounts hides the line
+        // the reader actually came for: gross profit. Splitting cost of sales
+        // out of operating expense is what makes that line available, and
+        // separating contra accounts lets them read as deductions from the
+        // section they reduce rather than as negative members of it.
+        // ------------------------------------------------------------------
+        // An account with no movement in the period is not a line of the story,
+        // and the seeded chart carries several that rarely move. Dropping them
+        // matches the balance sheet and trial balance. Totals are taken from the
+        // unfiltered set above, so nothing removed here can change a total.
+        $withActivity = fn($rows) => $rows->reject(fn($row) => abs($row['amount']) < 0.005)->values();
+
+        $grossRevenue = $withActivity($revenues->reject(fn($row) => $row['account']->is_contra));
+        $revenueDeductions = $withActivity($revenues->filter(fn($row) => $row['account']->is_contra));
+        $netRevenue = $totalRevenue;
+
+        $costOfSales = $withActivity(
+            $expenses->filter(fn($row) => in_array($row['account']->code, self::COST_OF_SALES_CODES, true))
+        );
+        $operatingExpenses = $withActivity(
+            $expenses->reject(fn($row) => in_array($row['account']->code, self::COST_OF_SALES_CODES, true))
+        );
+
+        $totalCostOfSales = $costOfSales->sum('amount');
+        $totalOperatingExpenses = $operatingExpenses->sum('amount');
+        $grossProfit = $netRevenue - $totalCostOfSales;
+
         return [
             'startDate' => $startDate,
             'endDate' => $endDate,
+            // Retained so the PDF view keeps working unchanged.
             'revenues' => $revenues,
             'expenses' => $expenses,
             'totalRevenue' => $totalRevenue,
             'totalExpense' => $totalExpense,
             'netIncome' => $netIncome,
+            // Statement sections.
+            'grossRevenue' => $grossRevenue,
+            'revenueDeductions' => $revenueDeductions,
+            'netRevenue' => $netRevenue,
+            'costOfSales' => $costOfSales,
+            'totalCostOfSales' => $totalCostOfSales,
+            'grossProfit' => $grossProfit,
+            'operatingExpenses' => $operatingExpenses,
+            'totalOperatingExpenses' => $totalOperatingExpenses,
+            // A margin against zero or negative revenue is not a number anyone
+            // can act on, so it is withheld rather than shown as 0%.
+            'grossMargin' => $netRevenue > 0 ? round(($grossProfit / $netRevenue) * 100, 1) : null,
+            'netMargin' => $netRevenue > 0 ? round(($netIncome / $netRevenue) * 100, 1) : null,
         ];
     }
 
@@ -164,37 +276,54 @@ class ReportService
     {
         $asOfDate = Arr::get($filters, 'as_of_date', Carbon::now()->toDateString());
 
-        // Assets (1000-1999)
-        $assetAccounts = \App\Models\Account::whereBetween('code', [1000, 1999])->get();
-        $assets = $assetAccounts->map(function ($account) use ($asOfDate) {
-            return [
-                'account' => $account,
-                'balance' => $this->calculateAccountBalance($account, $asOfDate),
-            ];
-        });
-        $totalAssets = $this->calculateAccountsBalance($assetAccounts, null, $asOfDate);
+        // ------------------------------------------------------------------
+        // Balances are stored signed as debit minus credit. Assets are read in
+        // that form directly, but liabilities and equity are credit-balance
+        // accounts, so presenting the raw figure showed every one of them as a
+        // negative. They are flipped here to the side they are actually read
+        // on, which is also what makes the equation below legible.
+        // ------------------------------------------------------------------
+        $section = function (array $codeRange, bool $flipSign) use ($asOfDate) {
+            $accounts = \App\Models\Account::whereBetween('code', $codeRange)->orderBy('code')->get();
 
-        // Liabilities (2000-2999)
-        $liabilityAccounts = \App\Models\Account::whereBetween('code', [2000, 2999])->get();
-        $liabilities = $liabilityAccounts->map(function ($account) use ($asOfDate) {
-            return [
-                'account' => $account,
-                'balance' => $this->calculateAccountBalance($account, $asOfDate),
-            ];
-        });
-        $totalLiabilities = $this->calculateAccountsBalance($liabilityAccounts, null, $asOfDate);
+            $rows = $accounts->map(function ($account) use ($asOfDate, $flipSign) {
+                $balance = $this->calculateAccountBalance($account, $asOfDate);
 
-        // Equity (3000-3999)
-        $equityAccounts = \App\Models\Account::whereBetween('code', [3000, 3999])->get();
-        $equity = $equityAccounts->map(function ($account) use ($asOfDate) {
-            return [
-                'account' => $account,
-                'balance' => $this->calculateAccountBalance($account, $asOfDate),
-            ];
-        });
-        $totalEquity = $this->calculateAccountsBalance($equityAccounts, null, $asOfDate);
+                return [
+                    'account' => $account,
+                    'balance' => $flipSign ? -$balance : $balance,
+                ];
+            });
 
-        $liabEqTotal = $totalLiabilities + $totalEquity;
+            // A chart of accounts carries sub-accounts that may never have been
+            // posted to. Listing them at zero buries the accounts that matter.
+            return $rows->reject(fn($row) => abs($row['balance']) < 0.005)->values();
+        };
+
+        $assets = $section([1000, 1999], false);
+        $liabilities = $section([2000, 2999], true);
+        $equity = $section([3000, 3999], true);
+
+        $totalAssets = round($assets->sum('balance'), 2);
+        $totalLiabilities = round($liabilities->sum('balance'), 2);
+        $postedEquity = round($equity->sum('balance'), 2);
+
+        // ------------------------------------------------------------------
+        // Profit earned this period belongs to the owners, but it only reaches
+        // an equity account when the books are closed - and nothing in this
+        // system posts a closing entry. Without this derived line the statement
+        // was missing that value entirely and could never balance, which is why
+        // the old totals check reported a failure on every correct data set.
+        // ------------------------------------------------------------------
+        $revenueAccounts = \App\Models\Account::whereHas('accountType', fn($q) => $q->where('name', 'Revenue'))->get();
+        $expenseAccounts = \App\Models\Account::whereHas('accountType', fn($q) => $q->where('name', 'Expense'))->get();
+
+        $revenueToDate = -$this->calculateAccountsBalance($revenueAccounts, null, $asOfDate);
+        $expenseToDate = $this->calculateAccountsBalance($expenseAccounts, null, $asOfDate);
+        $currentPeriodEarnings = round($revenueToDate - $expenseToDate, 2);
+
+        $totalEquity = round($postedEquity + $currentPeriodEarnings, 2);
+        $liabEqTotal = round($totalLiabilities + $totalEquity, 2);
 
         return [
             'endDate' => $asOfDate,
@@ -203,8 +332,12 @@ class ReportService
             'equity' => $equity,
             'totalAssets' => $totalAssets,
             'totalLiabilities' => $totalLiabilities,
+            'postedEquity' => $postedEquity,
+            'currentPeriodEarnings' => $currentPeriodEarnings,
             'totalEquity' => $totalEquity,
             'liabEqTotal' => $liabEqTotal,
+            'isBalanced' => abs($totalAssets - $liabEqTotal) < 0.01,
+            'difference' => round($totalAssets - $liabEqTotal, 2),
         ];
     }
 
@@ -216,24 +349,85 @@ class ReportService
         $startDate = Arr::get($filters, 'start_date', Carbon::now()->startOfYear()->toDateString());
         $endDate = Arr::get($filters, 'end_date', Carbon::now()->toDateString());
 
-        // Get operating activities (revenue and expense accounts)
-        $operatingAccounts = \App\Models\Account::whereBetween('code', [4000, 5999])->get();
-        $operating = $this->getCashFlowActivities($operatingAccounts, $startDate, $endDate);
-        $operatingTotal = $operating->sum('amount');
+        $empty = [
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'operating' => collect(),
+            'investing' => collect(),
+            'financing' => collect(),
+            'operatingTotal' => 0.0,
+            'investingTotal' => 0.0,
+            'financingTotal' => 0.0,
+            'netChange' => 0.0,
+            'openingCash' => 0.0,
+            'closingCash' => 0.0,
+            'reconciles' => true,
+        ];
 
-        // Get investing activities (asset accounts for investing)
-        $investingAccounts = \App\Models\Account::whereBetween('code', [1000, 1999])
-            ->whereIn('code', [1500, 1600, 1700]) // Fixed assets, investments, etc.
+        $cash = \App\Models\Account::where('code', self::CASH_CODE)->first();
+
+        if (! $cash) {
+            return $empty;
+        }
+
+        // ------------------------------------------------------------------
+        // Cash flow is read off the cash account itself. The previous version
+        // summed the revenue and expense accounts, which measures profit, not
+        // cash - a credit sale moved that total without any money arriving.
+        // Every posted line against 1000 is a real movement of money, and the
+        // other side of the same entry says what the money was for.
+        // ------------------------------------------------------------------
+        $lines = \App\Models\JournalEntryLine::with(['journalEntry.lines.account'])
+            ->where('account_id', $cash->id)
+            ->whereHas('journalEntry', function ($q) use ($startDate, $endDate) {
+                $q->where('status', \App\Models\JournalEntry::STATUS_POSTED)
+                  ->whereDate('entry_date', '>=', $startDate)
+                  ->whereDate('entry_date', '<=', $endDate);
+            })
             ->get();
-        $investing = $this->getCashFlowActivities($investingAccounts, $startDate, $endDate);
-        $investingTotal = $investing->sum('amount');
 
-        // Get financing activities (liability and equity accounts)
-        $financingAccounts = \App\Models\Account::whereBetween('code', [2000, 3999])->get();
-        $financing = $this->getCashFlowActivities($financingAccounts, $startDate, $endDate);
-        $financingTotal = $financing->sum('amount');
+        $buckets = ['operating' => [], 'investing' => [], 'financing' => []];
 
-        $netChange = $operatingTotal + $investingTotal + $financingTotal;
+        foreach ($lines as $line) {
+            $entry = $line->journalEntry;
+            $amount = round((float) $line->debit - (float) $line->credit, 2);
+
+            if ($amount == 0.0) {
+                continue;
+            }
+
+            $counterparts = $entry->lines
+                ->reject(fn($l) => $l->account_id === $cash->id)
+                ->map(fn($l) => $l->account?->code)
+                ->filter()
+                ->values();
+
+            $buckets[$this->classifyCashFlow($counterparts)][] = [
+                'entry' => $entry,
+                'date' => $entry->entry_date,
+                'reference' => $entry->formatted_id,
+                'description' => $entry->description ?: 'Journal entry ' . $entry->formatted_id,
+                'amount' => $amount,
+            ];
+        }
+
+        $operating = collect($buckets['operating']);
+        $investing = collect($buckets['investing']);
+        $financing = collect($buckets['financing']);
+
+        $operatingTotal = round($operating->sum('amount'), 2);
+        $investingTotal = round($investing->sum('amount'), 2);
+        $financingTotal = round($financing->sum('amount'), 2);
+        $netChange = round($operatingTotal + $investingTotal + $financingTotal, 2);
+
+        // Cash on hand before the period opened, and where it should land. The
+        // two are shown on the statement so the movement can be checked against
+        // the balance rather than taken on trust.
+        $openingCash = round(
+            $this->calculateAccountsBalance(collect([$cash]), null, Carbon::parse($startDate)->subDay()->toDateString()),
+            2
+        );
+        $closingCash = round($this->calculateAccountBalance($cash, $endDate), 2);
 
         return [
             'startDate' => $startDate,
@@ -245,7 +439,35 @@ class ReportService
             'investingTotal' => $investingTotal,
             'financingTotal' => $financingTotal,
             'netChange' => $netChange,
+            'openingCash' => $openingCash,
+            'closingCash' => $closingCash,
+            'reconciles' => abs(($openingCash + $netChange) - $closingCash) < 0.01,
         ];
+    }
+
+    /**
+     * Decide which activity a cash movement belongs to, from the accounts on
+     * the other side of the entry.
+     *
+     * Buying or selling long-lived assets is investing; owner capital and
+     * borrowing are financing; everything else is the trading the business
+     * exists to do.
+     */
+    private function classifyCashFlow(Collection $counterpartCodes): string
+    {
+        foreach ($counterpartCodes as $code) {
+            $numeric = (int) $code;
+
+            if ($numeric >= 1500 && $numeric <= 1799) {
+                return 'investing';
+            }
+
+            if (($numeric >= 2500 && $numeric <= 2999) || ($numeric >= 3000 && $numeric <= 3999)) {
+                return 'financing';
+            }
+        }
+
+        return 'operating';
     }
 
     /**
@@ -411,64 +633,4 @@ class ReportService
         });
     }
 
-    /**
-     * Calculate operating cash flow
-     */
-    private function calculateOperatingCashFlow(string $startDate, string $endDate): float
-    {
-        // Simplified calculation - in a real system, this would be more complex
-        return $this->calculateAccountsBalance(
-            \App\Models\Account::whereBetween('code', [4000, 5999])->get(),
-            $startDate,
-            $endDate
-        );
-    }
-
-    /**
-     * Calculate investing cash flow
-     */
-    private function calculateInvestingCashFlow(string $startDate, string $endDate): float
-    {
-        // Simplified calculation
-        return 0.0;
-    }
-
-    /**
-     * Calculate financing cash flow
-     */
-    private function calculateFinancingCashFlow(string $startDate, string $endDate): float
-    {
-        // Simplified calculation
-        return 0.0;
-    }
-
-    /**
-     * Get cash flow activities for a collection of accounts
-     */
-    private function getCashFlowActivities(Collection $accounts, string $startDate, string $endDate): Collection
-    {
-        if ($accounts->isEmpty()) {
-            return collect();
-        }
-
-        return \App\Models\JournalEntryLine::with(['journalEntry', 'account'])
-            ->whereIn('account_id', $accounts->pluck('id'))
-            ->whereHas('journalEntry', function ($q) use ($startDate, $endDate) {
-                $q->where('status', 'posted')
-                  ->whereDate('entry_date', '>=', $startDate)
-                  ->whereDate('entry_date', '<=', $endDate);
-            })
-            ->get()
-            ->map(function ($line) {
-                return [
-                    'entry' => $line->journalEntry,
-                    'account' => $line->account,
-                    'amount' => $line->debit - $line->credit,
-                    'description' => $line->journalEntry->description ?? 'Journal Entry #' . $line->journalEntry->id,
-                ];
-            })
-            ->filter(function ($item) {
-                return abs($item['amount']) > 0.01; // Only include non-zero amounts
-            });
-    }
 } 

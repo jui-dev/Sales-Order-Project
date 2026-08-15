@@ -56,10 +56,9 @@ class ReportController extends Controller
             return $pdf->download('trial-balance-report.pdf');
         }
 
-        if ($request->export === 'csv') {
-            // TODO: Implement CSV export
-            return back()->with('error', 'CSV export not yet implemented.');
-        }
+        // A trial balance runs from the start of the books, so the backlog that
+        // matters is everything unposted up to the as-of date.
+        $reportData['basis'] = $this->reportService->statementBasis(null, $filters['as_of_date']);
 
         return view('reports.trial-balance', $reportData);
     }
@@ -88,10 +87,10 @@ class ReportController extends Controller
             return $pdf->download('income-statement-report.pdf');
         }
 
-        if ($request->export === 'csv') {
-            // TODO: Implement CSV export
-            return back()->with('error', 'CSV export not yet implemented.');
-        }
+        $reportData['basis'] = $this->reportService->statementBasis(
+            $filters['start_date'],
+            $filters['end_date']
+        );
 
         return view('reports.income-statement', $reportData);
     }
@@ -99,10 +98,11 @@ class ReportController extends Controller
     /**
      * Show Balance Sheet Report
      */
-    public function balanceSheet(Request $request): View
+    public function balanceSheet(Request $request)
     {
         $request->validate([
             'end_date' => ['nullable', 'date'],
+            'export' => ['nullable', 'string', 'in:pdf'],
         ]);
 
         $filters = [
@@ -111,17 +111,27 @@ class ReportController extends Controller
 
         $reportData = $this->reportService->generateBalanceSheetReport($filters);
 
+        // The page offered a PDF button all along; the method existed but no
+        // route ever reached it, so the button did nothing.
+        if ($request->export === 'pdf') {
+            $pdf = Pdf::loadView('reports.balance-sheet-pdf', $reportData);
+            return $pdf->download('balance-sheet-report.pdf');
+        }
+
+        $reportData['basis'] = $this->reportService->statementBasis(null, $filters['as_of_date']);
+
         return view('reports.balance-sheet', $reportData);
     }
 
     /**
      * Show Cash Flow Statement Report
      */
-    public function cashFlowStatement(Request $request): View
+    public function cashFlowStatement(Request $request)
     {
         $request->validate([
             'start_date' => ['nullable', 'date'],
             'end_date'   => ['nullable', 'date', 'after_or_equal:start_date'],
+            'export' => ['nullable', 'string', 'in:pdf'],
         ]);
 
         $filters = [
@@ -130,6 +140,16 @@ class ReportController extends Controller
         ];
 
         $reportData = $this->reportService->generateCashFlowStatementReport($filters);
+
+        if ($request->export === 'pdf') {
+            $pdf = Pdf::loadView('reports.cash-flow-pdf', $reportData);
+            return $pdf->download('cash-flow-report.pdf');
+        }
+
+        $reportData['basis'] = $this->reportService->statementBasis(
+            $filters['start_date'],
+            $filters['end_date']
+        );
 
         return view('reports.cash-flow', $reportData);
     }
