@@ -10,11 +10,6 @@
                 Where stock is, how it gets there, and what has moved lately
             </p>
         </div>
-        <div class="d-flex flex-wrap gap-2 d-print-none">
-            <a href="{{ route('stock-locations.index') }}" class="btn btn-outline-primary">
-                <i class="bi bi-geo-alt me-1"></i> Stock Locations
-            </a>
-        </div>
     </div>
 @endsection
 
