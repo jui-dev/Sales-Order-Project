@@ -18,22 +18,23 @@ class ChartOfAccountsService
     {
         $this->handleServiceOperation(
             function() {
+                // Type names are capitalised to match ChartOfAccountsSeeder, which
+                // is what actually seeds this table. Lowercase names here only
+                // looked equivalent because MySQL compares them case-insensitively;
+                // on a case-sensitive database the lookup missed the existing row
+                // and the insert then breached the unique index on name.
                 $defaultAccounts = [
-                    ['code' => '1000', 'name' => 'Cash', 'type' => 'asset', 'description' => 'Cash on hand and in bank'],
-                    ['code' => '1100', 'name' => 'Accounts Receivable', 'type' => 'asset', 'description' => 'Amounts owed by customers'],
-                    ['code' => '1200', 'name' => 'Inventory', 'type' => 'asset', 'description' => 'Product inventory'],
-                    ['code' => '2000', 'name' => 'Accounts Payable', 'type' => 'liability', 'description' => 'Amounts owed to suppliers'],
-                    ['code' => '3000', 'name' => 'Retained Earnings', 'type' => 'equity', 'description' => 'Accumulated profits'],
-                    ['code' => '4000', 'name' => 'Sales Revenue', 'type' => 'revenue', 'description' => 'Revenue from sales'],
-                    ['code' => '5000', 'name' => 'Cost of Goods Sold', 'type' => 'expense', 'description' => 'Cost of products sold'],
+                    ['code' => '1000', 'name' => 'Cash', 'type' => 'Asset', 'description' => 'Cash on hand and in bank'],
+                    ['code' => '1100', 'name' => 'Accounts Receivable', 'type' => 'Asset', 'description' => 'Amounts owed by customers'],
+                    ['code' => '1200', 'name' => 'Inventory', 'type' => 'Asset', 'description' => 'Product inventory'],
+                    ['code' => '2000', 'name' => 'Accounts Payable', 'type' => 'Liability', 'description' => 'Amounts owed to suppliers'],
+                    ['code' => '3000', 'name' => 'Retained Earnings', 'type' => 'Equity', 'description' => 'Accumulated profits'],
+                    ['code' => '4000', 'name' => 'Sales Revenue', 'type' => 'Revenue', 'description' => 'Revenue from sales'],
+                    ['code' => '5000', 'name' => 'Cost of Goods Sold', 'type' => 'Expense', 'description' => 'Cost of products sold'],
                 ];
 
                 foreach ($defaultAccounts as $accountData) {
-                    $accountType = AccountType::where('name', $accountData['type'])->first();
-                    
-                    if (!$accountType) {
-                        $accountType = AccountType::create(['name' => $accountData['type']]);
-                    }
+                    $accountType = AccountType::firstOrCreate(['name' => $accountData['type']]);
 
                     Account::firstOrCreate(
                         ['code' => $accountData['code']],
