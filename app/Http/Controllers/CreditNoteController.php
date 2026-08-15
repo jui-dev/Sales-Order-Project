@@ -74,7 +74,9 @@ class CreditNoteController extends Controller
                 'total' => 0,
                 'pending' => 0,
                 'issued' => 0,
+                'posted' => 0,
                 'total_amount' => 0,
+                'posted_amount' => 0,
             ];
             
             // Provide default data for filters

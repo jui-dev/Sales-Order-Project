@@ -650,32 +650,8 @@ function loadStatistics() {
 
 @push('styles')
 <style>
-/* White container holding the summary cards */
-.summary-panel {
-    background-color: #ffffff;
-    border: 1px solid var(--border-color, #e9ecef);
-    border-radius: 8px;
-    padding: 1.25rem;
-    box-shadow: var(--card-shadow, 0 2px 15px rgba(0, 0, 0, 0.04));
-}
-
-/* Summary cards - soft gradient treatment */
-.summary-card {
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-}
-
-.summary-card:hover {
-    transform: translateY(-2px);
-}
-
-.summary-card--blue  { background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%); }
-.summary-card--green { background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%); }
-.summary-card--amber { background: linear-gradient(135deg, #fff8e1 0%, #ffffff 100%); }
-.summary-card--cyan  { background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%); }
-
-.summary-card__icon {
-    opacity: 0.45;
-}
+/* .summary-panel / .summary-card now live in public/css/custom.css, so every
+   index page that uses them gets the same treatment. */
 
 /* ---- Tabs: segmented control ----------------------------------------
    The global .nav-link rules in custom.css are written for the dark green

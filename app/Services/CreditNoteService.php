@@ -126,13 +126,19 @@ class CreditNoteService
                 $total = CreditNote::count();
                 $pending = CreditNote::where('status', 'pending')->count();
                 $issued = CreditNote::where('status', 'issued')->count();
+                // Posted is the status that carries financial impact, so the
+                // index has to be able to separate it from what is merely issued.
+                $posted = CreditNote::where('status', 'posted')->count();
                 $totalAmount = CreditNote::where('status', 'issued')->sum('total_amount');
+                $postedAmount = CreditNote::where('status', 'posted')->sum('total_amount');
 
                 return [
                     'total' => $total,
                     'pending' => $pending,
                     'issued' => $issued,
+                    'posted' => $posted,
                     'total_amount' => $totalAmount,
+                    'posted_amount' => $postedAmount,
                 ];
             },
             'credit_note_statistics'

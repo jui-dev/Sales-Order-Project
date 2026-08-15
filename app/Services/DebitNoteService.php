@@ -317,9 +317,13 @@ class DebitNoteService
                 'total' => DebitNote::count(),
                 'pending' => DebitNote::where('status', 'pending')->count(),
                 'issued' => DebitNote::where('status', 'issued')->count(),
+                // Posted is the status that carries financial impact, so the
+                // index has to be able to separate it from what is merely issued.
+                'posted' => DebitNote::where('status', 'posted')->count(),
                 'cancelled' => DebitNote::where('status', 'cancelled')->count(),
                 'expired' => DebitNote::where('status', 'expired')->count(),
                 'total_amount' => DebitNote::where('status', 'issued')->sum('total_amount') ?? 0,
+                'posted_amount' => DebitNote::where('status', 'posted')->sum('total_amount') ?? 0,
                 'remaining_amount' => DebitNote::where('status', 'issued')->sum('remaining_amount') ?? 0,
                 'applied_amount' => DebitNote::where('status', 'issued')->sum('applied_amount') ?? 0,
             ];
@@ -329,9 +333,11 @@ class DebitNoteService
                 'total' => 0,
                 'pending' => 0,
                 'issued' => 0,
+                'posted' => 0,
                 'cancelled' => 0,
                 'expired' => 0,
                 'total_amount' => 0,
+                'posted_amount' => 0,
                 'remaining_amount' => 0,
                 'applied_amount' => 0,
             ];

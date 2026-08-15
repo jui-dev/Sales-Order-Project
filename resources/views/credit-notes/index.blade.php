@@ -10,70 +10,76 @@
     
     
 
-    <!-- Credit Note Management Guidance -->
-    <div class="alert alert-info mb-4">
-        <i class="bi bi-info-circle"></i>
-        <strong>Credit Note Management:</strong> Credit notes are automatically generated when customer returns are approved. Use the workflow buttons to control financial impact timing.
-    </div>
-
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $statistics['total'] }}</h4>
-                            <small>Total Credit Notes</small>
+    {{-- Summary. Awaiting Posting is the number worth acting on: those notes
+         exist but have not touched the accounts yet. Each card links to the
+         filtered list behind it. --}}
+    <div class="summary-panel mb-4">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm summary-card summary-card--blue">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title text-primary">Credit Notes</h6>
+                                <h3>{{ number_format($statistics['total'] ?? 0) }}</h3>
+                            </div>
+                            <i class="bi bi-receipt text-primary summary-card__icon" style="font-size: 2rem;"></i>
                         </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-receipt display-6"></i>
-                        </div>
+                        <small>
+                            <a href="{{ route('returns.index', ['type' => 'customer_return']) }}" class="text-primary text-decoration-none">
+                                <i class="bi bi-arrow-right me-1"></i>From customer returns
+                            </a>
+                        </small>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $statistics['pending'] }}</h4>
-                            <small>Pending</small>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm summary-card summary-card--amber">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title text-warning-emphasis">Awaiting Posting</h6>
+                                <h3>{{ number_format($statistics['issued'] ?? 0) }}</h3>
+                            </div>
+                            <i class="bi bi-hourglass-split text-warning-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                         </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-clock display-6"></i>
-                        </div>
+                        <small>
+                            <a href="{{ route('credit-notes.index', ['status' => 'issued']) }}" class="text-warning-emphasis text-decoration-none">
+                                <i class="bi bi-arrow-right me-1"></i>No ledger effect yet
+                            </a>
+                        </small>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $statistics['issued'] }}</h4>
-                            <small>Issued</small>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm summary-card summary-card--green">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title text-success">Posted</h6>
+                                <h3>{{ number_format($statistics['posted'] ?? 0) }}</h3>
+                            </div>
+                            <i class="bi bi-journal-check text-success summary-card__icon" style="font-size: 2rem;"></i>
                         </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-check-circle display-6"></i>
-                        </div>
+                        <small>
+                            <a href="{{ route('credit-notes.index', ['status' => 'posted']) }}" class="text-success text-decoration-none">
+                                <i class="bi bi-arrow-right me-1"></i>${{ number_format($statistics['posted_amount'] ?? 0, 2) }} through the ledger
+                            </a>
+                        </small>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">${{ number_format($statistics['total_amount'], 2) }}</h4>
-                            <small>Total Amount</small>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm summary-card summary-card--cyan">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title text-info-emphasis">Value Outstanding</h6>
+                                <h3>${{ number_format($statistics['total_amount'] ?? 0, 2) }}</h3>
+                            </div>
+                            <i class="bi bi-currency-dollar text-info-emphasis summary-card__icon" style="font-size: 2rem;"></i>
                         </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-currency-dollar display-6"></i>
-                        </div>
+                        <small class="text-muted">Owed back across issued notes</small>
                     </div>
                 </div>
             </div>

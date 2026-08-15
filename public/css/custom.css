@@ -1348,6 +1348,36 @@ a.workflow-stage:hover .workflow-stage__name {
     text-decoration: underline;
 }
 
+/* ---- Summary cards (index pages) -------------------------------------
+   A white panel holding soft-gradient tiles, each with a coloured label, a
+   muted icon and a link to where the number is acted on. Lived in a
+   @push('styles') block on the vendor-to-warehouse-picking page, so other
+   pages using these class names rendered as plain Bootstrap cards. */
+.summary-panel {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: var(--card-shadow, 0 2px 15px rgba(0, 0, 0, 0.04));
+}
+
+.summary-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+}
+
+.summary-card--blue  { background: linear-gradient(135deg, #e3f2fd 0%, #ffffff 100%); }
+.summary-card--green { background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%); }
+.summary-card--amber { background: linear-gradient(135deg, #fff8e1 0%, #ffffff 100%); }
+.summary-card--cyan  { background: linear-gradient(135deg, #e0f7fa 0%, #ffffff 100%); }
+
+.summary-card__icon {
+    opacity: 0.45;
+}
+
 /* ---- Responsive ------------------------------------------------------ */
 @media (max-width: 991.98px) {
     .detail-figures {
