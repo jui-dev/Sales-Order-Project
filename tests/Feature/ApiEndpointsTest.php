@@ -2,16 +2,34 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
+use App\Models\Customer;
+use App\Models\Product;
+use App\Models\Vendor;
+use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
+use Tests\TestCase;
 
+/**
+ * The JSON contract these endpoints actually serve, which is built once in
+ * App\Traits\HasApiResponses and shared by every API controller:
+ *
+ *   empty collection  200  {status: 'empty',   message: 'No <resource> found',
+ *                           data: [], total, per_page, current_page, last_page}
+ *
+ *   full collection   200  {status: 'success', message: '<X> retrieved successfully',
+ *                           data: <paginator>, total, per_page, current_page, last_page}
+ *
+ *   missing record    404  {status: 'error',   message: 'No <resource> found with ID <id>',
+ *                           error_code: 404}
+ *
+ * Pagination sits at the top level and the paginator keeps its own envelope
+ * under `data`, so a full collection's rows are at `data.data`.
+ */
 class ApiEndpointsTest extends TestCase
 {
     use RefreshDatabase;
 
-    /**
-     * Test API health endpoint
-     */
     public function test_api_health_endpoint()
     {
         $response = $this->getJson('/api/health');
@@ -21,474 +39,308 @@ class ApiEndpointsTest extends TestCase
                 ]);
     }
 
-    /**
-     * Test Products API endpoints
-     */
     public function test_products_api_endpoints()
     {
-        // Test empty products list
-        $response = $this->getJson('/api/products');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'products',
-                        'pagination' => [
-                            'current_page',
-                            'last_page',
-                            'per_page',
-                            'total'
-                        ]
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Products retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/products'), 'products');
 
-        // Test non-existent product
-        $response = $this->getJson('/api/products/999');
-        $response->assertStatus(404)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'error'
-                ])
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve product'
-                ]);
+        Product::factory()->create(['name' => 'Boxed Widget']);
+
+        $response = $this->getJson('/api/products');
+        $this->assertPaginatedCollection($response, 'Products retrieved successfully');
+        $response->assertJsonPath('data.data.0.name', 'Boxed Widget');
+
+        $this->assertMissingRecord(
+            $this->getJson('/api/products/999'),
+            'No product found with ID 999'
+        );
     }
 
-    /**
-     * Test Orders API endpoints
-     */
     public function test_orders_api_endpoints()
     {
-        // Test empty orders list
-        $response = $this->getJson('/api/orders');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'orders',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Orders retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/orders'), 'orders');
 
-        // Test non-existent order
-        $response = $this->getJson('/api/orders/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve order'
-                ]);
+        $this->assertMissingRecord(
+            $this->getJson('/api/orders/999'),
+            'No order found with ID 999'
+        );
     }
 
-    /**
-     * Test Invoices API endpoints
-     */
     public function test_invoices_api_endpoints()
     {
-        // Test empty invoices list
-        $response = $this->getJson('/api/invoices');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'invoices',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Invoices retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/invoices'), 'invoices');
 
-        // Test non-existent invoice
-        $response = $this->getJson('/api/invoices/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve invoice'
-                ]);
+        $this->assertMissingRecord(
+            $this->getJson('/api/invoices/999'),
+            'No invoice found with ID 999'
+        );
     }
 
-    /**
-     * Test Returns API endpoints
-     */
     public function test_returns_api_endpoints()
     {
-        // Test empty returns list
-        $response = $this->getJson('/api/returns');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'returns',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Returns retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/returns'), 'returns');
 
-        // Test non-existent return
-        $response = $this->getJson('/api/returns/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve return'
-                ]);
+        $this->assertMissingRecord(
+            $this->getJson('/api/returns/999'),
+            'No return found with ID 999'
+        );
     }
 
-    /**
-     * Test Credit Notes API endpoints
-     */
     public function test_credit_notes_api_endpoints()
     {
-        // Test empty credit notes list
-        $response = $this->getJson('/api/credit-notes');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'credit_notes',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Credit notes retrieved successfully'
-                ]);
+        // The resource name reaches the message unformatted, hence the underscore.
+        $this->assertEmptyCollection($this->getJson('/api/credit-notes'), 'credit_notes');
 
-        // Test non-existent credit note
-        $response = $this->getJson('/api/credit-notes/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve credit note'
-                ]);
+        $this->assertMissingRecord(
+            $this->getJson('/api/credit-notes/999'),
+            'No credit_note found with ID 999'
+        );
     }
 
-    /**
-     * Test Debit Notes API endpoints
-     */
     public function test_debit_notes_api_endpoints()
     {
-        // Test empty debit notes list
-        $response = $this->getJson('/api/debit-notes');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'debit_notes',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Debit notes retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/debit-notes'), 'debit notes');
 
-        // Test non-existent debit note
-        $response = $this->getJson('/api/debit-notes/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve debit note'
-                ]);
+        $this->assertMissingRecord(
+            $this->getJson('/api/debit-notes/999'),
+            'No debit_note found with ID 999'
+        );
     }
 
-    /**
-     * Test Payments API endpoints
-     */
     public function test_payments_api_endpoints()
     {
-        // Test empty payments list
-        $response = $this->getJson('/api/payments');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'payments',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Payments retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/payments'), 'payments');
 
-        // Test non-existent payment
-        $response = $this->getJson('/api/payments/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve payment'
-                ]);
+        $this->assertMissingRecord(
+            $this->getJson('/api/payments/999'),
+            'No payment found with ID 999'
+        );
     }
 
-    /**
-     * Test Stock Management API endpoints
-     */
     public function test_stock_management_api_endpoints()
     {
-        // Test empty stock transactions list
-        $response = $this->getJson('/api/stock-management');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'stock_transactions',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Stock transactions retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/stock-management'), 'stock transactions');
 
-        // Test non-existent stock transaction
-        $response = $this->getJson('/api/stock-management/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve stock transaction'
-                ]);
+        $this->assertMissingRecord(
+            $this->getJson('/api/stock-management/999'),
+            'No stock transaction found with ID 999'
+        );
     }
 
-    /**
-     * Test Chart of Accounts API endpoints
-     */
     public function test_chart_of_accounts_api_endpoints()
     {
-        // Test accounts list (should have default accounts)
+        // Accounts are seeded by migration, so this list is never empty. It is
+        // also not paginated - the accounts come back as a plain array.
         $response = $this->getJson('/api/chart-of-accounts');
         $response->assertStatus(200)
                 ->assertJsonStructure([
                     'status',
                     'message',
                     'data' => [
-                        'accounts'
-                    ]
+                        '*' => ['id', 'code', 'name', 'account_type_id'],
+                    ],
                 ])
                 ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Accounts retrieved successfully'
+                    'status'  => 'success',
+                    'message' => 'Accounts retrieved successfully',
                 ]);
 
-        // Test non-existent account
-        $response = $this->getJson('/api/chart-of-accounts/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve account'
-                ]);
+        $this->assertMissingRecord(
+            $this->getJson('/api/chart-of-accounts/999'),
+            'No account found with ID 999'
+        );
     }
 
-    /**
-     * Test Customers API endpoints
-     */
     public function test_customers_api_endpoints()
     {
-        // Test empty customers list
-        $response = $this->getJson('/api/customers');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'customers',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Customers retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/customers'), 'customers');
 
-        // Test non-existent customer
-        $response = $this->getJson('/api/customers/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve customer'
-                ]);
+        Customer::factory()->create();
+        $this->assertPlainCollection(
+            $this->getJson('/api/customers'),
+            'Customers retrieved successfully',
+            ['id', 'name', 'email']
+        );
+
+        $this->assertMissingRecord(
+            $this->getJson('/api/customers/999'),
+            'No customer found with ID 999'
+        );
     }
 
-    /**
-     * Test Vendors API endpoints
-     */
     public function test_vendors_api_endpoints()
     {
-        // Test empty vendors list
-        $response = $this->getJson('/api/vendors');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'vendors',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Vendors retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/vendors'), 'vendors');
 
-        // Test non-existent vendor
-        $response = $this->getJson('/api/vendors/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve vendor'
-                ]);
+        Vendor::factory()->create();
+        $this->assertPlainCollection(
+            $this->getJson('/api/vendors'),
+            'Vendors retrieved successfully',
+            ['id', 'name', 'email']
+        );
+
+        $this->assertMissingRecord(
+            $this->getJson('/api/vendors/999'),
+            'No vendor found with ID 999'
+        );
     }
 
-    /**
-     * Test Warehouses API endpoints
-     */
     public function test_warehouses_api_endpoints()
     {
-        // Test empty warehouses list
-        $response = $this->getJson('/api/warehouses');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'warehouses',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Warehouses retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/warehouses'), 'warehouses');
 
-        // Test non-existent warehouse
-        $response = $this->getJson('/api/warehouses/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve warehouse'
-                ]);
+        Warehouse::factory()->create();
+        $this->assertPlainCollection(
+            $this->getJson('/api/warehouses'),
+            'Warehouses retrieved successfully',
+            ['id', 'name', 'status']
+        );
+
+        $this->assertMissingRecord(
+            $this->getJson('/api/warehouses/999'),
+            'No warehouse found with ID 999'
+        );
     }
 
-    /**
-     * Test Supplies API endpoints
-     */
     public function test_supplies_api_endpoints()
     {
-        // Test empty supplies list
-        $response = $this->getJson('/api/supplies');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'supplies',
-                        'pagination'
-                    ]
-                ])
-                ->assertJson([
-                    'status' => 'success',
-                    'message' => 'Supplies retrieved successfully'
-                ]);
+        $this->assertEmptyCollection($this->getJson('/api/supplies'), 'supplies');
 
-        // Test non-existent supply
-        $response = $this->getJson('/api/supplies/999');
-        $response->assertStatus(404)
-                ->assertJson([
-                    'status' => 'error',
-                    'message' => 'Failed to retrieve supply'
-                ]);
+        $this->assertMissingRecord(
+            $this->getJson('/api/supplies/999'),
+            'No supply found with ID 999'
+        );
     }
 
-    /**
-     * Test API endpoints with filters
-     */
     public function test_api_endpoints_with_filters()
     {
-        // Test products with search filter
-        $response = $this->getJson('/api/products?search=test&per_page=10');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'products',
-                        'pagination'
-                    ]
-                ]);
+        Product::factory()->create(['name' => 'Filterable Widget']);
 
-        // Test orders with date filters
-        $response = $this->getJson('/api/orders?date_from=2024-01-01&date_to=2024-12-31');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'orders',
-                        'pagination'
-                    ]
-                ]);
+        // A filter that matches nothing still answers with the empty envelope.
+        $this->assertEmptyCollection(
+            $this->getJson('/api/products?search=nothing-matches-this&per_page=10'),
+            'products'
+        );
 
-        // Test stock management with transaction type filter
-        $response = $this->getJson('/api/stock-management?transaction_type=supply&per_page=25');
-        $response->assertStatus(200)
-                ->assertJsonStructure([
-                    'status',
-                    'message',
-                    'data' => [
-                        'stock_transactions',
-                        'pagination'
-                    ]
-                ]);
+        // One that matches returns the paginated envelope, honouring per_page.
+        $response = $this->getJson('/api/products?search=Filterable&per_page=10');
+        $this->assertPaginatedCollection($response, 'Products retrieved successfully');
+        $response->assertJsonPath('data.per_page', 10)
+                 ->assertJsonPath('data.data.0.name', 'Filterable Widget');
+
+        $this->assertEmptyCollection(
+            $this->getJson('/api/orders?date_from=2024-01-01&date_to=2024-12-31'),
+            'orders'
+        );
+
+        $this->assertEmptyCollection(
+            $this->getJson('/api/stock-management?transaction_type=supply&per_page=25'),
+            'stock transactions'
+        );
     }
 
-    /**
-     * Test legacy stock information endpoint
-     */
     public function test_legacy_stock_info_endpoint()
     {
-        // This test would require a warehouse to exist, but we can test the structure
         $response = $this->getJson('/api/stock-info/location/999');
         $response->assertStatus(404); // Should return 404 for non-existent warehouse
     }
 
-    /**
-     * Test order fulfillment locations endpoint
-     */
     public function test_order_fulfillment_locations_endpoint()
     {
-        // Test with no product IDs
+        // No product ids at all.
         $response = $this->getJson('/api/fulfillment-locations');
         $response->assertStatus(200)
-                ->assertJson([
-                    'available_locations' => []
-                ]);
+                ->assertJson(['available_locations' => []]);
 
-        // Test with invalid product IDs
+        // A single id arrives as a scalar query string, which still has to be
+        // treated as a list of one rather than handed to whereIn as an integer.
         $response = $this->getJson('/api/fulfillment-locations?product_ids=999');
         $response->assertStatus(200)
+                ->assertJson(['available_locations' => []]);
+
+        // The array form the order screen sends.
+        $response = $this->getJson('/api/fulfillment-locations?product_ids[]=999');
+        $response->assertStatus(200)
+                ->assertJson(['available_locations' => []]);
+    }
+
+    private function assertEmptyCollection(TestResponse $response, string $resource): void
+    {
+        $response->assertStatus(200)
+                ->assertJsonStructure([
+                    'status',
+                    'message',
+                    'data',
+                    'total',
+                    'per_page',
+                    'current_page',
+                    'last_page',
+                ])
                 ->assertJson([
-                    'available_locations' => []
+                    'status'  => 'empty',
+                    'message' => "No {$resource} found",
+                    'data'    => [],
+                    'total'   => 0,
                 ]);
     }
-} 
+
+    private function assertPaginatedCollection(TestResponse $response, string $message): void
+    {
+        $response->assertStatus(200)
+                ->assertJsonStructure([
+                    'status',
+                    'message',
+                    'data' => [
+                        'current_page',
+                        'data',
+                        'last_page',
+                        'per_page',
+                        'total',
+                    ],
+                    'total',
+                    'per_page',
+                    'current_page',
+                    'last_page',
+                ])
+                ->assertJson([
+                    'status'  => 'success',
+                    'message' => $message,
+                ]);
+    }
+
+    /**
+     * Some collections are not paginated - the records come back as a plain
+     * array under `data`, with no paginator envelope.
+     *
+     * @param  array<int,string>  $recordKeys
+     */
+    private function assertPlainCollection(TestResponse $response, string $message, array $recordKeys): void
+    {
+        $response->assertStatus(200)
+                ->assertJsonStructure([
+                    'status',
+                    'message',
+                    'data' => [
+                        '*' => $recordKeys,
+                    ],
+                ])
+                ->assertJson([
+                    'status'  => 'success',
+                    'message' => $message,
+                ]);
+    }
+
+    private function assertMissingRecord(TestResponse $response, string $message): void
+    {
+        $response->assertStatus(404)
+                ->assertJsonStructure([
+                    'status',
+                    'message',
+                    'error_code',
+                ])
+                ->assertJson([
+                    'status'     => 'error',
+                    'message'    => $message,
+                    'error_code' => 404,
+                ]);
+    }
+}
