@@ -130,18 +130,23 @@ Route::get('/stock-info/location/{warehouse}', function (App\Models\Warehouse $w
 // accepts an array so it can be extended later.
 Route::get('/orders/available-fulfillment-locations', function (\Illuminate\Http\Request $request) {
     try {
-        // Get product IDs from request
+        // A single id arrives as a scalar (product_ids=5), several as an array
+        // (product_ids[]=5&product_ids[]=6), and a JSON array in one string is
+        // also accepted. Normalise all three to a list before querying:
+        // json_decode('5') returns the int 5, which whereIn cannot take, and
+        // the resulting TypeError is an Error rather than an Exception so it
+        // escapes the catch below and surfaces as a raw 500.
         $productIds = $request->query('product_ids', []);
-        
-        // Handle array format
+
         if (is_string($productIds)) {
-            $productIds = json_decode($productIds, true) ?? [$productIds];
+            $decoded    = json_decode($productIds, true);
+            $productIds = is_array($decoded) ? $decoded : [$productIds];
         }
-        
-        // Handle product_ids[] format
-        if (empty($productIds)) {
-            $productIds = (array) $request->query('product_ids', []);
-        }
+
+        $productIds = array_filter(
+            (array) $productIds,
+            static fn ($id) => $id !== null && $id !== ''
+        );
 
         if (empty($productIds)) {
             return response()->json(['available_locations' => []]);
@@ -189,18 +194,23 @@ Route::get('/orders/available-fulfillment-locations', function (\Illuminate\Http
 // Alternative route for testing (keeping as backup)
 Route::get('/fulfillment-locations', function (\Illuminate\Http\Request $request) {
     try {
-        // Get product IDs from request
+        // A single id arrives as a scalar (product_ids=5), several as an array
+        // (product_ids[]=5&product_ids[]=6), and a JSON array in one string is
+        // also accepted. Normalise all three to a list before querying:
+        // json_decode('5') returns the int 5, which whereIn cannot take, and
+        // the resulting TypeError is an Error rather than an Exception so it
+        // escapes the catch below and surfaces as a raw 500.
         $productIds = $request->query('product_ids', []);
-        
-        // Handle array format
+
         if (is_string($productIds)) {
-            $productIds = json_decode($productIds, true) ?? [$productIds];
+            $decoded    = json_decode($productIds, true);
+            $productIds = is_array($decoded) ? $decoded : [$productIds];
         }
-        
-        // Handle product_ids[] format
-        if (empty($productIds)) {
-            $productIds = (array) $request->query('product_ids', []);
-        }
+
+        $productIds = array_filter(
+            (array) $productIds,
+            static fn ($id) => $id !== null && $id !== ''
+        );
 
         if (empty($productIds)) {
             return response()->json(['available_locations' => []]);
