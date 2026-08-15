@@ -3,23 +3,35 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Journal Entry #{{ $journalEntry->formatted_id }}</h1>
         <div class="d-flex gap-2">
-            @if($journalEntry->status === 'draft')
+            @if($journalEntry->canBeApproved())
                 <a href="{{ route('journal-entries.edit', $journalEntry) }}" class="btn btn-primary">
                     <i class="bi bi-pencil me-1"></i> Edit
                 </a>
-                <form action="{{ route('journal-entries.post', $journalEntry) }}" method="POST" style="display: inline;">
-                    @csrf
+                <form action="{{ route('journal-entries.approve', $journalEntry) }}" method="POST" style="display: inline;">
+                    @csrf @method('PATCH')
                     <button type="submit" class="btn btn-success">
-                        <i class="bi bi-check-circle me-1"></i> Post Entry
+                        <i class="bi bi-check-circle me-1"></i> Approve Entry
+                    </button>
+                </form>
+                <form action="{{ route('journal-entries.reject', $journalEntry) }}" method="POST" style="display: inline;">
+                    @csrf @method('PATCH')
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-circle me-1"></i> Reject
+                    </button>
+                </form>
+            @elseif($journalEntry->canBePosted())
+                <span class="badge bg-info fs-6 align-self-center">
+                    <i class="bi bi-check-circle me-1"></i> Approved
+                </span>
+                <form action="{{ route('journal-entries.post', $journalEntry) }}" method="POST" style="display: inline;">
+                    @csrf @method('PATCH')
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-upload me-1"></i> Post Entry
                     </button>
                 </form>
             @elseif($journalEntry->status === 'posted')
                 <span class="badge bg-success fs-6">
                     <i class="bi bi-check-circle me-1"></i> Posted
-                </span>
-            @elseif($journalEntry->status === 'approved')
-                <span class="badge bg-info fs-6">
-                    <i class="bi bi-check-circle me-1"></i> Approved
                 </span>
             @elseif($journalEntry->status === 'rejected')
                 <span class="badge bg-danger fs-6">

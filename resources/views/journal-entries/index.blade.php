@@ -187,9 +187,20 @@
                                 @endif
                             </div>
 
-                            @if(in_array($entry->status,['draft','rejected']))
+                            @if($entry->canBeApproved())
                                 <div>
                                     <a href="{{ route('journal-entries.edit',$entry) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil me-1"></i>Edit</a>
+                                    <form method="POST" action="{{ route('journal-entries.approve',$entry) }}" class="d-inline">
+                                        @csrf @method('PATCH')
+                                        <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check me-1"></i>Approve</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('journal-entries.reject',$entry) }}" class="d-inline">
+                                        @csrf @method('PATCH')
+                                        <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-x me-1"></i>Reject</button>
+                                    </form>
+                                </div>
+                            @elseif($entry->canBePosted())
+                                <div>
                                     <form method="POST" action="{{ route('journal-entries.post',$entry) }}" class="d-inline">
                                         @csrf @method('PATCH')
                                         <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-upload me-1"></i>Post</button>
@@ -199,16 +210,9 @@
                                         <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-x me-1"></i>Reject</button>
                                     </form>
                                 </div>
-                            @elseif($entry->status === 'posted')
+                            @elseif($entry->status === 'rejected')
                                 <div>
-                                    <form method="POST" action="{{ route('journal-entries.approve',$entry) }}" class="d-inline">
-                                        @csrf @method('PATCH')
-                                        <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check me-1"></i>Approve</button>
-                                    </form>
-                                    <form method="POST" action="{{ route('journal-entries.reject',$entry) }}" class="d-inline">
-                                        @csrf @method('PATCH')
-                                        <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-x me-1"></i>Reject</button>
-                                    </form>
+                                    <a href="{{ route('journal-entries.edit',$entry) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil me-1"></i>Edit</a>
                                 </div>
                             @endif
                         </div>
