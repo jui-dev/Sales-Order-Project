@@ -119,6 +119,11 @@ class ReturnJournalHandler
             // Update the credit note with journal entry reference
             $creditNote->update(['journal_entry_id' => $journalEntry->id]);
 
+            // The guard above already read `journalEntry`, caching it as null.
+            // Refresh it so approving and posting can follow on the same
+            // instance without re-fetching the credit note.
+            $creditNote->setRelation('journalEntry', $journalEntry);
+
             // Log the creation with reverse logic details
             AuditLog::create([
                 'user_id' => auth()->id() ?? 1,
@@ -231,6 +236,7 @@ class ReturnJournalHandler
 
             // Update the debit note with journal entry reference
             $debitNote->update(['journal_entry_id' => $journalEntry->id]);
+            $debitNote->setRelation('journalEntry', $journalEntry);
 
             // Log the creation with reverse logic details
             AuditLog::create([
