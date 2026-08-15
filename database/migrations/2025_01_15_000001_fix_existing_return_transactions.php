@@ -12,6 +12,15 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // This is a one-off backfill for rows that already existed when it was
+        // written. Its filename dates it five months before
+        // 2025_06_25_120000_add_transaction_type_to_stock_transactions, so on a
+        // rebuild from empty it runs first and queries a column that does not
+        // exist yet. There is nothing to backfill on an empty table either way.
+        if (! Schema::hasColumn('stock_transactions', 'transaction_type')) {
+            return;
+        }
+
         // Get all return transactions that need to be processed
         $returnTransactions = DB::table('stock_transactions')
             ->whereIn('transaction_type', ['customer_return', 'vendor_return', 'retailer_return'])
