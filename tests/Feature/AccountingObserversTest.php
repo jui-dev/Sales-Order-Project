@@ -10,6 +10,7 @@ use App\Models\Supply;
 use App\Models\SupplyItem;
 use App\Models\Vendor;
 use App\Models\Warehouse;
+use App\Services\SupplierBillService;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -62,12 +63,30 @@ class AccountingObserversTest extends TestCase
         // ------------------------------------------------------------------
         $grn->update(['status' => 'posted']);
 
-        // Assert journal entry created
-        $entry = JournalEntry::where('source_type', $grn->getMorphClass())
-            ->where('source_id', $grn->id)
+        // Receiving the goods raises the bill but deliberately stays off the
+        // ledger - GrnObserver creates a draft supplier bill "instead of
+        // posting journal entry", and nothing is owed until that bill is posted.
+        $this->assertNull(
+            JournalEntry::where('source_type', $grn->getMorphClass())
+                ->where('source_id', $grn->id)
+                ->first(),
+            'Posting a GRN should not reach the ledger on its own'
+        );
+
+        $bill = $grn->fresh()->supplierBill;
+
+        $this->assertNotNull($bill, 'Supplier bill not created for GRN posting');
+        $this->assertSame('draft', $bill->status);
+        $this->assertEquals(100.00, $bill->total_amount);
+
+        // Posting the bill is what recognises the liability.
+        app(SupplierBillService::class)->postSupplierBill($bill);
+
+        $entry = JournalEntry::where('source_type', $bill->getMorphClass())
+            ->where('source_id', $bill->id)
             ->first();
 
-        $this->assertNotNull($entry, 'Journal entry not created for GRN posting');
+        $this->assertNotNull($entry, 'Journal entry not created for supplier bill posting');
 
         // Assert balanced totals
         $this->assertEquals(
@@ -204,12 +223,26 @@ class AccountingObserversTest extends TestCase
         ]);
 
         $grn->update(['status' => 'posted']);
-        $grn->update(['notes' => 'touch']); // unrelated change should NOT duplicate entry
+        $grn->update(['notes' => 'touch']); // unrelated change should NOT duplicate the bill
 
-        $count = \App\Models\JournalEntry::where('source_type', $grn->getMorphClass())
-            ->where('source_id', $grn->id)->count();
+        // A GRN raises exactly one supplier bill, however many times it is
+        // saved afterwards - GrnObserver bails out when one already exists.
+        $billCount = \App\Models\SupplierBill::where('grn_id', $grn->id)->count();
 
-        $this->assertEquals(1, $count, 'GRN journal entry duplicated');
+        $this->assertEquals(1, $billCount, 'GRN supplier bill duplicated');
+
+        // And posting that bill raises exactly one journal entry.
+        $bill = \App\Models\SupplierBill::where('grn_id', $grn->id)->firstOrFail();
+        app(SupplierBillService::class)->postSupplierBill($bill);
+
+        $entryCount = \App\Models\JournalEntry::where('source_type', $bill->getMorphClass())
+            ->where('source_id', $bill->id)->count();
+
+        $this->assertEquals(1, $entryCount, 'Supplier bill journal entry duplicated');
+
+        // Posting a second time is refused rather than doubling the liability.
+        $this->expectException(\Exception::class);
+        app(SupplierBillService::class)->postSupplierBill($bill->fresh());
     }
 
     /** @test */
@@ -265,47 +298,49 @@ class AccountingObserversTest extends TestCase
         ]);
         $invoice = app(\App\Services\InvoiceService::class)->generateFromOrder($order);
 
-        // Create stock transaction for return (using unified approach)
+        $warehouse = \App\Models\Warehouse::factory()->create();
+
+        // A return starts pending. Recording one moves nothing and posts
+        // nothing; approving it is the step that acts.
         $returnTransaction = \App\Models\StockTransaction::create([
             'product_id' => $product->id,
-            'transaction_type' => 'customer_return',
+            'transaction_type' => \App\Models\StockTransaction::TYPE_CUSTOMER_RETURN,
             'direction' => 'inbound',
             'quantity' => 1,
             'unit_cost' => 20,
             'total_cost' => 20,
-            'status' => 'completed',
+            'status' => \App\Models\StockTransaction::STATUS_PENDING,
             'location_type' => \App\Models\Warehouse::class,
-            'location_id' => \App\Models\Warehouse::first()->id,
+            'location_id' => $warehouse->id,
             'reference_type' => $invoice->getMorphClass(),
             'reference_id' => $invoice->id,
-            'notes' => json_encode([
-                'reason' => 'Damaged',
-                'amount' => 20,
-                'approved_by' => 1,
-                'approved_at' => now()->toISOString(),
-                'completed_by' => 1,
-                'completed_at' => now()->toISOString(),
-            ]),
+            'transaction_date' => now(),
+            'notes' => 'Damaged',
         ]);
 
-        // Update return transaction (observer fires)
-        $returnTransaction->update(['notes' => json_encode([
-            'reason' => 'Updated note',
-            'amount' => 20,
-            'approved_by' => 1,
-            'approved_at' => now()->toISOString(),
-            'completed_by' => 1,
-            'completed_at' => now()->toISOString(),
-        ])]);
+        $this->assertSame(
+            0,
+            \App\Models\JournalEntry::where('source_type', $returnTransaction->getMorphClass())
+                ->where('source_id', $returnTransaction->id)->count(),
+            'Recording a return should not reach the ledger'
+        );
 
-        $entry = \App\Models\JournalEntry::where('source_type', $returnTransaction->getMorphClass())
-            ->where('source_id', $returnTransaction->id)
-            ->first();
+        // Approving raises the credit note that carries the financial side.
+        $returnTransaction->approve(1);
+
+        $creditNote = $returnTransaction->fresh()->creditNote;
+        $this->assertNotNull($creditNote, 'Credit note not raised on approval');
+
+        // Posting the note writes the reversing entry against the sale.
+        $handler = app(\App\Services\ReturnJournalHandler::class);
+        $entry   = $handler->createCustomerReturnJournal($creditNote);
+
         $this->assertNotNull($entry, 'Return journal missing');
         $this->assertEquals($entry->totalDebit(), $entry->totalCredit());
+        $this->assertTrue((bool) $entry->is_reverse, 'Return journal should be marked as a reversal');
 
-        $count = \App\Models\JournalEntry::where('source_type', $returnTransaction->getMorphClass())
-            ->where('source_id', $returnTransaction->id)->count();
+        $count = \App\Models\JournalEntry::where('source_type', $creditNote->getMorphClass())
+            ->where('source_id', $creditNote->id)->count();
         $this->assertEquals(1, $count, 'Return journal duplicated');
     }
 } 
