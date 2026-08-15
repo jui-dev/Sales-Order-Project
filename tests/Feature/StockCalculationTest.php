@@ -11,6 +11,7 @@ use App\Models\Invoice;
 use App\Models\Customer;
 use App\Services\ProductService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 class StockCalculationTest extends TestCase
 {
@@ -87,7 +88,8 @@ class StockCalculationTest extends TestCase
             'quantity' => 50,
         ]);
 
-        // Create stock transactions (should not affect available_stocks calculation)
+        // Movements do reach the balances, but not all of them and not at the
+        // same moment - see the assertion at the end of this test.
         $invoice = Invoice::factory()->create([
             'customer_id' => Customer::factory()->create()->id,
         ]);
@@ -121,9 +123,11 @@ class StockCalculationTest extends TestCase
         // Refresh the product to get updated available_stocks
         $product->refresh();
 
-        // Available stock should be: 100 + 50 = 150 (from product_stocks only)
-        // Stock transactions are not considered in the calculation
-        $this->assertEquals(150, $product->available_stocks);
+        // 100 + 50 across the two warehouses, less the 5 that went out on the
+        // order. The 10-unit customer return does not land here: StockTransactionObserver
+        // skips returns on create, so recording one leaves inventory alone
+        // until somebody approves it.
+        $this->assertEquals(145, $product->available_stocks);
     }
 
     /** @test */
@@ -193,32 +197,69 @@ class StockCalculationTest extends TestCase
     /** @test */
     public function it_recalculates_product_stock_correctly()
     {
-        // Create test data
+        // recalculateProductStock treats stock_transactions as the record of
+        // truth: it zeroes the balances and replays every completed movement.
+        // So this test corrupts the balances and checks the ledger restores them.
         $warehouse = Warehouse::factory()->create();
         $product = Product::factory()->create([
             'name' => 'Test Product',
             'sku' => 'TEST001',
-            'available_stocks' => 50, // Set incorrect initial stock
         ]);
 
-        // Create initial stock
         ProductStock::create([
             'product_id' => $product->id,
             'location_id' => $warehouse->id,
             'location_type' => Warehouse::class,
-            'quantity' => 100,
+            'quantity' => 0,
         ]);
 
-        // Use ProductService to recalculate
-        $productService = app(ProductService::class);
-        $productService->recalculateProductStock($product);
+        $invoice = Invoice::factory()->create([
+            'customer_id' => Customer::factory()->create()->id,
+        ]);
 
-        // Refresh the product
-        $product->refresh();
+        StockTransaction::create([
+            'product_id' => $product->id,
+            'location_id' => $warehouse->id,
+            'location_type' => Warehouse::class,
+            'quantity' => 100,
+            'direction' => 'inbound',
+            'transaction_type' => StockTransaction::TYPE_ADJUSTMENT,
+            'reference_type' => Invoice::class,
+            'reference_id' => $invoice->id,
+            'transaction_date' => now(),
+            'status' => 'completed',
+        ]);
 
-        // Available stock should be: 100 (from product_stocks only)
-        // Stock transactions are not considered in the calculation
-        $this->assertEquals(100, $product->available_stocks);
+        StockTransaction::create([
+            'product_id' => $product->id,
+            'location_id' => $warehouse->id,
+            'location_type' => Warehouse::class,
+            'quantity' => 30,
+            'direction' => 'outbound',
+            'transaction_type' => StockTransaction::TYPE_ORDER_FULFILLMENT,
+            'reference_type' => Invoice::class,
+            'reference_id' => $invoice->id,
+            'transaction_date' => now(),
+            'status' => 'completed',
+        ]);
+
+        // Knock both the balance and the cached figure out of line with the
+        // ledger, the drift the recalculation exists to repair.
+        DB::table('product_stocks')
+            ->where('product_id', $product->id)
+            ->update(['quantity' => 999]);
+        DB::table('products')
+            ->where('id', $product->id)
+            ->update(['available_stocks' => 999]);
+
+        app(ProductService::class)->recalculateProductStock($product->fresh());
+
+        // 100 in, 30 out - rebuilt from the movements, not from what the
+        // balance happened to say.
+        $this->assertEquals(70, $product->fresh()->available_stocks);
+        $this->assertEquals(70, DB::table('product_stocks')
+            ->where('product_id', $product->id)
+            ->value('quantity'));
     }
 
     /** @test */
