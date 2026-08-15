@@ -1,140 +1,139 @@
-<!-- Top Row: Vendors to Warehouses -->
-<div class="row text-center mb-4">
-    <!-- Vendors -->
-    <div class="col-md-3 offset-md-2">
-        <div class="flow-step">
-            <div class="flow-icon bg-primary">
-                <i class="bi bi-building text-white"></i>
-            </div>
-            <h6 class="mt-2">Vendors</h6>
-            <small class="text-muted">Supply Products</small>
-        </div>
-    </div>
-    
-    <!-- Arrow -->
-    <div class="col-md-2 d-flex align-items-center justify-content-center">
-        <i class="bi bi-arrow-right text-primary fs-3"></i>
-    </div>
-    
-    <!-- Warehouses -->
-    <div class="col-md-3">
-        <div class="flow-step">
-            <div class="flow-icon bg-success">
-                <i class="bi bi-house-fill text-white"></i>
-            </div>
-            <h6 class="mt-2">Warehouses</h6>
-            <small class="text-muted">{{ $warehouses->count() }} Active</small>
-        </div>
-    </div>
+{{--
+    Stock flow diagram.
+
+    The routes stock takes are a branch, not a line: everything arrives at a
+    warehouse, and leaves it either shipped direct through the online platform
+    or pushed out to a retailer who serves the customer locally. The old
+    version drew that with Bootstrap columns, offsets and blank spacer cells,
+    so the "arrows" never met the boxes they pointed at. One SVG on a fixed
+    coordinate grid puts every connector exactly where it belongs.
+
+    Needs $warehouses and $retailers (collections) from the parent view.
+--}}
+@php
+    // Left to right on a 900x330 grid. Every box is 170x76, so its centre is
+    // x + 85, and the connector geometry below is written against these.
+    $nodes = [
+        [
+            'x' => 16, 'y' => 127,
+            'title' => 'Vendors',
+            'sub' => 'Supply products in',
+            'fill' => '#eef3f8', 'stroke' => '#c3d5e6',
+            'ink' => '#35597f', 'ink_muted' => '#617f9d',
+        ],
+        [
+            // The hub, so it carries the only solid fill on the diagram.
+            'x' => 248, 'y' => 127,
+            'title' => 'Warehouses',
+            'sub' => $warehouses->count() . ' stock ' . \Illuminate\Support\Str::plural('location', $warehouses->count()),
+            'fill' => '#2c6e49', 'stroke' => '#2c6e49',
+            'ink' => '#ffffff', 'ink_muted' => 'rgba(255,255,255,0.78)',
+        ],
+        [
+            'x' => 480, 'y' => 28,
+            'title' => 'Online Platform',
+            'sub' => 'Shipped from warehouse',
+            'fill' => '#e9f5f4', 'stroke' => '#b5ddd8',
+            'ink' => '#227a6e', 'ink_muted' => '#4f8b84',
+        ],
+        [
+            'x' => 480, 'y' => 226,
+            'title' => 'Retailers',
+            'sub' => $retailers->count() . ' retail ' . \Illuminate\Support\Str::plural('partner', $retailers->count()),
+            'fill' => '#fdf4e6', 'stroke' => '#eeddb6',
+            'ink' => '#8f6a17', 'ink_muted' => '#8a7440',
+        ],
+        [
+            'x' => 712, 'y' => 127,
+            'title' => 'Customers',
+            'sub' => 'End recipients',
+            'fill' => '#fdeee9', 'stroke' => '#f3cec0',
+            'ink' => '#ad4d2c', 'ink_muted' => '#96604c',
+        ],
+    ];
+@endphp
+
+<div class="flow-diagram">
+    <svg class="flow-diagram__canvas" viewBox="0 0 900 330" role="img"
+         aria-labelledby="flowDiagramTitle flowDiagramDesc">
+        <title id="flowDiagramTitle">Stock flow</title>
+        <desc id="flowDiagramDesc">
+            Vendors supply the warehouses. From a warehouse, stock either ships direct to
+            customers through the online platform, or is distributed to retailers who
+            deliver to customers locally.
+        </desc>
+
+        <defs>
+            <marker id="flowArrow" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 Z" fill="#93a89e"/>
+            </marker>
+        </defs>
+
+        {{-- Connectors. Elbows are rounded so the branch reads as one path. --}}
+        <g fill="none" stroke="#b8c8c0" stroke-width="2" stroke-linecap="round">
+            <path d="M186,165 H244" marker-end="url(#flowArrow)"/>
+            <path d="M418,165 H442 Q450,165 450,157 V74 Q450,66 458,66 H476" marker-end="url(#flowArrow)"/>
+            <path d="M418,165 H442 Q450,165 450,173 V256 Q450,264 458,264 H476" marker-end="url(#flowArrow)"/>
+            <path d="M650,66 H674 Q682,66 682,74 V157 Q682,165 690,165 H708" marker-end="url(#flowArrow)"/>
+            <path d="M650,264 H674 Q682,264 682,256 V173 Q682,165 690,165 H708" marker-end="url(#flowArrow)"/>
+        </g>
+
+        {{-- What each edge does, since the box names only say where stock lands --}}
+        <g class="flow-diagram__edge-label">
+            <text x="215" y="156" text-anchor="middle">supplies</text>
+            <text x="457" y="118">ships direct</text>
+            <text x="457" y="214">distributes</text>
+        </g>
+
+        @foreach($nodes as $node)
+            <g>
+                <rect x="{{ $node['x'] }}" y="{{ $node['y'] }}" width="170" height="76" rx="12"
+                      fill="{{ $node['fill'] }}" stroke="{{ $node['stroke'] }}" stroke-width="1.5"/>
+                <text class="flow-diagram__node-title" x="{{ $node['x'] + 85 }}" y="{{ $node['y'] + 32 }}"
+                      text-anchor="middle" fill="{{ $node['ink'] }}">{{ $node['title'] }}</text>
+                <text class="flow-diagram__node-sub" x="{{ $node['x'] + 85 }}" y="{{ $node['y'] + 53 }}"
+                      text-anchor="middle" fill="{{ $node['ink_muted'] }}">{{ $node['sub'] }}</text>
+            </g>
+        @endforeach
+    </svg>
 </div>
 
-<!-- Flow Description -->
-<div class="row mb-4">
-    <div class="col-12 text-center">
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle me-2"></i>
-            <strong>Stock Flow:</strong> Products are supplied from vendors to warehouses. From warehouses, products can be delivered directly to customers (online platform) or distributed to retailers for local customer delivery.
-        </div>
-    </div>
-</div>
+@once
+@push('styles')
+<style>
+/* The diagram keeps its aspect ratio and scrolls sideways rather than
+   shrinking its labels past reading size on a narrow screen. */
+.flow-diagram {
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+}
 
-<!-- Bottom Row: Distribution from Warehouses -->
-<div class="row text-center">
-    <!-- Online Direct Sales -->
-    <div class="col-md-3">
-        <div class="flow-step">
-            <div class="flow-icon bg-info">
-                <i class="bi bi-globe text-white"></i>
-            </div>
-            <h6 class="mt-2">Online Platform</h6>
-            <small class="text-muted">Direct to Customers</small>
-        </div>
-    </div>
+.flow-diagram__canvas {
+    display: block;
+    width: 100%;
+    min-width: 620px;
+    height: auto;
+    font-family: inherit;
+}
 
-    <!-- Arrow pointing up-right to Warehouses -->
-    <div class="col-md-2 d-flex align-items-center justify-content-center">
-        <div class="d-flex flex-column align-items-center">
-            <i class="bi bi-arrow-up-right text-info fs-4"></i>
-            <small class="text-muted mt-1">Direct</small>
-        </div>
-    </div>
+.flow-diagram__node-title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
 
-    <!-- Central Warehouse (reference point) -->
-    <div class="col-md-2 d-flex align-items-center justify-content-center">
-        <div class="text-center">
-            <div class="badge bg-success fs-6 p-2">
-                <i class="bi bi-house-fill me-1"></i>Warehouse Hub
-            </div>
-        </div>
-    </div>
+.flow-diagram__node-sub {
+    font-size: 11.5px;
+    font-weight: 400;
+}
 
-    <!-- Arrow pointing down-right to Retailers -->
-    <div class="col-md-2 d-flex align-items-center justify-content-center">
-        <div class="d-flex flex-column align-items-center">
-            <i class="bi bi-arrow-down-right text-warning fs-4"></i>
-            <small class="text-muted mt-1">Distribute</small>
-        </div>
-    </div>
-
-    <!-- Retail Distribution -->
-    <div class="col-md-3">
-        <div class="flow-step">
-            <div class="flow-icon bg-warning">
-                <i class="bi bi-shop text-white"></i>
-            </div>
-            <h6 class="mt-2">Retailers</h6>
-            <small class="text-muted">{{ $retailers->count() }} Active</small>
-        </div>
-    </div>
-</div>
-
-<!-- Final Customer Delivery -->
-<div class="row text-center mt-4">
-    <div class="col-md-3">
-        <!-- Spacer for alignment -->
-    </div>
-    
-    <div class="col-md-2 d-flex align-items-center justify-content-center">
-        <!-- Direct delivery arrow -->
-    </div>
-
-    <div class="col-md-2 d-flex align-items-center justify-content-center">
-        <div class="flow-step">
-            <div class="flow-icon bg-danger">
-                <i class="bi bi-people-fill text-white"></i>
-            </div>
-            <h6 class="mt-2">Customers</h6>
-            <small class="text-muted">End Recipients</small>
-        </div>
-    </div>
-
-    <div class="col-md-2 d-flex align-items-center justify-content-center">
-        <i class="bi bi-arrow-up text-warning fs-3"></i>
-    </div>
-
-    <div class="col-md-3">
-        <!-- Spacer for alignment -->
-    </div>
-</div>
-
-<!-- Distribution Methods Summary -->
-<div class="row mt-4">
-    <div class="col-md-6">
-        <div class="card border-info">
-            <div class="card-body text-center">
-                <i class="bi bi-globe text-info fs-1 mb-2"></i>
-                <h6 class="text-info">Online Platform Distribution</h6>
-                <p class="small text-muted mb-0">Products delivered directly from warehouse to customers via online orders</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card border-warning">
-            <div class="card-body text-center">
-                <i class="bi bi-shop text-warning fs-1 mb-2"></i>
-                <h6 class="text-warning">Retail Distribution</h6>
-                <p class="small text-muted mb-0">Products delivered from warehouse to retailers, then from retailers to customers</p>
-            </div>
-        </div>
-    </div>
-</div> 
+.flow-diagram__edge-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    fill: #7d8f86;
+}
+</style>
+@endpush
+@endonce

@@ -42,25 +42,18 @@ class TransactionFlowService
 
     /**
      * Get recent stock movements
+     *
+     * Eager loads `location`, not the `stockLocation` alias: that alias is
+     * declared as morphTo('location'), so Laravel matches the eager results
+     * back onto the `location` relation while leaving `stockLocation` set to
+     * null. Loading it by its real name is what makes the location resolve.
      */
     public function getRecentMovements(): Collection
     {
-        return StockTransaction::with(['product', 'stockLocation'])
+        return StockTransaction::with(['product', 'location'])
             ->latest('transaction_date')
             ->limit(20)
-            ->get()
-            ->map(function ($txn) {
-                // Determine from/to: For inbound/outbound we may not have both; attach pseudo from/to for UI
-                $txn->fromLocation = $txn->direction === 'outbound' ? $txn->stockLocation : null;
-                $txn->toLocation = $txn->direction === 'inbound' ? $txn->stockLocation : null;
-                $txn->movement_type = match ($txn->transaction_type) {
-                    StockTransaction::TYPE_STOCK_IN => 'supply_in',
-                    StockTransaction::TYPE_STOCK_TRANSFER => 'transfer',
-                    StockTransaction::TYPE_ORDER_FULFILLMENT => 'sale',
-                    default => 'adjustment',
-                };
-                return $txn;
-            });
+            ->get();
     }
 
     /**
