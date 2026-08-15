@@ -27,6 +27,9 @@ A functional map of the system: what it does, and how each feature flows from th
 | 12 | [Stock Management & Locations](#12-stock-management--locations) | Read-only |
 | 13 | [Accounting](#13-accounting) | Working |
 | 14 | [Reports](#14-reports) | Working — some exports missing |
+| 15 | [Features present in the UI but not functional](#15-features-present-in-the-ui-but-not-functional) | Reference |
+| 16 | [Known correctness issues](#16-known-correctness-issues) | Reference |
+| 17 | [Where the logic lives](#17-where-the-logic-lives) | Reference |
 
 ---
 
