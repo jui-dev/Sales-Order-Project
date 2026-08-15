@@ -29,7 +29,10 @@
         </div>
     @endif
 
-<!-- Table Controls: DataTables' length + search land here -->
+<!-- Table Controls: DataTables' length + search land here. Hidden when there
+     are no customers, because DataTables is not initialised in that case and
+     the card would otherwise render empty. -->
+@if($customers->isNotEmpty())
 <div class="card mb-4">
     <div class="card-body">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -40,6 +43,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <div class="card">
     <div class="card-body">
@@ -116,8 +120,17 @@
 <script src="{{ asset('js/table-controls.js') }}"></script>
 
 <script>
+    // The empty-state row is a single <td colspan="5">, which DataTables reads
+    // as a one-cell data row against a five-column header and then rejects with
+    // a "Requested unknown parameter" warning. Skip initialisation entirely when
+    // there is nothing to enhance.
+    const hasCustomers = @json($customers->isNotEmpty());
+
     // Wait for both DOM and all resources to be loaded
     window.addEventListener('load', function() {
+        if (!hasCustomers) {
+            return;
+        }
         // Additional delay to ensure everything is ready
         setTimeout(function() {
             initializeDataTables();

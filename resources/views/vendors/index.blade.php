@@ -29,7 +29,10 @@
         </div>
     @endif
 
-<!-- Table Controls: DataTables' length + search land here, alongside Sort By -->
+<!-- Table Controls: DataTables' length + search land here, alongside Sort By.
+     Hidden when there are no vendors, because DataTables is not initialised in
+     that case and the card would otherwise render empty. -->
+@if($vendors->isNotEmpty())
 <div class="card mb-4">
     <div class="card-body">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -49,6 +52,7 @@
         </div>
     </div>
 </div>
+@endif
 
 <div class="card">
     <div class="card-body">
@@ -127,11 +131,21 @@
 <script src="{{ asset('js/table-controls.js') }}"></script>
 
 <script>
+    // The empty-state row is a single <td colspan="6">, which DataTables reads
+    // as a one-cell data row against a six-column header and then rejects with
+    // a "Requested unknown parameter" warning. Skip initialisation entirely when
+    // there is nothing to enhance.
+    const hasVendors = @json($vendors->isNotEmpty());
+
     // Enhanced DataTables initialization using DataTablesUtils
     function initializeDataTables() {
+        if (!hasVendors) {
+            return;
+        }
+
         try {
             console.log('Starting DataTables initialization...');
-            
+
             // Check if required dependencies are available
             if (typeof jQuery === 'undefined') {
                 console.warn('jQuery not available, retrying in 100ms');

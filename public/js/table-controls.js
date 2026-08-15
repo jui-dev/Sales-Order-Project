@@ -25,6 +25,12 @@
 (function () {
     if (!window.jQuery || !jQuery.fn || !jQuery.fn.dataTable) return;
 
+    // DataTables reports internal warnings through a blocking alert() by
+    // default, which turns a cosmetic markup mismatch into a modal error popup
+    // in front of the user. Route them to the console instead, where they stay
+    // visible to developers without interrupting the page.
+    jQuery.fn.dataTable.ext.errMode = 'throw';
+
     jQuery.extend(true, jQuery.fn.dataTable.defaults, {
         language: {
             info: 'Showing <strong>_START_</strong>&ndash;<strong>_END_</strong> of <strong>_TOTAL_</strong> results',
