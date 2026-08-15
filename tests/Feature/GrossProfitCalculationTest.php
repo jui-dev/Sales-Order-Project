@@ -23,7 +23,10 @@ class GrossProfitCalculationTest extends TestCase
         $product = Product::factory()->create([
             'purchase_price' => 50.00,
             'selling_price' => 75.00,
-            'gross_profit' => null, // Start with null
+            // Start with nothing recorded. The column is NOT NULL DEFAULT 0.00
+            // since 2025_07_27_084804_fix_products_pricing_defaults, so zero is
+            // how "not calculated yet" is spelled.
+            'gross_profit' => 0,
         ]);
 
         // Create an order with one item
@@ -67,7 +70,7 @@ class GrossProfitCalculationTest extends TestCase
         $product = Product::factory()->create([
             'purchase_price' => 30.00,
             'selling_price' => 45.00,
-            'gross_profit' => null,
+            'gross_profit' => 0,
         ]);
 
         // Create an order with multiple quantities
@@ -111,7 +114,7 @@ class GrossProfitCalculationTest extends TestCase
         $product = Product::factory()->create([
             'purchase_price' => 50.00,
             'selling_price' => 75.00,
-            'gross_profit' => null,
+            'gross_profit' => 0,
         ]);
 
         // Product has no orders, so GP should be null
