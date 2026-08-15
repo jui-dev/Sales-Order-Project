@@ -56,11 +56,16 @@ class OrderController extends Controller
             $emptyOrders = \App\Models\Order::paginate(25);
             $emptyOrders->setCollection(collect());
 
+            // Flashed for this request only. View::with() would bind an $error
+            // view variable, but the layout and the page both read the message
+            // off the session, so the banner never rendered.
+            session()->now('error', 'Unable to load orders. Please try again later.');
+
             return view('orders.index', [
                 'orders' => $emptyOrders,
                 'filterOptions' => $this->service->getFilterOptions(),
                 'sortOptions' => $this->service->getSortOptions()
-            ])->with('error', 'Unable to load orders. Please try again later.');
+            ]);
         }
     }
 

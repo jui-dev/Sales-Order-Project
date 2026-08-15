@@ -2,24 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\DataNotFoundException;
 use App\Http\Requests\StoreSupplyRequest;
 use App\Http\Requests\UpdateSupplyRequest;
 use App\Models\Supply;
 use App\Services\SupplyService;
-use App\Exceptions\DataNotFoundException;
 use App\Traits\HasApiResponses;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
-use Illuminate\Http\JsonResponse;
 
 class SupplyController extends Controller
 {
     use HasApiResponses;
 
-    public function __construct(private readonly SupplyService $service)
-    {
-    }
+    public function __construct(private readonly SupplyService $service) {}
 
     public function index(Request $request): View
     {
@@ -41,12 +39,17 @@ class SupplyController extends Controller
 
             return view('supplies.index', compact('supplies', 'filterOptions', 'sortOptions'));
         } catch (\Exception $e) {
-            \Log::error('Error loading supplies: ' . $e->getMessage());
+            \Log::error('Error loading supplies: '.$e->getMessage());
+            // Flashed for this request only. View::with() would bind an $error
+            // view variable, but the layout reads the message off the session,
+            // so the toast never rendered.
+            session()->now('error', 'Unable to load supplies. Please try again later.');
+
             return view('supplies.index', [
                 'supplies' => collect(),
                 'filterOptions' => [],
-                'sortOptions' => []
-            ])->with('error', 'Unable to load supplies. Please try again later.');
+                'sortOptions' => [],
+            ]);
         }
     }
 
@@ -56,7 +59,7 @@ class SupplyController extends Controller
     public function apiIndex(Request $request): JsonResponse
     {
         return $this->handlePaginatedApiOperation(
-            function() use ($request) {
+            function () use ($request) {
                 $filters = [
                     'search' => $request->get('search'),
                     'status' => $request->get('status'),
@@ -69,6 +72,7 @@ class SupplyController extends Controller
                 ];
 
                 $perPage = $request->get('per_page', 20);
+
                 return $this->service->getFilteredSupplies($filters, $perPage);
             },
             'supplies',
@@ -82,7 +86,7 @@ class SupplyController extends Controller
     public function apiShow(int $id): JsonResponse
     {
         return $this->handleSingleItemApiOperation(
-            function() use ($id) {
+            function () use ($id) {
                 return $this->service->get($id);
             },
             'supply',
@@ -100,13 +104,19 @@ class SupplyController extends Controller
 
             return view('supplies.create', compact('vendors', 'warehouses', 'products', 'categories'));
         } catch (\Exception $e) {
-            \Log::error('Error loading supply creation form: ' . $e->getMessage());
+            \Log::error('Error loading supply creation form: '.$e->getMessage());
+
+            // Flashed for this request only. View::with() would bind an $error
+            // view variable, but the layout reads the message off the session,
+            // so the toast never rendered.
+            session()->now('error', 'Unable to load form data. Please try again later.');
+
             return view('supplies.create', [
                 'vendors' => collect(),
                 'warehouses' => collect(),
                 'products' => collect(),
-                'categories' => collect()
-            ])->with('error', 'Unable to load form data. Please try again later.');
+                'categories' => collect(),
+            ]);
         }
     }
 
@@ -114,6 +124,7 @@ class SupplyController extends Controller
     {
         try {
             $this->service->createWithItems($request->validated());
+
             return redirect()->route('supplies.index')->with('success', 'Supply created successfully.');
         } catch (\Exception $e) {
             return back()->withInput()->with('error', 'Unable to create supply. Please try again.');
@@ -124,6 +135,7 @@ class SupplyController extends Controller
     {
         try {
             $this->service->complete($id);
+
             return back()->with('success', 'Supply marked as completed successfully.');
         } catch (DataNotFoundException $e) {
             return redirect()->route('supplies.index')
@@ -137,6 +149,7 @@ class SupplyController extends Controller
     {
         try {
             $this->service->confirm($id);
+
             return back()->with('success', 'Supply confirmed successfully.');
         } catch (DataNotFoundException $e) {
             return redirect()->route('supplies.index')
@@ -150,12 +163,14 @@ class SupplyController extends Controller
     {
         try {
             $supply = $this->service->get($id);
+
             return view('supplies.show', compact('supply'));
         } catch (DataNotFoundException $e) {
             return redirect()->route('supplies.index')
                 ->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            \Log::error('Error loading supply: ' . $e->getMessage());
+            \Log::error('Error loading supply: '.$e->getMessage());
+
             return redirect()->route('supplies.index')
                 ->with('error', 'Unable to load supply details. Please try again later.');
         }
@@ -174,7 +189,8 @@ class SupplyController extends Controller
             return redirect()->route('supplies.index')
                 ->with('error', $e->getMessage());
         } catch (\Exception $e) {
-            \Log::error('Error loading supply for edit: ' . $e->getMessage());
+            \Log::error('Error loading supply for edit: '.$e->getMessage());
+
             return redirect()->route('supplies.index')
                 ->with('error', 'Unable to load supply for editing. Please try again later.');
         }
@@ -184,6 +200,7 @@ class SupplyController extends Controller
     {
         try {
             $this->service->update($id, $request->validated());
+
             return redirect()->route('supplies.show', $id)->with('success', 'Supply updated successfully.');
         } catch (DataNotFoundException $e) {
             return redirect()->route('supplies.index')
@@ -197,6 +214,7 @@ class SupplyController extends Controller
     {
         try {
             $this->service->delete($id);
+
             return redirect()->route('supplies.index')->with('success', 'Supply deleted successfully.');
         } catch (DataNotFoundException $e) {
             return redirect()->route('supplies.index')
@@ -206,4 +224,4 @@ class SupplyController extends Controller
                 ->with('error', 'Unable to delete supply. Please try again.');
         }
     }
-} 
+}

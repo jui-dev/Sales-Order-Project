@@ -49,11 +49,16 @@ class ProductController extends Controller
             $emptyProducts = \App\Models\Product::paginate(20);
             $emptyProducts->setCollection(collect());
 
+            // Flashed for this request only. View::with() would bind an $error
+            // view variable, but the layout reads the message off the session,
+            // so the toast never rendered.
+            session()->now('error', 'Unable to load products. Please try again later.');
+
             return view('products.index', [
                 'products' => $emptyProducts,
                 'filterOptions' => $this->service->getFilterOptions(),
                 'sortOptions' => $this->service->getSortOptions()
-            ])->with('error', 'Unable to load products. Please try again later.');
+            ]);
         }
     }
 

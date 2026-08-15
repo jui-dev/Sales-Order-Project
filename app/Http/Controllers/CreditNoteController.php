@@ -90,6 +90,11 @@ class CreditNoteController extends Controller
                 'expired' => 'Expired',
             ];
             
+            // Flashed for this request only. View::with() would bind an $error
+            // view variable, but the layout reads the message off the session,
+            // so the toast never rendered.
+            session()->now('error', 'Unable to load credit notes. Please try again later.');
+
             return view('credit-notes.index', [
                 'creditNotes' => $emptyCreditNotes,
                 'filterOptions' => $this->creditNoteService->getFilterOptions(),
@@ -98,7 +103,7 @@ class CreditNoteController extends Controller
                 'statistics' => $statistics,
                 'customers' => $customers,
                 'statusOptions' => $statusOptions
-            ])->with('error', 'Unable to load credit notes. Please try again later.');
+            ]);
         }
     }
 

@@ -29,11 +29,16 @@ class CustomerController extends Controller
         } catch (\Exception $e) {
             // Log the error but show a user-friendly message
             \Log::error('Error loading customers: ' . $e->getMessage());
+            // Flashed for this request only. View::with() would bind an $error
+            // view variable, but the layout and the page both read the message
+            // off the session, so the banner never rendered.
+            session()->now('error', 'Unable to load customers. Please try again later.');
+
             return view('customers.index', [
                 'customers' => collect(),
                 'filterOptions' => $this->service->getFilterOptions(),
                 'sortOptions' => $this->service->getSortOptions()
-            ])->with('error', 'Unable to load customers. Please try again later.');
+            ]);
         }
     }
 

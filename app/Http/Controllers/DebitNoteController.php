@@ -89,13 +89,18 @@ class DebitNoteController extends Controller
                 'expired' => 'Expired',
             ];
             
+            // Flashed for this request only. View::with() would bind an $error
+            // view variable, but the layout reads the message off the session,
+            // so the toast never rendered.
+            session()->now('error', 'Unable to load debit notes. Please try again later.');
+
             return view('debit-notes.index', compact(
                 'debitNotes',
                 'statistics',
                 'vendors',
                 'statusOptions',
                 'filters'
-            ))->with('error', 'Unable to load debit notes. Please try again later.');
+            ));
         }
     }
 
