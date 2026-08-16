@@ -691,13 +691,22 @@ class StockTransaction extends Model
                 $this->generateDebitNote();
                 break;
             case self::TYPE_RETAILER_RETURN:
-                // No internal return note needed for retailer returns (no financial transactions)
+                // No note is raised - nothing is owed either way - but the value
+                // still has to move back between the inventory sub-accounts that
+                // the original transfer moved it out of.
+                $this->generateRetailerReturnJournal();
                 break;
         }
     }
 
     /**
-     * Generate credit note for customer returns
+     * Generate credit note for customer returns.
+     *
+     * The failure is logged and then rethrown. It used to be swallowed, which
+     * left an approved return with its stock already moved and no credit note
+     * anywhere - and the screen still said the approval had succeeded.
+     * ReturnService::approveReturn() runs this inside a transaction, so letting
+     * it out rolls back the status and the stock together.
      */
     private function generateCreditNote(): void
     {
@@ -709,11 +718,32 @@ class StockTransaction extends Model
                 'return_id' => $this->id,
                 'error' => $e->getMessage()
             ]);
+
+            throw $e;
         }
     }
 
     /**
-     * Generate debit note for vendor returns
+     * Move the inventory value back between location sub-accounts for a
+     * retailer return. Rethrows for the same reason as generateCreditNote().
+     */
+    private function generateRetailerReturnJournal(): void
+    {
+        try {
+            app(\App\Services\ReturnJournalHandler::class)->createRetailerReturnJournal($this);
+        } catch (\Exception $e) {
+            \Log::error('Failed to generate retailer return journal: ' . $e->getMessage(), [
+                'return_id' => $this->id,
+                'error' => $e->getMessage()
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Generate debit note for vendor returns. Rethrows for the same reason as
+     * generateCreditNote() above.
      */
     private function generateDebitNote(): void
     {
@@ -725,6 +755,8 @@ class StockTransaction extends Model
                 'return_id' => $this->id,
                 'error' => $e->getMessage()
             ]);
+
+            throw $e;
         }
     }
 

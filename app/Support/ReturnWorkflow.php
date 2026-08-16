@@ -14,9 +14,11 @@ use App\Models\StockTransaction;
  *
  *     Record Return -> Approve -> Credit/Debit Note -> Post to Ledger
  *
- * Retailer returns are an internal stock move with no financial side at all
- * (StockTransaction::generateReturnNotes() deliberately does nothing for them),
- * so they run:
+ * Retailer returns raise no note, because nothing is owed either way. They do
+ * still post a journal entry moving the inventory value back between location
+ * sub-accounts (StockTransaction::generateReturnNotes() -> ReturnJournalHandler
+ * ::createRetailerReturnJournal()), but there is no note to settle, so the rail
+ * ends at approval:
  *
  *     Record Return -> Approve & Move Stock
  *

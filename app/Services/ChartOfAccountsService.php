@@ -23,6 +23,10 @@ class ChartOfAccountsService
                 // looked equivalent because MySQL compares them case-insensitively;
                 // on a case-sensitive database the lookup missed the existing row
                 // and the insert then breached the unique index on name.
+                // 5100 and 5200 are the two accounts the return journals post to.
+                // They were missing here while ChartOfAccountsSeeder had them, so a
+                // database bootstrapped through this path made every credit- and
+                // debit-note journal fail with "Account not found for line."
                 $defaultAccounts = [
                     ['code' => '1000', 'name' => 'Cash', 'type' => 'Asset', 'description' => 'Cash on hand and in bank'],
                     ['code' => '1100', 'name' => 'Accounts Receivable', 'type' => 'Asset', 'description' => 'Amounts owed by customers'],
@@ -31,6 +35,8 @@ class ChartOfAccountsService
                     ['code' => '3000', 'name' => 'Retained Earnings', 'type' => 'Equity', 'description' => 'Accumulated profits'],
                     ['code' => '4000', 'name' => 'Sales Revenue', 'type' => 'Revenue', 'description' => 'Revenue from sales'],
                     ['code' => '5000', 'name' => 'Cost of Goods Sold', 'type' => 'Expense', 'description' => 'Cost of products sold'],
+                    ['code' => '5100', 'name' => 'Purchase Returns', 'type' => 'Expense', 'is_contra' => true, 'description' => 'Reductions in expenses due to product returns to vendors'],
+                    ['code' => '5200', 'name' => 'Sales Returns & Allowances', 'type' => 'Revenue', 'is_contra' => true, 'description' => 'Reductions in revenue due to product returns or sales discounts granted'],
                 ];
 
                 foreach ($defaultAccounts as $accountData) {
@@ -41,6 +47,7 @@ class ChartOfAccountsService
                         [
                             'name' => $accountData['name'],
                             'account_type_id' => $accountType->id,
+                            'is_contra' => $accountData['is_contra'] ?? false,
                             'description' => $accountData['description'],
                         ]
                     );

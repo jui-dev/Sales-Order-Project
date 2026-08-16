@@ -7,7 +7,9 @@ use App\Models\DebitNote;
 use App\Models\JournalEntry;
 use App\Models\AuditLog;
 use App\Models\Invoice;
+use App\Models\StockTransaction;
 use App\Models\SupplierBill;
+use App\Support\InventoryLocationAccount;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -251,6 +253,105 @@ class ReturnJournalHandler
                     'original_purchase_journal' => $originalPurchaseJournal->formatted_id,
                     'reverses_journal_id' => $originalPurchaseJournal->id,
                     'linked_debit_note_id' => $debitNote->id,
+                ],
+            ]);
+
+            return $journalEntry;
+        });
+    }
+
+    /**
+     * Create the journal entry for a retailer return.
+     *
+     * A retailer return is the exact mirror of the warehouse -> retailer
+     * transfer that put the goods there, so it posts the mirror entry:
+     *
+     *     Dr 1200-WH{warehouse}   (stock is back in the warehouse)
+     *     Cr 1200-RT{retailer}    (the retailer no longer holds it)
+     *
+     * Nothing is bought or sold, so no revenue, expense or COGS account is
+     * involved - the value simply moves back between two inventory
+     * sub-accounts. This used to post nothing at all, which left the value
+     * stranded against the retailer for goods sitting in the warehouse.
+     */
+    public function createRetailerReturnJournal(StockTransaction $return): ?JournalEntry
+    {
+        if (! $return->isRetailerReturn()) {
+            throw new \InvalidArgumentException('Only retailer returns can post a retailer return journal');
+        }
+
+        // One entry per return, whatever else happens to the row afterwards.
+        $existing = JournalEntry::where('source_type', $return->getMorphClass())
+            ->where('source_id', $return->getKey())
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $transfer = $return->stockTransfer;
+        if (! $transfer) {
+            throw new \Exception('No stock transfer found for this retailer return.');
+        }
+
+        $fromCode = InventoryLocationAccount::codeFor($return->location_type, (int) $return->location_id);
+        $toCode   = InventoryLocationAccount::codeFor($transfer->from_location_type, (int) $transfer->from_location_id);
+
+        // Same location both sides means there is no value to move.
+        if ($fromCode === $toCode) {
+            return null;
+        }
+
+        // Valued the same way the outbound transfer was, so the two halves of
+        // the round trip cancel when the price has not moved in between.
+        $totalCost = round($return->quantity * ($return->product->purchase_price ?? 0), 2);
+
+        // AccountingService rejects a zero-total entry, and a product with no
+        // purchase price carries no inventory value to move.
+        if ($totalCost <= 0) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($return, $transfer, $fromCode, $toCode, $totalCost) {
+            InventoryLocationAccount::ensure($return->location_type, (int) $return->location_id);
+            InventoryLocationAccount::ensure($transfer->from_location_type, (int) $transfer->from_location_id);
+
+            $journalEntry = $this->accountingService->post(
+                [
+                    [
+                        'account_code' => $fromCode,
+                        'debit'        => 0,
+                        'credit'       => $totalCost,
+                        'description'  => "Retailer Return - Stock out of retailer #{$return->formatted_id}",
+                    ],
+                    [
+                        'account_code' => $toCode,
+                        'debit'        => $totalCost,
+                        'credit'       => 0,
+                        'description'  => "Retailer Return - Stock back into warehouse #{$return->formatted_id}",
+                    ],
+                ],
+                $return->transaction_date ? Carbon::parse($return->transaction_date) : Carbon::now(),
+                "Retailer Return - Reverse Stock Transfer #{$return->formatted_id}",
+                $return,
+                'draft'
+            );
+
+            $journalEntry->update([
+                'is_reverse' => true,
+            ]);
+
+            AuditLog::create([
+                'user_id' => auth()->id() ?? 1,
+                'action' => 'retailer_return_journal_created',
+                'description' => "Retailer return journal entry #{$journalEntry->formatted_id} created for return #{$return->formatted_id}. Moves inventory value from {$fromCode} back to {$toCode}.",
+                'subject_type' => $return->getMorphClass(),
+                'subject_id' => $return->getKey(),
+                'metadata' => [
+                    'stock_transfer_id' => $transfer->id,
+                    'from_account' => $fromCode,
+                    'to_account' => $toCode,
+                    'total_cost' => $totalCost,
                 ],
             ]);
 

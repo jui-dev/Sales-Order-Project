@@ -9,6 +9,7 @@ use App\Models\ProductStock;
 use App\Models\Warehouse;
 use App\Models\Vendor;
 use App\Models\SupplierBill;
+use App\Models\SupplierBillItem;
 use App\Models\Grn;
 use App\Models\Supply;
 use App\Services\ReturnService;
@@ -55,6 +56,17 @@ class VendorReturnStockManagementTest extends TestCase
             'vendor_id' => $this->vendor->id,
             'grn_id' => $this->grn->id,
             'status' => 'posted',
+        ]);
+
+        // The bill has to carry the line being returned: approving a vendor
+        // return raises a debit note from it, and that now fails loudly rather
+        // than leaving the return approved with no note behind it.
+        SupplierBillItem::create([
+            'supplier_bill_id' => $this->supplierBill->id,
+            'product_id' => $this->product->id,
+            'quantity' => 100,
+            'unit_cost' => 25.00,
+            'subtotal' => 2500.00,
         ]);
 
         // Add initial stock to warehouse

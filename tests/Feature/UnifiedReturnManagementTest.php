@@ -10,7 +10,9 @@ use App\Models\Vendor;
 use App\Models\Retailer;
 use App\Models\Warehouse;
 use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Models\SupplierBill;
+use App\Models\SupplierBillItem;
 use App\Models\StockTransfer;
 use App\Models\User;
 use App\Services\ReturnService;
@@ -61,18 +63,33 @@ class UnifiedReturnManagementTest extends TestCase
             'name' => 'Test Warehouse',
         ]);
         
-        // Create test invoice
+        // Create test invoice. It has to carry the line being returned:
+        // approving a return raises its note from that line, and a missing line
+        // now fails the approval outright instead of passing silently.
         $this->invoice = Invoice::factory()->create([
             'customer_id' => $this->customer->id,
             'payment_status' => 'paid',
         ]);
+        InvoiceItem::factory()->create([
+            'invoice_id' => $this->invoice->id,
+            'product_id' => $this->product->id,
+            'quantity' => 100,
+            'unit_price' => 75.00,
+        ]);
 
-        // Create test supplier bill
+        // Create test supplier bill, with the matching line for the same reason.
         $this->supplierBill = SupplierBill::factory()->create([
             'vendor_id' => $this->vendor->id,
             'status' => 'posted',
         ]);
-        
+        SupplierBillItem::create([
+            'supplier_bill_id' => $this->supplierBill->id,
+            'product_id' => $this->product->id,
+            'quantity' => 100,
+            'unit_cost' => 25.00,
+            'subtotal' => 2500.00,
+        ]);
+
         // Create test stock transfer
         $this->stockTransfer = StockTransfer::factory()->create([
             'from_location_type' => Warehouse::class,

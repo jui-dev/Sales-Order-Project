@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Models\StockTransfer;
 use App\Models\JournalEntry;
 use App\Services\AccountingService;
+use App\Support\InventoryLocationAccount;
 use Illuminate\Support\Facades\App;
 
 class StockTransferObserver
@@ -38,44 +39,16 @@ class StockTransferObserver
         // -----------------------------------------------------------------
         // Post General-Ledger entry – move inventory value between locations
         // -----------------------------------------------------------------
-        // We maintain sub-accounts under the main Inventory account (1200) so
-        // that each warehouse / retailer carries its own balance. The account
-        // code pattern is:  1200-<PREFIX><ID>  e.g. 1200-WH1, 1200-RT3
-        //
-        // • Warehouse  → prefix WH
-        // • Retailer   → prefix RT
-        // • Fallback   → prefix LO (generic “Location”)
+        // The 1200-<PREFIX><ID> sub-account convention lives in
+        // InventoryLocationAccount, because the retailer-return journal has to
+        // resolve the very same codes to move this value back again.
         //
         // If either side resolves to the SAME account code we skip posting as
         // there is no GL impact (rare but possible e.g. incorrect data).
 
-        /** @var \App\Models\AccountType $assetType */
-        $assetType = \App\Models\AccountType::firstOrCreate(['name' => 'Asset']);
-
-        /** @var \App\Models\Account|null $inventoryParent */
-        $inventoryParent = \App\Models\Account::where('code', '1200')->first();
-
-        // from/to_location_type stores the model FQCN (e.g. App\Models\Warehouse),
-        // so match on the class names rather than lowercase labels.
-        $buildCode = function (?string $type, ?int $id): string {
-            $prefix = match ($type) {
-                \App\Models\Warehouse::class => 'WH',
-                \App\Models\Retailer::class  => 'RT',
-                default                      => 'LO',
-            };
-            return '1200-' . $prefix . (string) $id;
-        };
-
-        $buildName = function (?string $type, ?int $id): string {
-            return match ($type) {
-                \App\Models\Warehouse::class => "Inventory – Warehouse #{$id}",
-                \App\Models\Retailer::class  => "Inventory – Retailer #{$id}",
-                default                      => "Inventory – Location #{$id}",
-            };
-        };
-
-        $fromCode = $buildCode($transfer->from_location_type, $transfer->from_location_id);
-        $toCode   = $buildCode($transfer->to_location_type,   $transfer->to_location_id);
+        // from/to_location_type stores the model FQCN (e.g. App\Models\Warehouse).
+        $fromCode = InventoryLocationAccount::codeFor($transfer->from_location_type, $transfer->from_location_id);
+        $toCode   = InventoryLocationAccount::codeFor($transfer->to_location_type,   $transfer->to_location_id);
 
         // If both accounts are identical, no GL movement is required.
         if ($fromCode === $toCode) {
@@ -83,18 +56,8 @@ class StockTransferObserver
         }
 
         // Ensure both sub-accounts exist before posting.
-        foreach ([[$fromCode, $transfer->from_location_type, $transfer->from_location_id], [$toCode, $transfer->to_location_type, $transfer->to_location_id]] as [$code, $type, $id]) {
-            \App\Models\Account::firstOrCreate(
-                ['code' => $code],
-                [
-                    'name'             => $buildName($type, $id),
-                    'account_type_id'  => $assetType->id,
-                    'parent_id'        => $inventoryParent?->id,
-                    'opening_balance'  => 0,
-                    'is_contra'        => false,
-                ]
-            );
-        }
+        InventoryLocationAccount::ensure($transfer->from_location_type, $transfer->from_location_id);
+        InventoryLocationAccount::ensure($transfer->to_location_type,   $transfer->to_location_id);
 
         /** @var AccountingService $acct */
         $acct = App::make(AccountingService::class);

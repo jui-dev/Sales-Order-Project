@@ -341,8 +341,9 @@
                 @elseif($isCancelled)
                     This return was cancelled before approval, so inventory was never touched.
                 @elseif($isRetailer)
-                    The stock has moved from {{ $fromName }} to {{ $toName }}. This is an internal
-                    transfer, so there is no journal entry and nothing further to do.
+                    The stock has moved from {{ $fromName }} to {{ $toName }}. Nothing is owed either way,
+                    so no note is raised — but a draft journal entry moves the inventory value back with it,
+                    ready to be posted from the journal entries screen.
                 @elseif($note)
                     The stock has moved and {{ $note->formatted_id }} was raised for
                     ${{ number_format($note->total_amount ?? 0, 2) }}. Posting it to the ledger is done

@@ -152,25 +152,31 @@ class DebitNoteService
                         throw new \Exception('Original supplier bill item not found for this product');
                     }
 
-                    // Validate unit price
-                    if (empty($supplierBillItem->unit_price) || $supplierBillItem->unit_price <= 0) {
-                        // Try to get unit price from product
-                        $product = $returnTransaction->product;
-                        $unitPrice = $product->cost_price ?? $product->purchase_price ?? 0;
-                        
+                    // What the vendor actually billed for this line. The column is
+                    // `unit_cost` - this used to read `unit_price`, which does not
+                    // exist on supplier_bill_items, so the check below was always
+                    // true and every debit note silently fell back to the product's
+                    // current purchase price instead of the price on the bill.
+                    if (empty($supplierBillItem->unit_cost) || $supplierBillItem->unit_cost <= 0) {
+                        // Fall back to what the product costs today. Only reachable
+                        // when the bill line itself carries no cost.
+                        $unitPrice = $returnTransaction->product->purchase_price ?? 0;
+                        $priceSource = 'product_fallback';
+
                         if ($unitPrice <= 0) {
-                            throw new \Exception('Unable to determine unit price for debit note calculation. Please ensure the supplier bill item has a valid unit price or the product has a cost price.');
+                            throw new \Exception('Unable to determine unit price for debit note calculation. Please ensure the supplier bill item has a valid unit cost or the product has a purchase price.');
                         }
-                        
+
                         // Log the fallback for audit purposes
-                        \Log::info('Using product cost price as fallback for debit note calculation', [
+                        \Log::info('Using product purchase price as fallback for debit note calculation', [
                             'return_id' => $returnTransaction->id,
                             'product_id' => $returnTransaction->product_id,
                             'supplier_bill_item_id' => $supplierBillItem->id,
                             'fallback_price' => $unitPrice
                         ]);
                     } else {
-                        $unitPrice = $supplierBillItem->unit_price;
+                        $unitPrice = $supplierBillItem->unit_cost;
+                        $priceSource = 'supplier_bill';
                     }
 
                     // Calculate debit amount (use original supplier bill price or fallback)
@@ -207,7 +213,7 @@ class DebitNoteService
                             'original_unit_price' => $unitPrice,
                             'supplier_bill_item_id' => $supplierBillItem->id,
                             'return_reason' => $returnTransaction->notes,
-                            'price_source' => empty($supplierBillItem->unit_price) ? 'product_fallback' : 'supplier_bill',
+                            'price_source' => $priceSource,
                         ],
                     ]);
 
@@ -231,7 +237,7 @@ class DebitNoteService
                         'product_metadata' => [
                             'return_transaction_id' => $returnTransaction->id,
                             'return_reason' => $returnTransaction->notes,
-                            'price_source' => empty($supplierBillItem->unit_price) ? 'product_fallback' : 'supplier_bill',
+                            'price_source' => $priceSource,
                         ],
                         'created_by' => Auth::id(),
                     ]);

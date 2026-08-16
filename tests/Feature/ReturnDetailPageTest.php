@@ -207,7 +207,14 @@ class ReturnDetailPageTest extends TestCase
         $response->assertOk();
         // The stock move is the whole job, so there is nothing left to complete.
         $response->assertDontSee('Mark as Completed');
-        $response->assertSee('there is no journal entry and nothing further to do');
+        $response->assertSee('no note is raised', false);
+
+        // No note, but the inventory value still moves back with the goods.
+        $this->assertDatabaseHas('journal_entries', [
+            'source_type' => $return->getMorphClass(),
+            'source_id'   => $return->getKey(),
+            'status'      => 'draft',
+        ]);
     }
 
     /** @test */
