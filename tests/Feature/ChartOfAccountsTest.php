@@ -26,8 +26,15 @@ class ChartOfAccountsTest extends TestCase
         // Should not contain the create form. assertSee escapes its needle by
         // default, so raw markup has to be matched with escaping turned off -
         // otherwise this passes whether the form is on the page or not.
+        //
+        // Matched on the store endpoint rather than on `form method="POST"`:
+        // the layout carries a sign-out form on every page now, so the looser
+        // needle would fail here regardless of what this page renders.
         $response->assertDontSee('Create Account Form');
-        $response->assertDontSee('form method="POST"', false);
+        $response->assertDontSee(
+            'action="' . route('accounting.chart-of-accounts.store') . '"',
+            false
+        );
         
         // Should contain the Create Account button
         $response->assertSee('Create Account');

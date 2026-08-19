@@ -100,6 +100,19 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.15);
             min-height: var(--navbar-height);
         }
+        /* Keep the signed-in user block below the navigation rather than floating
+           mid-sidebar: the body takes the slack so the footer sits at the bottom
+           on short menus, and is simply pushed along on tall ones. */
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-nav .offcanvas-body {
+            flex: 1 0 auto;
+        }
+        .sidebar-user {
+            flex-shrink: 0;
+        }
         /* custom.css forces .btn { width: 100% } under 576px; keep the toggle compact */
         .navbar .btn {
             width: auto;
@@ -220,27 +233,37 @@
                     $stockOpen = request()->routeIs('stock-management.*', 'stock-locations.*', 'picking.transaction-flow');
                     $salesOrderOpen = request()->routeIs('orders.*', 'invoices.*', 'payments.*');
                     $accountingOpen = request()->routeIs('accounting.*', 'journal-entries.*', 'audit-logs.*', 'reports.trial-balance', 'reports.income-statement', 'reports.balance-sheet', 'reports.cash-flow');
+                    $adminOpen = request()->routeIs('users.*');
                 @endphp
                 <ul class="navbar-nav flex-column" id="sidebarAccordion">
                     <!-- Dashboard -->
+                    @can('dashboard.view')
                     <li class="nav-item">
                         <a class="nav-link px-3{{ $navActive('dashboard') }}" href="{{ route('dashboard') }}">
                             <i class="bi bi-speedometer2 me-2"></i>Dashboard
                         </a>
                     </li>
+                    @endcan
 
                     <!-- Master Data -->
+                    @can('products.view')
                     <li class="nav-item">
                         <a class="nav-link px-3{{ $navActive('products.*') }}" href="{{ route('products.index') }}"><i class="bi bi-box me-2"></i>Products</a>
                     </li>
+                    @endcan
+                    @can('vendors.view')
                     <li class="nav-item">
                         <a class="nav-link px-3{{ $navActive('vendors.*') }}" href="{{ route('vendors.index') }}"><i class="bi bi-building me-2"></i>Vendors</a>
                     </li>
+                    @endcan
+                    @can('customers.view')
                     <li class="nav-item">
                         <a class="nav-link px-3{{ $navActive('customers.*') }}" href="{{ route('customers.index') }}"><i class="bi bi-people me-2"></i>Customers</a>
                     </li>
+                    @endcan
 
                     <!-- Procurement -->
+                    @can('supplies.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#procurementMenu" role="button" aria-expanded="{{ $procurementOpen ? 'true' : 'false' }}" aria-controls="procurementMenu">
                             <span><i class="bi bi-cart-check me-2"></i>Procurement</span>
@@ -255,8 +278,10 @@
                             </ul>
                         </div>
                     </li>
+                    @endcan
 
                     <!-- Picking & Transfers -->
+                    @can('picking.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#pickingMenu" role="button" aria-expanded="{{ $pickingOpen ? 'true' : 'false' }}" aria-controls="pickingMenu">
                             <span><i class="bi bi-list-check me-2"></i>Picking & Transfers</span>
@@ -272,8 +297,10 @@
                             </ul>
                         </div>
                     </li>
+                    @endcan
 
                     <!-- Returns -->
+                    @can('returns.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#returnsMenu" role="button" aria-expanded="{{ $returnsOpen ? 'true' : 'false' }}" aria-controls="returnsMenu">
                             <span><i class="bi bi-arrow-return-left me-2"></i>Returns</span>
@@ -290,8 +317,10 @@
                             </ul>
                         </div>
                     </li>
+                    @endcan
 
                     <!-- Stock Management -->
+                    @can('stock-management.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#stockMenu" role="button" aria-expanded="{{ $stockOpen ? 'true' : 'false' }}" aria-controls="stockMenu">
                             <span><i class="bi bi-boxes me-2"></i>Stock Management</span>
@@ -305,8 +334,10 @@
                             </ul>
                         </div>
                     </li>
+                    @endcan
 
                     <!-- Sales Order -->
+                    @can('orders.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#salesOrderMenu" role="button" aria-expanded="{{ $salesOrderOpen ? 'true' : 'false' }}" aria-controls="salesOrderMenu">
                             <span><i class="bi bi-cart me-2"></i>Sales Order</span>
@@ -320,8 +351,10 @@
                             </ul>
                         </div>
                     </li>
+                    @endcan
 
                     <!-- Accounting -->
+                    @can('accounting.view')
                     <li class="nav-item mt-3">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#accountingMenu" role="button" aria-expanded="{{ $accountingOpen ? 'true' : 'false' }}" aria-controls="accountingMenu">
                             <span><i class="bi bi-journal-bookmark me-2"></i>Accounting</span>
@@ -340,14 +373,53 @@
                             </ul>
                         </div>
                     </li>
+                    @endcan
 
                     <!-- Reports -->
+                    @can('reports.view')
                     <li class="nav-item">
                         <a class="nav-link px-3{{ $navActive('reports.daily-profit') }}" href="{{ route('reports.daily-profit') }}"><i class="bi bi-file-earmark-bar-graph me-2"></i>Daily Profit</a>
                     </li>
+                    @endcan
+
+                    <!-- Administration -->
+                    @can('users.view')
+                    <li class="nav-item mt-3">
+                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#adminMenu" role="button" aria-expanded="{{ $adminOpen ? 'true' : 'false' }}" aria-controls="adminMenu">
+                            <span><i class="bi bi-gear me-2"></i>Administration</span>
+                            <i class="bi bi-chevron-down small"></i>
+                        </a>
+                        <div class="collapse{{ $adminOpen ? ' show' : '' }}" id="adminMenu" data-bs-parent="#sidebarAccordion">
+                            <ul class="navbar-nav ps-3">
+                                <li><a class="nav-link px-3{{ $navActive('users.*') }}" href="{{ route('users.index') }}"><i class="bi bi-person-badge me-2"></i>Users</a></li>
+                            </ul>
+                        </div>
+                    </li>
+                    @endcan
                 </ul>
             </nav>
         </div>
+
+        {{-- Signed-in user + sign out, pinned below the navigation --}}
+        @auth
+        <div class="sidebar-user border-top border-secondary p-3">
+            <div class="d-flex align-items-center justify-content-between gap-2">
+                <div class="d-flex align-items-center gap-2 text-truncate">
+                    <i class="bi bi-person-circle fs-5"></i>
+                    <div class="text-truncate">
+                        <div class="small fw-semibold text-truncate">{{ auth()->user()->name }}</div>
+                        <div class="text-white-50" style="font-size: .75rem;">{{ auth()->user()->email }}</div>
+                    </div>
+                </div>
+                <form method="POST" action="{{ route('logout') }}" class="m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-sm btn-outline-light" title="Sign out">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        @endauth
     </div>
     <!-- END: Sidebar Navigation Layout -->
 
