@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Grn;
 use App\Models\Supply;
 use App\Traits\HasErrorHandling;
 use Illuminate\Database\Eloquent\Collection;
@@ -86,10 +87,13 @@ class SupplyService
      * handled when the corresponding GRN is marked as "posted" via the
      * GrnService. Here we simply update the status to completed and ensure
      * a GRN stub exists for the receiving team.
+     *
+     * Returns that GRN stub so callers can send the user straight on to the
+     * receiving step.
      */
-    public function complete(int $id): void
+    public function complete(int $id): Grn
     {
-        $this->handleServiceOperation(
+        return $this->handleServiceOperation(
             function () use ($id) {
                 $supply = $this->findOrFail(Supply::class, $id, 'supply');
 
@@ -100,13 +104,11 @@ class SupplyService
                 $supply->update(['status' => 'completed']);
 
                 // Create GRN stub if it doesn't exist
-                if (! $supply->grn) {
-                    $supply->grn()->create([
-                        'supply_id' => $supply->id,
-                        'status' => 'draft',
-                        'received_date' => now(),
-                    ]);
-                }
+                return $supply->grn ?? $supply->grn()->create([
+                    'supply_id' => $supply->id,
+                    'status' => 'draft',
+                    'received_date' => now(),
+                ]);
             },
             'supply',
             $id

@@ -134,9 +134,10 @@ class SupplyController extends Controller
     public function completed(int $id): RedirectResponse
     {
         try {
-            $this->service->complete($id);
+            $grn = $this->service->complete($id);
 
-            return back()->with('success', 'Supply marked as completed successfully.');
+            return redirect()->route('grns.show', $grn->id)
+                ->with('success', 'Supply marked as completed. Receive the goods below.');
         } catch (DataNotFoundException $e) {
             return redirect()->route('supplies.index')
                 ->with('error', $e->getMessage());
