@@ -1077,3 +1077,24 @@ Route::delete('/supplier-bills/{supplierBill}', [\App\Http\Controllers\SupplierB
  */
 Route::get('/supplier-bill-payments', [\App\Http\Controllers\SupplierBillPaymentController::class, 'index'])->name('supplier-bill-payments.index');
 Route::get('/supplier-bill-payments/{supplierBillPayment}', [\App\Http\Controllers\SupplierBillPaymentController::class, 'show'])->name('supplier-bill-payments.show');
+
+/**
+ * User Management Routes
+ *
+ * Reading the list is separated from changing it so a future read-only
+ * supervisor role can be granted users.view without users.manage.
+ */
+Route::middleware('permission:users.view,users.manage')->group(function () {
+    Route::get('/users', [\App\Http\Controllers\UserController::class, 'index'])->name('users.index');
+    Route::get('/users/create', [\App\Http\Controllers\UserController::class, 'create'])
+        ->middleware('permission:users.manage')->name('users.create');
+    Route::post('/users', [\App\Http\Controllers\UserController::class, 'store'])
+        ->middleware('permission:users.manage')->name('users.store');
+    Route::get('/users/{user}', [\App\Http\Controllers\UserController::class, 'show'])->name('users.show');
+    Route::get('/users/{user}/edit', [\App\Http\Controllers\UserController::class, 'edit'])
+        ->middleware('permission:users.manage')->name('users.edit');
+    Route::put('/users/{user}', [\App\Http\Controllers\UserController::class, 'update'])
+        ->middleware('permission:users.manage')->name('users.update');
+    Route::delete('/users/{user}', [\App\Http\Controllers\UserController::class, 'destroy'])
+        ->middleware('permission:users.manage')->name('users.destroy');
+});
