@@ -34,12 +34,15 @@ use App\Http\Controllers\ChartOfAccountsController;
 */
 
 // Dashboard
+// Gated like every other module: the landing page and its AJAX feeds carry
+// revenue, top sellers and stock levels, so being signed in is not on its own
+// enough to see them.
 Route::get('/', function () {
     return view('dashboard');
-})->name('dashboard');
+})->middleware('permission:dashboard.view')->name('dashboard');
 
 // Dashboard AJAX Routes
-Route::prefix('dashboard')->name('dashboard.')->group(function () {
+Route::prefix('dashboard')->name('dashboard.')->middleware('permission:dashboard.view')->group(function () {
     Route::get('/stats', [App\Http\Controllers\DashboardController::class, 'getStats'])->name('stats');
     Route::get('/sales-trend', [App\Http\Controllers\DashboardController::class, 'getSalesTrend'])->name('sales-trend');
     Route::get('/top-products', [App\Http\Controllers\DashboardController::class, 'getTopProducts'])->name('top-products');
