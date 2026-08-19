@@ -10,6 +10,8 @@ class DatabaseSeeder extends Seeder
     {
         // Add individual seeders here
         $this->call([
+            // Must precede UserSeeder - it needs the admin role to exist.
+            RolePermissionSeeder::class,
             UserSeeder::class,
             ProductCategorySeeder::class,
             ProductSeeder::class,

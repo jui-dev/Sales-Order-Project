@@ -2,25 +2,38 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
+use App\Models\Role;
 use App\Models\User;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     *
+     * Promotes user #1 into the administrator account rather than creating a
+     * second user. Roughly thirty call sites across observers and services
+     * attribute their work with `auth()->id() ?? 1`, and the audit_logs foreign
+     * key points at that same row - so reusing it keeps existing history
+     * attributed to a real, reachable login.
      */
     public function run(): void
     {
-        // Create a default system user if it doesn't exist
-        User::firstOrCreate(
-            ['email' => 'system@example.com'],
+        $admin = User::updateOrCreate(
+            ['id' => 1],
             [
-                'name' => 'System User',
+                'name' => 'Administrator',
+                'email' => 'admin@example.com',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
-            ]
+            ],
         );
+
+        $adminRole = Role::where('name', Role::ADMIN)->first();
+
+        if ($adminRole) {
+            $admin->roles()->syncWithoutDetaching([$adminRole->id]);
+        }
     }
-} 
+}
