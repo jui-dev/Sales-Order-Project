@@ -3,8 +3,10 @@
 namespace Tests;
 
 use App\Models\Account;
+use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\ChartOfAccountsSeeder;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Schema;
 
@@ -55,8 +57,20 @@ abstract class TestCase extends BaseTestCase
             return;
         }
 
-        if (! User::query()->whereKey(1)->exists()) {
-            User::factory()->create(['id' => 1]);
+        $user = User::query()->find(1) ?? User::factory()->create(['id' => 1]);
+
+        // Every route now sits behind the auth middleware, so a test that only
+        // meant to exercise a controller would otherwise get a 302 to /login.
+        // User #1 is made an admin so it clears every gate, matching how the
+        // seeded application actually runs.
+        if (! Role::query()->where('name', Role::ADMIN)->exists()) {
+            $this->seed(RolePermissionSeeder::class);
         }
+
+        $adminRole = Role::query()->where('name', Role::ADMIN)->first();
+        $user->roles()->syncWithoutDetaching([$adminRole->id]);
+        $user->forgetCachedPermissions();
+
+        $this->actingAs($user);
     }
 }
