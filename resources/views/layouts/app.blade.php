@@ -248,17 +248,17 @@
                     <!-- Master Data -->
                     @can('products.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3{{ $navActive('products.*') }}" href="{{ route('products.index') }}"><i class="bi bi-box me-2"></i>Products</a>
+                        <a class="nav-link px-3{{ $navActive('products.*') }}" href="{{ route('products.index') }}"><i class="bi bi-box me-2"></i>Products<x-nav-badge for="products" /></a>
                     </li>
                     @endcan
                     @can('vendors.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3{{ $navActive('vendors.*') }}" href="{{ route('vendors.index') }}"><i class="bi bi-building me-2"></i>Vendors</a>
+                        <a class="nav-link px-3{{ $navActive('vendors.*') }}" href="{{ route('vendors.index') }}"><i class="bi bi-building me-2"></i>Vendors<x-nav-badge for="vendors" /></a>
                     </li>
                     @endcan
                     @can('customers.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3{{ $navActive('customers.*') }}" href="{{ route('customers.index') }}"><i class="bi bi-people me-2"></i>Customers</a>
+                        <a class="nav-link px-3{{ $navActive('customers.*') }}" href="{{ route('customers.index') }}"><i class="bi bi-people me-2"></i>Customers<x-nav-badge for="customers" /></a>
                     </li>
                     @endcan
 
@@ -266,15 +266,15 @@
                     @can('supplies.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#procurementMenu" role="button" aria-expanded="{{ $procurementOpen ? 'true' : 'false' }}" aria-controls="procurementMenu">
-                            <span><i class="bi bi-cart-check me-2"></i>Procurement</span>
+                            <span><i class="bi bi-cart-check me-2"></i>Procurement<x-nav-badge for="procurement" /></span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
                         <div class="collapse{{ $procurementOpen ? ' show' : '' }}" id="procurementMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('supplies.*') }}" href="{{ route('supplies.index') }}"><i class="bi bi-truck me-2"></i>Supplies</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('grns.*') }}" href="{{ route('grns.index') }}"><i class="bi bi-receipt me-2"></i>Good Receipt Notes (GRNs)</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('supplier-bills.*') }}" href="{{ route('supplier-bills.index') }}"><i class="bi bi-file-earmark-text me-2"></i>Supplier Bills</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('supplier-bill-payments.*') }}" href="{{ route('supplier-bill-payments.index') }}"><i class="bi bi-credit-card me-2"></i>Supplier Bills Payment</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('supplies.*') }}" href="{{ route('supplies.index') }}"><i class="bi bi-truck me-2"></i>Supplies<x-nav-badge for="procurement.supplies" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('grns.*') }}" href="{{ route('grns.index') }}"><i class="bi bi-receipt me-2"></i>Good Receipt Notes (GRNs)<x-nav-badge for="procurement.grns" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('supplier-bills.*') }}" href="{{ route('supplier-bills.index') }}"><i class="bi bi-file-earmark-text me-2"></i>Supplier Bills<x-nav-badge for="procurement.supplier-bills" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('supplier-bill-payments.*') }}" href="{{ route('supplier-bill-payments.index') }}"><i class="bi bi-credit-card me-2"></i>Supplier Bills Payment<x-nav-badge for="procurement.supplier-bill-payments" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -284,16 +284,16 @@
                     @can('picking.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#pickingMenu" role="button" aria-expanded="{{ $pickingOpen ? 'true' : 'false' }}" aria-controls="pickingMenu">
-                            <span><i class="bi bi-list-check me-2"></i>Picking & Transfers</span>
+                            <span><i class="bi bi-list-check me-2"></i>Picking & Transfers<x-nav-badge for="picking" /></span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
                         <div class="collapse{{ $pickingOpen ? ' show' : '' }}" id="pickingMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('vendor-to-warehouse-picking.*') }}" href="{{ route('vendor-to-warehouse-picking.index') }}"><i class="bi bi-truck-arrow-right me-2"></i>Vendors → Warehouse</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('stock-transfers.*') }}" href="{{ route('stock-transfers.warehouse-to-retailer') }}"><i class="bi bi-building-arrow-right me-2"></i>Warehouse → Retailers</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('warehouse-to-customer-picking.*') }}" href="{{ route('warehouse-to-customer-picking.index') }}"><i class="bi bi-house-arrow-right me-2"></i>Warehouse → Customers</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('retailer-to-customer-picking.*') }}" href="{{ route('retailer-to-customer-picking.index') }}"><i class="bi bi-people-arrow-right me-2"></i>Retailers → Customers</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('picking-lists.*') }}" href="{{ route('picking-lists.index') }}"><i class="bi bi-list-ul me-2"></i>All Picking Lists</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('vendor-to-warehouse-picking.*') }}" href="{{ route('vendor-to-warehouse-picking.index') }}"><i class="bi bi-truck-arrow-right me-2"></i>Vendors → Warehouse<x-nav-badge for="picking.vendor-to-warehouse" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('stock-transfers.*') }}" href="{{ route('stock-transfers.warehouse-to-retailer') }}"><i class="bi bi-building-arrow-right me-2"></i>Warehouse → Retailers<x-nav-badge for="picking.warehouse-to-retailers" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('warehouse-to-customer-picking.*') }}" href="{{ route('warehouse-to-customer-picking.index') }}"><i class="bi bi-house-arrow-right me-2"></i>Warehouse → Customers<x-nav-badge for="picking.warehouse-to-customers" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('retailer-to-customer-picking.*') }}" href="{{ route('retailer-to-customer-picking.index') }}"><i class="bi bi-people-arrow-right me-2"></i>Retailers → Customers<x-nav-badge for="picking.retailer-to-customers" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('picking-lists.*') }}" href="{{ route('picking-lists.index') }}"><i class="bi bi-list-ul me-2"></i>All Picking Lists<x-nav-badge for="picking.all" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -303,17 +303,17 @@
                     @can('returns.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#returnsMenu" role="button" aria-expanded="{{ $returnsOpen ? 'true' : 'false' }}" aria-controls="returnsMenu">
-                            <span><i class="bi bi-arrow-return-left me-2"></i>Returns</span>
+                            <span><i class="bi bi-arrow-return-left me-2"></i>Returns<x-nav-badge for="returns" /></span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
                         <div class="collapse{{ $returnsOpen ? ' show' : '' }}" id="returnsMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $returnActive(null) }}" href="{{ route('returns.index') }}"><i class="bi bi-list me-2"></i>All Returns</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('credit-notes.*') }}" href="{{ route('credit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Credit Notes</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('debit-notes.*') }}" href="{{ route('debit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Debit Notes</a></li>
-                                <li><a class="nav-link px-3{{ $returnActive('customer_return') }}" href="{{ route('returns.index', ['type' => 'customer_return']) }}"><i class="bi bi-arrow-return-left text-danger me-2"></i>Customer Returns</a></li>
-                                <li><a class="nav-link px-3{{ $returnActive('vendor_return') }}" href="{{ route('returns.index', ['type' => 'vendor_return']) }}"><i class="bi bi-arrow-return-right text-info me-2"></i>Vendor Returns</a></li>
-                                <li><a class="nav-link px-3{{ $returnActive('retailer_return') }}" href="{{ route('returns.index', ['type' => 'retailer_return']) }}"><i class="bi bi-arrow-return-left text-warning me-2"></i>Retailer Returns</a></li>
+                                <li><a class="nav-link px-3{{ $returnActive(null) }}" href="{{ route('returns.index') }}"><i class="bi bi-list me-2"></i>All Returns<x-nav-badge for="returns.all" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('credit-notes.*') }}" href="{{ route('credit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Credit Notes<x-nav-badge for="returns.credit-notes" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('debit-notes.*') }}" href="{{ route('debit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Debit Notes<x-nav-badge for="returns.debit-notes" /></a></li>
+                                <li><a class="nav-link px-3{{ $returnActive('customer_return') }}" href="{{ route('returns.index', ['type' => 'customer_return']) }}"><i class="bi bi-arrow-return-left text-danger me-2"></i>Customer Returns<x-nav-badge for="returns.customer_return" /></a></li>
+                                <li><a class="nav-link px-3{{ $returnActive('vendor_return') }}" href="{{ route('returns.index', ['type' => 'vendor_return']) }}"><i class="bi bi-arrow-return-right text-info me-2"></i>Vendor Returns<x-nav-badge for="returns.vendor_return" /></a></li>
+                                <li><a class="nav-link px-3{{ $returnActive('retailer_return') }}" href="{{ route('returns.index', ['type' => 'retailer_return']) }}"><i class="bi bi-arrow-return-left text-warning me-2"></i>Retailer Returns<x-nav-badge for="returns.retailer_return" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -323,14 +323,14 @@
                     @can('stock-management.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#stockMenu" role="button" aria-expanded="{{ $stockOpen ? 'true' : 'false' }}" aria-controls="stockMenu">
-                            <span><i class="bi bi-boxes me-2"></i>Stock Management</span>
+                            <span><i class="bi bi-boxes me-2"></i>Stock Management<x-nav-badge for="stock" /></span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
                         <div class="collapse{{ $stockOpen ? ' show' : '' }}" id="stockMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('stock-management.*') }}" href="{{ route('stock-management.index') }}"><i class="bi bi-boxes me-2"></i>Stock Management</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('stock-locations.*') }}" href="{{ route('stock-locations.index') }}"><i class="bi bi-geo-alt me-2"></i>Stock Locations</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('picking.transaction-flow') }}" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 me-2"></i>Transaction Flow</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('stock-management.*') }}" href="{{ route('stock-management.index') }}"><i class="bi bi-boxes me-2"></i>Stock Management<x-nav-badge for="stock.stock-management" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('stock-locations.*') }}" href="{{ route('stock-locations.index') }}"><i class="bi bi-geo-alt me-2"></i>Stock Locations<x-nav-badge for="stock.stock-locations" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('picking.transaction-flow') }}" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 me-2"></i>Transaction Flow<x-nav-badge for="stock.transaction-flow" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -340,14 +340,14 @@
                     @can('orders.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#salesOrderMenu" role="button" aria-expanded="{{ $salesOrderOpen ? 'true' : 'false' }}" aria-controls="salesOrderMenu">
-                            <span><i class="bi bi-cart me-2"></i>Sales Order</span>
+                            <span><i class="bi bi-cart me-2"></i>Sales Order<x-nav-badge for="sales" /></span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
                         <div class="collapse{{ $salesOrderOpen ? ' show' : '' }}" id="salesOrderMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('orders.*') }}" href="{{ route('orders.index') }}"><i class="bi bi-cart me-2"></i>Orders</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('invoices.*') }}" href="{{ route('invoices.index') }}"><i class="bi bi-receipt me-2"></i>Invoices</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('payments.*') }}" href="{{ route('payments.index') }}"><i class="bi bi-credit-card me-2"></i>Invoice Payments</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('orders.*') }}" href="{{ route('orders.index') }}"><i class="bi bi-cart me-2"></i>Orders<x-nav-badge for="sales.orders" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('invoices.*') }}" href="{{ route('invoices.index') }}"><i class="bi bi-receipt me-2"></i>Invoices<x-nav-badge for="sales.invoices" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('payments.*') }}" href="{{ route('payments.index') }}"><i class="bi bi-credit-card me-2"></i>Invoice Payments<x-nav-badge for="sales.payments" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -357,19 +357,19 @@
                     @can('accounting.view')
                     <li class="nav-item mt-3">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#accountingMenu" role="button" aria-expanded="{{ $accountingOpen ? 'true' : 'false' }}" aria-controls="accountingMenu">
-                            <span><i class="bi bi-journal-bookmark me-2"></i>Accounting</span>
+                            <span><i class="bi bi-journal-bookmark me-2"></i>Accounting<x-nav-badge for="accounting" /></span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
                         <div class="collapse{{ $accountingOpen ? ' show' : '' }}" id="accountingMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('accounting.chart-of-accounts', 'accounting.chart-of-accounts.*') }}" href="{{ route('accounting.chart-of-accounts') }}"><i class="bi bi-journal me-2"></i>Chart of Accounts</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('accounting.chart-of-accounts', 'accounting.chart-of-accounts.*') }}" href="{{ route('accounting.chart-of-accounts') }}"><i class="bi bi-journal me-2"></i>Chart of Accounts<x-nav-badge for="accounting.chart-of-accounts" /></a></li>
                                 <li><a class="nav-link px-3{{ $navActive('reports.trial-balance') }}" href="{{ route('reports.trial-balance') }}"><i class="bi bi-calculator me-2"></i>Trial Balance</a></li>
                                 <li><a class="nav-link px-3{{ $navActive('reports.income-statement') }}" href="{{ route('reports.income-statement') }}"><i class="bi bi-clipboard-data me-2"></i>Income Statement</a></li>
                                 <li><a class="nav-link px-3{{ $navActive('reports.balance-sheet') }}" href="{{ route('reports.balance-sheet') }}"><i class="bi bi-columns-gap me-2"></i>Balance Sheet</a></li>
                                 <li><a class="nav-link px-3{{ $navActive('reports.cash-flow') }}" href="{{ route('reports.cash-flow') }}"><i class="bi bi-cash-stack me-2"></i>Cash Flow Statement</a></li>
                                 <li><hr></li>
-                                <li><a class="nav-link px-3{{ $navActive('journal-entries.*') }}" href="{{ route('journal-entries.index') }}"><i class="bi bi-journal-text me-2"></i>Journal Entries</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('audit-logs.*') }}" href="{{ route('audit-logs.index') }}"><i class="bi bi-shield-check me-2"></i>Audit Trail</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('journal-entries.*') }}" href="{{ route('journal-entries.index') }}"><i class="bi bi-journal-text me-2"></i>Journal Entries<x-nav-badge for="accounting.journal-entries" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('audit-logs.*') }}" href="{{ route('audit-logs.index') }}"><i class="bi bi-shield-check me-2"></i>Audit Trail<x-nav-badge for="accounting.audit-logs" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -382,16 +382,23 @@
                     </li>
                     @endcan
 
+                    <!-- What each action triggers -->
+                    @can('reference.view')
+                    <li class="nav-item">
+                        <a class="nav-link px-3{{ $navActive('reference.action-effects') }}" href="{{ route('reference.action-effects') }}"><i class="bi bi-lightning-charge me-2"></i>Action Effects</a>
+                    </li>
+                    @endcan
+
                     <!-- Administration -->
                     @can('users.view')
                     <li class="nav-item mt-3">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#adminMenu" role="button" aria-expanded="{{ $adminOpen ? 'true' : 'false' }}" aria-controls="adminMenu">
-                            <span><i class="bi bi-gear me-2"></i>Administration</span>
+                            <span><i class="bi bi-gear me-2"></i>Administration<x-nav-badge for="admin" /></span>
                             <i class="bi bi-chevron-down small"></i>
                         </a>
                         <div class="collapse{{ $adminOpen ? ' show' : '' }}" id="adminMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('users.*') }}" href="{{ route('users.index') }}"><i class="bi bi-person-badge me-2"></i>Users</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('users.*') }}" href="{{ route('users.index') }}"><i class="bi bi-person-badge me-2"></i>Users<x-nav-badge for="admin.users" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -424,9 +431,17 @@
     <!-- END: Sidebar Navigation Layout -->
 
     <div class="container-fluid main-content">
+        @php
+            // One action, one notice. When the triggered-effects banner is
+            // showing it already carries the success message as its headline,
+            // so a toast on top of it is the same words twice. Actions that
+            // raise no effects - deletes, mostly - have no banner and keep it.
+            $effectsBanner = is_array($triggeredEffects ?? null) && ! empty($triggeredEffects['rows']);
+        @endphp
+
         <!-- Toast notifications -->
         <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
-            @if(session('success'))
+            @if(session('success') && ! $effectsBanner)
                 <div class="toast align-items-center text-white bg-success border-0" role="alert" data-bs-delay="3000">
                     <div class="d-flex">
                         <div class="toast-body">
@@ -458,6 +473,12 @@
                     @endforeach
                 </ul>
             </div>
+        @endif
+
+        {{-- What the action that brought the reader here set off elsewhere. The
+             sidebar badges say where to look; this says what landed there. --}}
+        @if($effectsBanner)
+            <x-triggered-effects :panel="$triggeredEffects" />
         @endif
 
         {{-- Page title/actions render above the panel, on the page background --}}

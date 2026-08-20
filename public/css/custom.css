@@ -1774,3 +1774,109 @@ a.workflow-stage:hover .workflow-stage__name {
         break-inside: avoid;
     }
 }
+
+/* ===== Triggered-effect notifications =====
+   One action in this system writes records into several modules at once. The
+   badge marks the menu items that just received something; the panel names the
+   records themselves on the page the action lands on. */
+
+/* Count on a sidebar menu or submenu item. Pushed to the right on leaf links,
+   which are laid out as flex rows for exactly this reason; on a group toggle it
+   sits inside the label span, ahead of the chevron. */
+.sidebar-nav .nav-link {
+  display: flex;
+  align-items: center;
+}
+.nav-effect-badge {
+  margin-left: auto;
+  padding: 0 0.4rem;
+  min-width: 1.25rem;
+  border-radius: 999px;
+  background-color: var(--accent);
+  color: var(--primary-dark);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+/* Inside a group label the badge follows the words rather than the row edge. */
+.sidebar-nav .nav-link > span .nav-effect-badge {
+  margin-left: 0.5rem;
+}
+
+/* The banner carries its own colours rather than Bootstrap's .alert-info, whose
+   cyan is louder than a "here is what just happened" notice wants to be. Same
+   blue family, much lower saturation. To dial it further, --te-surface is the
+   only value that changes how loud it reads. */
+.triggered-effects {
+  --te-ink: #33505f;      /* body text */
+  --te-surface: #f6fafb;  /* background - the knob for louder/quieter */
+  --te-edge: #dde8ed;     /* hairline border */
+  --te-accent: #7ba0b4;   /* left rule only - too pale to carry text */
+  --te-muted: #4f7183;    /* icons and secondary text, 4.9:1 on the surface */
+  --te-link: #2b6683;     /* record links */
+
+  background-color: var(--te-surface);
+  border: 1px solid var(--te-edge);
+  border-left: 3px solid var(--te-accent);
+  color: var(--te-ink);
+}
+.triggered-effects .bi {
+  color: var(--te-muted);
+}
+.triggered-effects a {
+  color: var(--te-link);
+  text-decoration: none;
+}
+.triggered-effects a:hover,
+.triggered-effects a:focus {
+  color: var(--te-link);
+  text-decoration: underline;
+}
+.triggered-effects__title {
+  margin-bottom: 0.35rem;
+}
+/* Lead-in for the list. Quieter than the headline above it, which is now the
+   action's own success message rather than a generic label. */
+.triggered-effects__lead {
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--te-muted);
+}
+.triggered-effects__list {
+  margin: 0;
+  padding-left: 1.75rem;
+}
+.triggered-effects__list li {
+  margin-bottom: 0.25rem;
+}
+/* Muted rather than faded: opacity would wash out the icon along with the text. */
+.triggered-effects__where {
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--te-muted);
+}
+.triggered-effects__more {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--te-muted);
+}
+/* Bootstrap's close button is a solid black glyph; ease it back to match. */
+.triggered-effects .btn-close {
+  opacity: 0.4;
+}
+.triggered-effects .btn-close:hover {
+  opacity: 0.7;
+}
+
+/* Reference page: what each action triggers */
+.action-effects__note {
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+.action-effects__where {
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
