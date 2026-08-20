@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\Vendor;
 use App\Services\ProductService;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
@@ -66,6 +67,7 @@ class ProductController extends Controller
     {
         return view('products.create', [
             'mainCategories' => ProductCategory::getMainCategories(),
+            'vendors' => Vendor::orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -114,6 +116,8 @@ class ProductController extends Controller
 
             return view('products.edit', [
                 'product' => $product,
+                'vendors' => Vendor::orderBy('name')->get(['id', 'name']),
+                'assignedVendorIds' => $product->vendors()->pluck('vendors.id')->all(),
                 'mainCategories' => ProductCategory::getMainCategories(),
                 'subcategories' => $parentId
                     ? ProductCategory::getSubcategories($parentId)

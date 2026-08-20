@@ -45,27 +45,69 @@
                 @enderror
             </div>
 
-            <div class="col-md-6">
-                <label for="selling_price" class="form-label">
-                    Selling Price <span class="text-danger">*</span>
-                </label>
+            <div class="col-md-3">
+                <label for="markup" class="form-label">Markup %</label>
                 <div class="input-group">
-                    <span class="input-group-text">$</span>
                     <input type="number"
-                           class="form-control @error('selling_price') is-invalid @enderror"
-                           id="selling_price"
-                           name="selling_price"
-                           value="{{ old('selling_price', $product->selling_price) }}"
+                           class="form-control @error('markup') is-invalid @enderror"
+                           id="markup"
+                           name="markup"
+                           value="{{ old('markup', $product->markup) }}"
                            min="0"
-                           step="0.01"
-                           required>
-                    @error('selling_price')
+                           step="0.01">
+                    <span class="input-group-text">%</span>
+                    @error('markup')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
-                <div class="form-text">Purchase price, GP% and stock levels update automatically from supply and order transactions.</div>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Selling Price</label>
+                <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    {{-- Read-only: derived from cost + markup when goods are received --}}
+                    <input type="text" class="form-control" disabled
+                           value="{{ $product->selling_price > 0 ? number_format($product->selling_price, 2) : 'Not set yet' }}">
+                </div>
+                <div class="form-text">
+                    @if ($product->purchase_price > 0)
+                        ${{ number_format($product->purchase_price, 2) }} cost
+                        + {{ rtrim(rtrim(number_format($product->markup ?? 0, 2), '0'), '.') }}% markup
+                    @else
+                        Set once the first goods are received.
+                    @endif
+                </div>
             </div>
         </div>
+        </div>
+    </section>
+
+    <section class="form-section">
+        <div class="form-section-header">
+            <h2 class="form-section-title">Vendors</h2>
+        </div>
+        <div class="form-section-body">
+            <p class="text-muted">
+                Who can supply this product. Each vendor's cost is set on
+                <a href="{{ route('vendors.index') }}">their own page</a>, because the same product
+                can cost different amounts from different vendors.
+            </p>
+            @forelse ($vendors as $vendor)
+                @if ($loop->first)<div class="row g-2">@endif
+                <div class="col-md-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox"
+                               name="vendor_ids[]" value="{{ $vendor->id }}"
+                               id="vendor-{{ $vendor->id }}"
+                               @checked(in_array($vendor->id, old('vendor_ids', $assignedVendorIds)))>
+                        <label class="form-check-label" for="vendor-{{ $vendor->id }}">{{ $vendor->name }}</label>
+                    </div>
+                </div>
+                @if ($loop->last)</div>@endif
+            @empty
+                <p class="text-muted mb-0">No vendors exist yet.</p>
+            @endforelse
         </div>
     </section>
 

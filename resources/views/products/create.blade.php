@@ -77,13 +77,13 @@
         </div>
     </div>
 
-    {{-- Section 2: Categorisation & status --}}
+    {{-- Section 2: Categorisation --}}
     <div class="card product-card mb-4">
         <div class="card-header product-card__header">
             <span class="product-card__step">2</span>
             <div>
-                <h2 class="product-card__title">Categorisation &amp; Status</h2>
-                <p class="product-card__subtitle">Where the product sits in your catalogue, and whether it can be sold.</p>
+                <h2 class="product-card__title">Categorisation</h2>
+                <p class="product-card__subtitle">Where the product sits in your catalogue.</p>
             </div>
         </div>
         <div class="card-body">
@@ -121,93 +121,95 @@
                     @enderror
                 </div>
 
-                <div class="col-md-4">
-                    <label for="status" class="form-label">
-                        Product Status <span class="text-danger">*</span>
-                    </label>
-                    <select class="form-select @error('status') is-invalid @enderror"
-                            id="status"
-                            name="status"
-                            required>
-                        <option value="active" {{ old('status', 'active') == 'active' ? 'selected' : '' }}>Active</option>
-                        <option value="inactive" {{ old('status') == 'inactive' ? 'selected' : '' }}>Inactive</option>
-                    </select>
-                    @error('status')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                    <div class="form-text">Active products are available for orders.</div>
-                </div>
             </div>
             </div>
         </div>
     </div>
 
-    {{-- Section 3: Pricing & tax --}}
+    {{-- Section 3: Pricing --}}
     <div class="card product-card mb-4">
         <div class="card-header product-card__header">
             <span class="product-card__step">3</span>
             <div>
-                <h2 class="product-card__title">Pricing &amp; Tax</h2>
-                <p class="product-card__subtitle">What you charge for the product, plus any discount or tax that applies.</p>
+                <h2 class="product-card__title">Pricing</h2>
+                <p class="product-card__subtitle">How much you mark the product up over what you paid for it.</p>
             </div>
         </div>
         <div class="card-body">
             <div class="product-panel">
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label for="selling_price" class="form-label">
-                        Selling Price <span class="text-danger">*</span>
-                    </label>
+                    <label for="markup" class="form-label">Markup %</label>
                     <div class="input-group">
-                        <span class="input-group-text">$</span>
                         <input type="number"
-                               class="form-control @error('selling_price') is-invalid @enderror"
-                               id="selling_price"
-                               name="selling_price"
-                               value="{{ old('selling_price') }}"
+                               class="form-control @error('markup') is-invalid @enderror"
+                               id="markup"
+                               name="markup"
+                               value="{{ old('markup', config('pricing.default_markup', 25)) }}"
                                min="0"
                                step="0.01"
-                               placeholder="0.00"
-                               required>
-                        @error('selling_price')
+                               placeholder="25">
+                        <span class="input-group-text">%</span>
+                        @error('markup')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
-                    <div class="form-text">Purchase price and stock levels update automatically from supply and order transactions.</div>
+                    <div class="form-text">Leave as-is to use the system default.</div>
                 </div>
 
-                <div class="col-md-4">
-                    <label for="discount_percentage" class="form-label">Discount %</label>
-                    <div class="input-group">
-                        <input type="number"
-                               class="form-control"
-                               id="discount_percentage"
-                               name="discount_percentage"
-                               value="{{ old('discount_percentage', 0) }}"
-                               min="0"
-                               max="100"
-                               step="0.01"
-                               placeholder="0.00">
-                        <span class="input-group-text">%</span>
+                <div class="col-md-8">
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>There is no selling price to enter here.</strong>
+                        What you pay is set per vendor on the vendor's price list, because the same
+                        product can cost different amounts from different vendors. The selling price is
+                        worked out as <code>cost + markup</code> once goods are actually received.
                     </div>
-                </div>
-
-                <div class="col-md-4">
-                    <label for="tax_rate" class="form-label">Tax Rate %</label>
-                    <select class="form-select" id="tax_rate" name="tax_rate">
-                        <option value="0" {{ old('tax_rate', 0) == 0 ? 'selected' : '' }}>0% (No Tax)</option>
-                        <option value="5" {{ old('tax_rate') == 5 ? 'selected' : '' }}>5%</option>
-                        <option value="10" {{ old('tax_rate') == 10 ? 'selected' : '' }}>10%</option>
-                        <option value="15" {{ old('tax_rate') == 15 ? 'selected' : '' }}>15%</option>
-                        <option value="20" {{ old('tax_rate') == 20 ? 'selected' : '' }}>20%</option>
-                    </select>
                 </div>
             </div>
             </div>
         </div>
     </div>
 
-    {{-- Section 4: Review & submit --}}
+    {{-- Section 4: Vendors --}}
+    <div class="card product-card mb-4">
+        <div class="card-header product-card__header">
+            <span class="product-card__step">4</span>
+            <div>
+                <h2 class="product-card__title">Vendors</h2>
+                <p class="product-card__subtitle">Who can supply this product. Set each vendor's cost afterwards on their page.</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="product-panel">
+                @forelse ($vendors as $vendor)
+                    @if ($loop->first)<div class="row g-2">@endif
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   name="vendor_ids[]" value="{{ $vendor->id }}"
+                                   id="vendor-{{ $vendor->id }}"
+                                   @checked(in_array($vendor->id, old('vendor_ids', [])))>
+                            <label class="form-check-label" for="vendor-{{ $vendor->id }}">
+                                {{ $vendor->name }}
+                            </label>
+                        </div>
+                    </div>
+                    @if ($loop->last)</div>@endif
+                @empty
+                    <p class="text-muted mb-0">
+                        No vendors yet. <a href="{{ route('vendors.create') }}">Add a vendor</a> first,
+                        or assign one later from the product's edit page.
+                    </p>
+                @endforelse
+                @error('vendor_ids')
+                    <div class="text-danger small mt-2">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+    </div>
+
+    {{-- Section 5: Review & submit --}}
     <div class="card product-card product-summary mb-4">
         <div class="card-body">
             <div class="product-summary__inner">
@@ -223,8 +225,8 @@
                 </div>
             </div>
             <p class="product-summary__hint">
-                Fields marked <span class="text-danger">*</span> are required. Purchase price and stock levels are
-                filled in automatically by supply and order transactions.
+                Fields marked <span class="text-danger">*</span> are required. Purchase price, selling price and
+                stock levels are filled in automatically once goods are received.
             </p>
         </div>
     </div>
@@ -345,17 +347,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Price and discount formatting
-    ['selling_price', 'discount_percentage'].forEach(id => {
-        const input = document.getElementById(id);
-        if (input) {
-            input.addEventListener('blur', function() {
-                if (this.value) {
-                    this.value = parseFloat(this.value).toFixed(2);
-                }
-            });
-        }
-    });
+    // Markup formatting
+    const markupInput = document.getElementById('markup');
+    if (markupInput) {
+        markupInput.addEventListener('blur', function() {
+            if (this.value) {
+                this.value = parseFloat(this.value).toFixed(2);
+            }
+        });
+    }
 });
 </script>
 <style>

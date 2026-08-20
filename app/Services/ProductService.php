@@ -47,7 +47,16 @@ class ProductService
     public function create(array $data): Product
     {
         return $this->handleServiceOperation(
-            fn() => Product::create($data),
+            function () use ($data) {
+                $vendorIds = $this->pullVendorIds($data);
+
+                return DB::transaction(function () use ($data, $vendorIds) {
+                    $product = Product::create($data);
+                    $this->syncVendors($product, $vendorIds);
+
+                    return $product;
+                });
+            },
             'product'
         );
     }
@@ -56,13 +65,61 @@ class ProductService
     {
         return $this->handleServiceOperation(
             function() use ($id, $data) {
-                $product = $this->findOrFail(Product::class, $id, 'product');
-                $product->update($data);
-                return $product;
+                $vendorIds = $this->pullVendorIds($data);
+
+                return DB::transaction(function () use ($id, $data, $vendorIds) {
+                    $product = $this->findOrFail(Product::class, $id, 'product');
+                    $product->update($data);
+                    $this->syncVendors($product, $vendorIds);
+
+                    return $product;
+                });
             },
             'product',
             $id
         );
+    }
+
+    /**
+     * Lift vendor_ids out of the attribute array - it is a relation, not a column.
+     *
+     * Returns null when the key is absent, which means "leave the existing
+     * assignments alone"; an empty array means "detach them all".
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<int, int>|null
+     */
+    private function pullVendorIds(array &$data): ?array
+    {
+        if (! array_key_exists('vendor_ids', $data)) {
+            return null;
+        }
+
+        $ids = $data['vendor_ids'];
+        unset($data['vendor_ids']);
+
+        return array_map('intval', $ids ?? []);
+    }
+
+    /**
+     * Attach the product to its vendors without disturbing agreed costs.
+     *
+     * syncWithoutDetaching would leave removed vendors behind, and a plain
+     * sync() would rewrite the pivot - so detach only what was dropped and
+     * attach only what is new, leaving every surviving row's unit_cost intact.
+     *
+     * @param  array<int, int>|null  $vendorIds
+     */
+    private function syncVendors(Product $product, ?array $vendorIds): void
+    {
+        if ($vendorIds === null) {
+            return;
+        }
+
+        $existing = $product->vendors()->pluck('vendors.id')->all();
+
+        $product->vendors()->detach(array_diff($existing, $vendorIds));
+        $product->vendors()->attach(array_diff($vendorIds, $existing));
     }
 
     public function delete(int $id): void
