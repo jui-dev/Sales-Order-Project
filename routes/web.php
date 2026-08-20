@@ -1101,3 +1101,14 @@ Route::middleware('permission:users.view,users.manage')->group(function () {
     Route::delete('/users/{user}', [\App\Http\Controllers\UserController::class, 'destroy'])
         ->middleware('permission:users.manage')->name('users.destroy');
 });
+
+/**
+ * Action Effects Reference
+ *
+ * Documents what each action in the application triggers elsewhere. Rendered
+ * straight from App\Support\Nav\ActionCatalog, which is the same table the
+ * post-action notification panel reads its headline from.
+ */
+Route::get('/reference/action-effects', [\App\Http\Controllers\ActionEffectsController::class, 'index'])
+    ->middleware('permission:reference.view')
+    ->name('reference.action-effects');

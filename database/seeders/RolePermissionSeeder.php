@@ -87,6 +87,9 @@ class RolePermissionSeeder extends Seeder
         'Reports' => [
             'reports.view' => 'View reports',
         ],
+        'Reference' => [
+            'reference.view' => 'View the action effects reference',
+        ],
         'Administration' => [
             'users.view' => 'View users',
             'users.manage' => 'Create, edit and delete users',
