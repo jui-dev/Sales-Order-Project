@@ -12,9 +12,7 @@ use App\Observers\StockTransactionObserver;
 use Illuminate\Support\Facades\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use App\Models\Product;
-use App\Models\SupplyItem;
 use App\Observers\ProductObserver;
-use App\Observers\SupplyItemObserver;
 // Disabled: use App\Models\WarehouseStock;
 // Disabled: use App\Observers\WarehouseStockObserver;
 
@@ -60,12 +58,11 @@ class AppServiceProvider extends ServiceProvider
             StockTransaction::observe(StockTransactionObserver::class);
         }
 
-        // Register new observers for dynamic pricing and purchasing logic
+        // Product pricing is derived, not entered: ProductObserver recalculates
+        // selling_price from purchase_price + markup. purchase_price itself is
+        // written only when goods are received (GrnService::applyReceivedCost).
         if (class_exists(Product::class) && class_exists(ProductObserver::class)) {
             Product::observe(ProductObserver::class);
-        }
-        if (class_exists(SupplyItem::class) && class_exists(SupplyItemObserver::class)) {
-            SupplyItem::observe(SupplyItemObserver::class);
         }
         if (class_exists(\App\Models\ProductStock::class) && class_exists(\App\Observers\ProductStockObserver::class)) {
             \App\Models\ProductStock::observe(\App\Observers\ProductStockObserver::class);

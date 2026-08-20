@@ -17,7 +17,7 @@ class GrnService
     {
         return DB::transaction(function () use ($grnId, $toStatus) {
             /** @var Grn $grn */
-            $grn = Grn::with(['supply.vendor', 'supply.warehouse', 'supply.items'])->findOrFail($grnId);
+            $grn = Grn::with(['supply.vendor', 'supply.warehouse', 'supply.items.product'])->findOrFail($grnId);
             $from = $grn->status;
 
             // Early-out if already at desired state
@@ -95,6 +95,12 @@ class GrnService
                     'transaction_date' => now(),
                     'status' => 'completed', // Stock is actually received when GRN is posted
                 ]);
+
+                // Receiving is the only moment a product's cost changes. Ordering
+                // must not reprice the catalogue, so this deliberately lives here
+                // rather than on SupplyItem::created, and inside the
+                // already-posted guard so a re-post cannot reprice twice.
+                $this->applyReceivedCost($item);
             }
 
             // Persist transfer item row (linked to the transfer created above)
@@ -115,5 +121,26 @@ class GrnService
         if ($grn->getConnection()->getSchemaBuilder()->hasColumn($grn->getTable(), 'posted_at')) {
             $grn->forceFill(['posted_at' => now()])->saveQuietly();
         }
+    }
+
+    /**
+     * Record what the goods actually cost, and let the selling price follow.
+     *
+     * Saving the product fires ProductObserver, which recalculates
+     * selling_price and gross_profit from the new cost and the product's
+     * markup. A zero or missing cost is skipped rather than written, because
+     * purchase_price is NOT NULL DEFAULT 0.00 - storing the zero would derive
+     * a zero selling price for a product that simply was not priced.
+     */
+    private function applyReceivedCost(\App\Models\SupplyItem $item): void
+    {
+        $product = $item->product;
+
+        if (! $product || (float) $item->unit_cost <= 0) {
+            return;
+        }
+
+        $product->purchase_price = $item->unit_cost;
+        $product->save();
     }
 }

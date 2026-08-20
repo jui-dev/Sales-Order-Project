@@ -33,9 +33,8 @@ final class ActionCatalog
             'effects' => [
                 ['key' => 'procurement.supplies', 'what' => 'The supply is created as Pending.'],
                 ['key' => 'picking.vendor-to-warehouse', 'what' => 'It appears on the vendor picking screen, which lists supplies rather than records of its own.'],
-                ['key' => 'products', 'what' => 'Each line refreshes its product purchase price to the cost entered.'],
             ],
-            'note' => 'Nothing enters inventory here - a supply only records what was ordered.',
+            'note' => 'Nothing enters inventory here, and no price changes - a supply only records what arrived.',
         ],
         'supplies.completed' => [
             'label' => 'Mark supply completed',
@@ -57,9 +56,10 @@ final class ActionCatalog
                 ['key' => 'stock.stock-management', 'what' => 'One inbound stock movement per supplied line, which is what actually puts the goods in the warehouse.'],
                 ['key' => 'picking.vendor-to-warehouse', 'what' => 'A Vendor to Warehouse stock transfer records the inbound movement.'],
                 ['key' => 'procurement.supplier-bills', 'what' => 'A draft supplier bill is created automatically from the supply lines.'],
+                ['key' => 'products', 'what' => 'Each received line writes its cost to the product, and the selling price is recalculated from that cost plus the product markup.'],
                 ['key' => 'accounting.audit-logs', 'what' => 'The bill creation is written to the audit trail.'],
             ],
-            'note' => 'This is the step where stock becomes real and sellable.',
+            'note' => 'This is the step where stock becomes real and sellable, and the only step that changes a price.',
         ],
         'supplier-bills.post' => [
             'label' => 'Post a supplier bill',
