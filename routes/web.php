@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Warehouse;
 use App\Models\Retailer;
 use App\Models\StockLocation;
+use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\SupplyController;
 use App\Http\Controllers\GrnController;
 use App\Http\Controllers\VendorPickingController;
@@ -129,6 +130,38 @@ Route::get('/orders/{id}/edit', function ($id) {
 Route::put('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'update'])->whereNumber('id')->name('orders.update');
 Route::delete('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'destroy'])->whereNumber('id')->name('orders.destroy');
 // Note: update-status route is defined in the orders prefix group below
+
+// Purchase Orders - the warehouse's request to a vendor, upstream of Supplies.
+//
+// Gated at the route as well as in the sidebar. Most older modules gate the
+// sidebar only; a new module has no legacy roles to break, so the permission
+// is enforced where it actually matters.
+Route::middleware('permission:purchase-orders.view,purchase-orders.manage')->group(function () {
+    Route::get('purchase-orders/vendors/{vendor}/products', [PurchaseOrderController::class, 'vendorProducts'])
+        ->whereNumber('vendor')->name('purchase-orders.vendor-products');
+    Route::get('purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
+    Route::get('purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])
+        ->whereNumber('purchaseOrder')->name('purchase-orders.show');
+});
+
+Route::middleware('permission:purchase-orders.manage')->group(function () {
+    Route::get('purchase-orders/create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');
+    Route::post('purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
+    Route::get('purchase-orders/{purchaseOrder}/edit', [PurchaseOrderController::class, 'edit'])
+        ->whereNumber('purchaseOrder')->name('purchase-orders.edit');
+    Route::put('purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update'])
+        ->whereNumber('purchaseOrder')->name('purchase-orders.update');
+    Route::patch('purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])
+        ->whereNumber('purchaseOrder')->name('purchase-orders.approve');
+    Route::patch('purchase-orders/{purchaseOrder}/send', [PurchaseOrderController::class, 'send'])
+        ->whereNumber('purchaseOrder')->name('purchase-orders.send');
+    Route::patch('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])
+        ->whereNumber('purchaseOrder')->name('purchase-orders.cancel');
+    Route::get('purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])
+        ->whereNumber('purchaseOrder')->name('purchase-orders.receive');
+    Route::post('purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'recordSupply'])
+        ->whereNumber('purchaseOrder')->name('purchase-orders.record-supply');
+});
 
 // Supplies Routes (Controller)
 Route::resource('supplies', SupplyController::class)->only(['index', 'create', 'store', 'show']);

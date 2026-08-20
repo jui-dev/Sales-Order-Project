@@ -62,7 +62,13 @@ final class NavCatalog
             'label' => 'Procurement',
             'parent' => null,
             'landing' => [],
-            'permission' => 'supplies.view',
+            'permission' => 'purchase-orders.view',
+        ],
+        'procurement.purchase-orders' => [
+            'label' => 'Purchase Orders',
+            'parent' => 'procurement',
+            'landing' => ['purchase-orders.index'],
+            'permission' => 'purchase-orders.view',
         ],
         'procurement.supplies' => [
             'label' => 'Supplies',

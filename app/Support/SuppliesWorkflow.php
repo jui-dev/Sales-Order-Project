@@ -3,16 +3,21 @@
 namespace App\Support;
 
 use App\Models\Grn;
+use App\Models\PurchaseOrder;
 use App\Models\Supply;
 use App\Models\SupplierBill;
 
 /**
  * Single source of truth for a purchase's position in the supplies workflow:
  *
- *     Record Supply -> Receive Goods -> Supplier Bill -> Payment
+ *     Purchase Order -> Record Supply -> Receive Goods -> Supplier Bill -> Payment
  *
- * Every detail page in the chain renders the same four stages, so the state
+ * Every detail page in the chain renders the same five stages, so the state
  * rules live here rather than being re-derived in each Blade template.
+ *
+ * The first stage is optional in practice: a supply can still be recorded
+ * without an order behind it (a walk-in delivery, or one entered before
+ * purchase orders existed), in which case that stage reads "Not ordered".
  *
  * Returns a list of stages shaped for <x-workflow-rail>:
  *   ['name' => string, 'state' => done|current|todo, 'meta' => string, 'url' => ?string]
@@ -24,10 +29,39 @@ final class SuppliesWorkflow
     public const TODO    = 'todo';
 
     /** Stage positions, used to suppress the self-link on the current page. */
-    public const STAGE_SUPPLY  = 0;
-    public const STAGE_RECEIVE = 1;
-    public const STAGE_BILL    = 2;
-    public const STAGE_PAYMENT = 3;
+    public const STAGE_ORDER   = 0;
+    public const STAGE_SUPPLY  = 1;
+    public const STAGE_RECEIVE = 2;
+    public const STAGE_BILL    = 3;
+    public const STAGE_PAYMENT = 4;
+
+    /**
+     * Stages as seen from the purchase order detail page.
+     */
+    public static function forPurchaseOrder(PurchaseOrder $order): array
+    {
+        // An order can be delivered across several supplies; the rail follows
+        // the most recent one, which is the delivery the reader just made.
+        $supply = $order->supplies->sortByDesc('id')->first();
+        $grn = $supply?->grn;
+
+        $stages = self::build(
+            order: $order,
+            supply: $supply,
+            grn: $grn,
+            bill: $grn?->supplierBill,
+            selfStage: self::STAGE_ORDER,
+        );
+
+        // build() marks any existing order as done, which is right once the
+        // reader is further along. On this page an order that has not been
+        // fully received is the stage they are standing on.
+        if (! in_array($order->status, [PurchaseOrder::STATUS_RECEIVED, PurchaseOrder::STATUS_CANCELLED], true)) {
+            $stages[self::STAGE_ORDER]['state'] = self::CURRENT;
+        }
+
+        return $stages;
+    }
 
     /**
      * Stages as seen from the supply detail page.
@@ -37,6 +71,7 @@ final class SuppliesWorkflow
         $grn = $supply->grn;
 
         $stages = self::build(
+            order: $supply->purchaseOrder,
             supply: $supply,
             grn: $grn,
             bill: $grn?->supplierBill,
@@ -59,6 +94,7 @@ final class SuppliesWorkflow
     public static function forGrn(Grn $grn): array
     {
         return self::build(
+            order: $grn->supply?->purchaseOrder,
             supply: $grn->supply,
             grn: $grn,
             bill: $grn->supplierBill,
@@ -77,6 +113,7 @@ final class SuppliesWorkflow
         $grn = $bill->grn;
 
         return self::build(
+            order: $grn?->supply?->purchaseOrder,
             supply: $grn?->supply,
             grn: $grn,
             bill: $bill,
@@ -84,8 +121,13 @@ final class SuppliesWorkflow
         );
     }
 
-    private static function build(?Supply $supply, ?Grn $grn, ?SupplierBill $bill, int $selfStage): array
-    {
+    private static function build(
+        ?PurchaseOrder $order,
+        ?Supply $supply,
+        ?Grn $grn,
+        ?SupplierBill $bill,
+        int $selfStage
+    ): array {
         // 'paid' is not a bill status - the enum is draft|posted only (see
         // 2025_07_17_103924_update_supplier_bills_status_enum_remove_paid).
         // Settlement lives on the payment record.
@@ -94,6 +136,14 @@ final class SuppliesWorkflow
         $billPaid   = $bill && $bill->isPaid();
 
         $stages = [
+            [
+                'name'  => 'Purchase Order',
+                'state' => $order ? self::DONE : self::TODO,
+                'meta'  => $order
+                    ? (PurchaseOrder::statuses()[$order->status] ?? ucfirst($order->status))
+                    : 'Not ordered',
+                'url'   => $order ? route('purchase-orders.show', $order->id) : null,
+            ],
             [
                 'name'  => 'Record Supply',
                 'state' => $supply ? self::DONE : self::TODO,

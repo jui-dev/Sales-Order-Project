@@ -19,6 +19,7 @@ use App\Models\StockTransaction;
 use App\Models\StockTransfer;
 use App\Models\SupplierBill;
 use App\Models\SupplierBillPayment;
+use App\Models\PurchaseOrder;
 use App\Models\Supply;
 use App\Models\User;
 use App\Models\Vendor;
@@ -136,6 +137,7 @@ final class EffectClassifier
         return match ($model::class) {
             // A supply is both its own list and the whole content of the
             // Vendors -> Warehouse picking screen.
+            PurchaseOrder::class => ['procurement.purchase-orders'],
             Supply::class => ['procurement.supplies', 'picking.vendor-to-warehouse'],
             Grn::class => ['procurement.grns'],
             SupplierBill::class => ['procurement.supplier-bills'],

@@ -16,6 +16,7 @@ class Supply extends Model
     protected static string $idPrefix = 'SUP';
 
     protected $fillable = [
+        'purchase_order_id',
         'vendor_id',
         'warehouse_id',
         'status',
@@ -27,6 +28,17 @@ class Supply extends Model
     protected $casts = [
         'supply_date' => 'date',
     ];
+
+    /**
+     * The order this delivery was made against, when there was one.
+     *
+     * Null for supplies recorded before purchase orders existed, and for
+     * deliveries that arrived without an order behind them.
+     */
+    public function purchaseOrder(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class);
+    }
 
     public function vendor(): BelongsTo
     {

@@ -36,6 +36,8 @@ class RolePermissionSeeder extends Seeder
             'customers.manage' => 'Manage customers',
         ],
         'Procurement' => [
+            'purchase-orders.view' => 'View purchase orders',
+            'purchase-orders.manage' => 'Manage purchase orders',
             'supplies.view' => 'View supplies',
             'supplies.manage' => 'Manage supplies',
             'grns.view' => 'View goods receipt notes',

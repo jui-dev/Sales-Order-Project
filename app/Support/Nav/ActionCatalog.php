@@ -26,6 +26,42 @@ final class ActionCatalog
      */
     private const ACTIONS = [
         // --- Procurement -----------------------------------------------------
+        'purchase-orders.store' => [
+            'label' => 'Raise a purchase order',
+            'module' => 'Procurement',
+            'where' => 'Save on the new purchase order form',
+            'effects' => [
+                ['key' => 'procurement.purchase-orders', 'what' => 'The order is created as Draft.'],
+            ],
+            'note' => 'An order is a request only - no stock, no cost, no price changes.',
+        ],
+        'purchase-orders.approve' => [
+            'label' => 'Approve a purchase order',
+            'module' => 'Procurement',
+            'where' => 'Approve on the purchase order page',
+            'effects' => [
+                ['key' => 'procurement.purchase-orders', 'what' => 'The order moves to Approved and its lines are frozen.'],
+            ],
+        ],
+        'purchase-orders.send' => [
+            'label' => 'Send a purchase order to the vendor',
+            'module' => 'Procurement',
+            'where' => 'Send to Vendor on the purchase order page',
+            'effects' => [
+                ['key' => 'procurement.purchase-orders', 'what' => 'The order moves to Sent and can now be received against.'],
+            ],
+        ],
+        'purchase-orders.record-supply' => [
+            'label' => 'Record a supply against a purchase order',
+            'module' => 'Procurement',
+            'where' => 'Record Supply on the purchase order page',
+            'effects' => [
+                ['key' => 'procurement.supplies', 'what' => 'A Pending supply is created for what arrived, linked back to the order.'],
+                ['key' => 'procurement.purchase-orders', 'what' => 'Received quantities are recounted; the order closes or stays partially received.'],
+                ['key' => 'picking.vendor-to-warehouse', 'what' => 'It appears on the vendor picking screen.'],
+            ],
+            'note' => 'Still nothing in inventory - stock moves when the GRN is posted.',
+        ],
         'supplies.store' => [
             'label' => 'Record a supply',
             'module' => 'Procurement',

@@ -227,7 +227,7 @@
                     $returnType = $onReturns ? request()->query('type') : false;
                     $returnActive = fn ($type) => $onReturns && $returnType === $type ? ' active' : '';
 
-                    $procurementOpen = request()->routeIs('supplies.*', 'grns.*', 'supplier-bills.*', 'supplier-bill-payments.*');
+                    $procurementOpen = request()->routeIs('purchase-orders.*', 'supplies.*', 'grns.*', 'supplier-bills.*', 'supplier-bill-payments.*');
                     $pickingOpen = request()->routeIs('vendor-to-warehouse-picking.*', 'stock-transfers.*', 'warehouse-to-customer-picking.*', 'retailer-to-customer-picking.*', 'picking-lists.*');
                     $returnsOpen = request()->routeIs('returns.*', 'credit-notes.*', 'debit-notes.*');
                     $stockOpen = request()->routeIs('stock-management.*', 'stock-locations.*', 'picking.transaction-flow');
@@ -263,7 +263,7 @@
                     @endcan
 
                     <!-- Procurement -->
-                    @can('supplies.view')
+                    @can('purchase-orders.view')
                     <li class="nav-item">
                         <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#procurementMenu" role="button" aria-expanded="{{ $procurementOpen ? 'true' : 'false' }}" aria-controls="procurementMenu">
                             <span><i class="bi bi-cart-check me-2"></i>Procurement<x-nav-badge for="procurement" /></span>
@@ -271,6 +271,7 @@
                         </a>
                         <div class="collapse{{ $procurementOpen ? ' show' : '' }}" id="procurementMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
+                                <li><a class="nav-link px-3{{ $navActive('purchase-orders.*') }}" href="{{ route('purchase-orders.index') }}"><i class="bi bi-clipboard-check me-2"></i>Purchase Orders<x-nav-badge for="procurement.purchase-orders" /></a></li>
                                 <li><a class="nav-link px-3{{ $navActive('supplies.*') }}" href="{{ route('supplies.index') }}"><i class="bi bi-truck me-2"></i>Supplies<x-nav-badge for="procurement.supplies" /></a></li>
                                 <li><a class="nav-link px-3{{ $navActive('grns.*') }}" href="{{ route('grns.index') }}"><i class="bi bi-receipt me-2"></i>Good Receipt Notes (GRNs)<x-nav-badge for="procurement.grns" /></a></li>
                                 <li><a class="nav-link px-3{{ $navActive('supplier-bills.*') }}" href="{{ route('supplier-bills.index') }}"><i class="bi bi-file-earmark-text me-2"></i>Supplier Bills<x-nav-badge for="procurement.supplier-bills" /></a></li>
