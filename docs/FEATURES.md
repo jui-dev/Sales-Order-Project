@@ -16,7 +16,7 @@ A functional map of the system: what it does, and how each feature flows from th
 | 1 | [Dashboard](#1-dashboard) | Working |
 | 2 | [Products & Categories](#2-products--categories) | Working |
 | 3 | [Customers & Vendors](#3-customers--vendors) | Working |
-| 4 | [Supplies (Purchase Orders)](#4-supplies-purchase-orders) | Partial — completion is stubbed |
+| 4 | [Supplies](#4-supplies) | Working — placeholder routes removed |
 | 5 | [Goods Receipt Notes (GRN)](#5-goods-receipt-notes-grn) | Working — the main stock-in path |
 | 6 | [Supplier Bills & AP Payments](#6-supplier-bills--ap-payments) | Working |
 | 7 | [Orders (Sales)](#7-orders-sales) | Partial — edit/delete are stubbed |
@@ -95,7 +95,13 @@ gross_profit  = selling_price − purchase_price
 
 Markup falls back to `config('pricing.default_markup')`, default 25%.
 
-This chains further: whenever a **supply item is created**, `SupplyItemObserver` writes that item's `unit_cost` to the product's `purchase_price` and forces `auto_pricing_enabled = true` — which re-triggers the repricing above. **The most recent supply cost therefore silently rewrites the product's selling price globally.**
+`purchase_price` is written in exactly **one** place: `GrnService::applyReceivedCost()`, when a GRN is posted and the goods physically arrive. Ordering a product — raising a purchase order, or recording a supply — does not touch pricing at all.
+
+A zero `purchase_price` means "never received", and derivation is skipped rather than pricing the product at 0.00. If a caller supplies both a cost and a selling price but no markup (a seeder, an import), `ProductObserver` infers the markup from them instead of overwriting the price.
+
+Products carry **no selling price input**. The product form asks for a **markup %**; what you pay is set per vendor on that vendor's price list (`vendor_products`), because the same product can cost different amounts from different vendors.
+
+> **Changed.** This used to work the other way round: `SupplyItemObserver` wrote a supply line's `unit_cost` straight to `purchase_price` at supply-creation time and forced `auto_pricing_enabled = true`, so the most recent supply cost silently rewrote the product's selling price globally — before the goods had even arrived. That observer has been deleted.
 
 **Product detail** shows stock balances per location, transaction history, and stock analysis. A separate **Stock Analysis** screen (`products.stock-analysis`) gives per-product analytics.
 
@@ -116,7 +122,15 @@ Customers get filter and sort options in the toolbar; vendors do not.
 
 ---
 
-## 4. Supplies (Purchase Orders)
+## 4. Supplies
+
+> Supplies are no longer the purchase order. A real **Purchase Order** module now sits in front of them
+> (`purchase_orders` / `purchase_order_items`, `PurchaseOrderService`): a warehouse's request to a vendor,
+> running Draft → Approved → Sent, with `quantity_ordered` vs `quantity_received` so a delivery can be
+> short and the order stay open. Recording a supply against an order creates an ordinary Supply linked by
+> `supplies.purchase_order_id`, so everything downstream (GRN, bill, payment) is unchanged.
+>
+> A Supply is now what **arrived**, not what was ordered.
 
 **Entry:** Inventory → Supplies · **Views:** `supplies/{index,create,edit,show,completion-options}.blade.php`
 

@@ -6,31 +6,36 @@
 
 ## The big picture
 
-The whole process moves through four stages, in order:
+The whole process moves through five stages, in order:
 
-**Record Supply → Receive Goods → Supplier Bill → Payment**
+**Purchase Order → Record Supply → Receive Goods → Supplier Bill → Payment**
 
 Everything starts with a vendor and ends with a hand-off to accounting.
+
+The first stage is optional in practice — a supply can still be recorded on its own for a delivery that arrived without an order behind it.
 
 ---
 
 ## Step-by-step walkthrough
 
-1. **Record a new supply.**
-   Choose the **vendor** you're buying from, the **warehouse** the goods will go to, the **date**, and add your **product lines** — each with a **quantity** and a **unit cost**. The supply is saved with a *Pending* status and its total cost is added up for you.
-   *Good to know:* when you record the cost of a product here, that product's purchase price is refreshed automatically, and its selling price is recalculated from your markup. So supplying stock keeps your pricing up to date.
+1. **Raise a purchase order.** *(optional)*
+   Choose the **vendor** and the **warehouse** the goods should be delivered to, then add the products you want. You can only order what that vendor actually carries, and each line's cost is filled in from the vendor's agreed price — you can still change it for a one-off deal. The order is saved as a **Draft**, then **Approved** and **Sent** to the vendor. Nothing has moved yet; you have only asked.
 
-2. **Confirm / complete the supply.**
+2. **Record a new supply.**
+   Choose the **vendor** you're buying from, the **warehouse** the goods will go to, the **date**, and add your **product lines** — each with a **quantity** and a **unit cost**. The supply is saved with a *Pending* status and its total cost is added up for you.
+   *Good to know:* recording a supply does **not** change any prices. Ordering something, or writing down that it turned up, is not the same as having it — pricing only moves at the **Receive Goods** step below.
+
+3. **Confirm / complete the supply.**
    Once the details are right, you move the supply forward. A **receiving note** (the goods-received document) is prepared so the warehouse team knows what to expect.
    ⚠️ **Important:** at this point the stock is *not* in your inventory yet. Nothing has arrived — you've only agreed what's coming.
 
-3. **Receive the goods.**
+4. **Receive the goods.**
    This is the moment the stock actually enters the warehouse. The receiving note is marked as received, and the quantities become **real, on-hand, and available to sell**. This is the step that changes your inventory.
 
-4. **Supplier bill is created automatically.**
+5. **Supplier bill is created automatically.**
    As soon as the goods are received, a **supplier bill** for the vendor is generated for you — with all the product lines and the total owed. You don't have to build it by hand.
 
-5. **Post the bill, then pay it.**
+6. **Post the bill, then pay it.**
    Review the bill and **post** it to confirm what you owe, then **pay** it. This is where the Supplies module hands off to **accounting**.
 
 ---
@@ -42,9 +47,20 @@ Everything starts with a vendor and ends with a hand-off to accounting.
 | Status | What it means |
 |--------|---------------|
 | Pending | Just recorded — nothing received yet. |
-| Processing | Being worked on / prepared. |
 | Confirmed | Details agreed and locked in. |
 | Completed | Goods received and the supply is closed out. |
+| Cancelled | Abandoned; will never be received. |
+
+**Purchase order statuses**
+
+| Status | What it means |
+|--------|---------------|
+| Draft | Being put together; lines can still change. |
+| Approved | Signed off internally. The lines are now fixed. |
+| Sent | With the vendor, waiting for delivery. |
+| Partially Received | Some of what you ordered has arrived; the rest is still outstanding. |
+| Received | Everything ordered has arrived. |
+| Cancelled | Abandoned; will never be received. |
 
 **Received-goods statuses**
 
@@ -62,8 +78,8 @@ Everything starts with a vendor and ends with a hand-off to accounting.
 
 ---
 
-## ⚠ Needs attention (for the project owner)
+## ✅ Recently resolved
 
-The Supplies feature currently has a **second, duplicate set of routes** — leftover placeholder/scaffolding — sitting alongside the real, working one. These extra entries don't do anything useful (they just return placeholder messages) and can shadow or clash with the real flow.
+The Supplies feature used to carry a **second, duplicate set of routes** — leftover placeholder scaffolding — alongside the real one. Because the duplicates were registered last, they won: "Mark Completed" flashed a success message and changed nothing. Those placeholders have been removed, so the buttons now do what they say.
 
-**Recommendation:** clean up the duplicate supply routes before the module is finished, to avoid confusion and hard-to-trace bugs as more is built on top.
+A "Processing" supply status was also documented and colour-coded in the UI, but was never a valid value in the database and nothing ever wrote it. It has been dropped.
