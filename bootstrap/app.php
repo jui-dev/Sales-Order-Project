@@ -49,9 +49,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \App\Http\Middleware\EnsurePermission::class,
         ]);
         
-        // Add global error handler to web middleware group
+        // Add global error handler to web middleware group.
+        //
+        // TrackTriggeredEffects is appended rather than prepended on purpose:
+        // it writes to the session after the response is built, and only an
+        // inner middleware still gets to do that before StartSession saves.
         $middleware->web(append: [
             \App\Http\Middleware\GlobalErrorHandler::class,
+            \App\Http\Middleware\TrackTriggeredEffects::class,
         ]);
         
         // Replace the default VerifyCsrfToken middleware with our custom one
