@@ -100,34 +100,28 @@
 </div>
 
 {{-- What happens next --}}
-<div class="card mb-4">
-    <div class="card-body">
-        @switch($order->status)
-            @case(\App\Models\PurchaseOrder::STATUS_DRAFT)
-                <span class="text-muted">Approve this order to sign it off internally.</span>
-                @break
+@php
+    $nextStep = match ($order->status) {
+        \App\Models\PurchaseOrder::STATUS_DRAFT => 'Approve this order to sign it off internally.',
+        \App\Models\PurchaseOrder::STATUS_SENT,
+        \App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED => 'When the goods arrive, record what actually turned up.',
+        \App\Models\PurchaseOrder::STATUS_RECEIVED => 'Everything ordered has been received.',
+        \App\Models\PurchaseOrder::STATUS_CANCELLED => 'This order was cancelled.',
+        default => null,
+    };
+@endphp
 
-            @case(\App\Models\PurchaseOrder::STATUS_APPROVED)
-                <span class="text-muted">Send the order to the vendor.</span>
-                @break
-
-            @case(\App\Models\PurchaseOrder::STATUS_SENT)
-            @case(\App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED)
-                <span class="text-muted">When the goods arrive, record what actually turned up.</span>
-                @break
-
-            @case(\App\Models\PurchaseOrder::STATUS_RECEIVED)
-                <span class="text-success mb-0">
-                    <i class="bi bi-check-circle me-1"></i>Everything ordered has been received.
-                </span>
-                @break
-
-            @case(\App\Models\PurchaseOrder::STATUS_CANCELLED)
-                <span class="text-muted mb-0">This order was cancelled.</span>
-                @break
-        @endswitch
+@if ($nextStep)
+    <div class="card mb-4">
+        <div class="card-body">
+            @if ($order->status === \App\Models\PurchaseOrder::STATUS_RECEIVED)
+                <span class="text-success"><i class="bi bi-check-circle me-1"></i>{{ $nextStep }}</span>
+            @else
+                <span class="text-muted">{{ $nextStep }}</span>
+            @endif
+        </div>
     </div>
-</div>
+@endif
 
 <div class="card mb-4">
     <div class="card-header"><h2 class="h5 mb-0">Items</h2></div>
