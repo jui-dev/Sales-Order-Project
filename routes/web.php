@@ -564,16 +564,7 @@ Route::get('/vendor-to-warehouse-picking/picking-list/{id}', function ($id) {
     return view('vendor-to-warehouse-picking.show-picking-list', compact('pickingList'));
 })->whereNumber('id')->name('vendor-to-warehouse-picking.show-picking-list');
 
-// Supporting JSON and action routes referenced by the view
-Route::get('/vendor-to-warehouse-picking/statistics', function () {
-    return response()->json([
-        'total_movements'     => 0,
-        'completed_today'     => 0,
-        'total_items_received'=> 0,
-        'active_warehouses'   => 0,
-    ]);
-})->name('vendor-to-warehouse-picking.statistics');
-
+// Action route referenced by the view
 Route::post('/vendor-to-warehouse-picking/{id}/trigger', function ($id) {
     return back()->with('success', "Triggered processing for supply {$id} (placeholder).");
 })->whereNumber('id')->name('vendor-to-warehouse-picking.trigger');
@@ -730,9 +721,6 @@ Route::prefix('supplies')->name('supplies.')->group(function () {
 
     // Show completion options page is GET implemented earlier (?) but ensure process route
     Route::post('/{id}/process-completion', fn ($id) => back()->with('success', "Supply {$id} completion processed."))->whereNumber('id')->name('process-completion');
-
-    // Generate missing picking lists
-    Route::post('/generate-missing-picking-lists', fn () => back()->with('success', 'Generated missing picking lists (placeholder).'))->name('generate-missing-picking-lists');
 });
 
 // Placeholder routes referenced by order-related views

@@ -1,21 +1,7 @@
 @extends('layouts.app')
 @section('page-header')
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="mb-4">
         <h1><i class="bi bi-truck-arrow-right me-2"></i>Vendors to Warehouse Picking</h1>
-        <div>
-            <a href="{{ route('supplies.index') }}" class="btn btn-outline-primary me-2">
-                <i class="bi bi-truck me-1"></i> View Supplies
-            </a>
-            <form method="POST" action="{{ route('supplies.generate-missing-picking-lists') }}" class="d-inline">
-                @csrf
-                <button type="submit" class="btn btn-warning me-2" onclick="return confirm('This will generate picking lists for all supplies that don\'t have them. Continue?')">
-                    <i class="bi bi-plus-square me-1"></i> Generate Missing Picking Lists
-                </button>
-            </form>
-            <button class="btn btn-info" onclick="loadStatistics()">
-                <i class="bi bi-graph-up me-1"></i> Statistics
-            </button>
-        </div>
     </div>
 @endsection
 
@@ -119,62 +105,6 @@
             </div>
         </div>
     </div>
-    </div>
-</div>
-
-<!-- Statistics Cards (Hidden by default) -->
-<div class="row mb-4" id="statistics-cards" style="display: none;">
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm summary-card summary-card--blue">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title text-primary">Total Transactions</h6>
-                        <h3 id="total-pickings">-</h3>
-                    </div>
-                    <i class="bi bi-list-check text-primary summary-card__icon" style="font-size: 2rem;"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm summary-card summary-card--green">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title text-success">Completed Today</h6>
-                        <h3 id="completed-today">-</h3>
-                    </div>
-                    <i class="bi bi-check-circle text-success summary-card__icon" style="font-size: 2rem;"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm summary-card summary-card--amber">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title text-warning-emphasis">Items Received</h6>
-                        <h3 id="total-items">-</h3>
-                    </div>
-                    <i class="bi bi-box text-warning-emphasis summary-card__icon" style="font-size: 2rem;"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm summary-card summary-card--cyan">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
-                        <h6 class="card-title text-info-emphasis">Active Warehouses</h6>
-                        <h3 id="active-warehouses">-</h3>
-                    </div>
-                    <i class="bi bi-house-fill text-info-emphasis summary-card__icon" style="font-size: 2rem;"></i>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -620,31 +550,6 @@
 </div>
 @endif
 
-<script>
-function loadStatistics() {
-    const statsCards = document.getElementById('statistics-cards');
-    if (statsCards.style.display === 'none') {
-        // Show statistics
-        statsCards.style.display = 'block';
-        
-        // Load data via AJAX
-        fetch('{{ route("vendor-to-warehouse-picking.statistics") }}')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('total-pickings').textContent = data.total_movements || '0';
-                document.getElementById('completed-today').textContent = data.completed_today || '0';
-                document.getElementById('total-items').textContent = data.total_items_received || '0';
-                document.getElementById('active-warehouses').textContent = data.active_warehouses || '0';
-            })
-            .catch(error => {
-                console.error('Error loading statistics:', error);
-            });
-    } else {
-        // Hide statistics
-        statsCards.style.display = 'none';
-    }
-}
-</script>
 </div>
 @endsection
 
