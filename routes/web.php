@@ -61,7 +61,7 @@ Route::patch('products/{product}/complete-supplies', function (Product $product)
     // Complete all pending supplies for this product
     $pendingSupplies = \App\Models\Supply::whereHas('supplyItems', function($query) use ($product) {
         $query->where('product_id', $product->id);
-    })->whereIn('status', ['pending', 'processing'])->get();
+    })->whereIn('status', ['pending', 'confirmed'])->get();
 
     foreach ($pendingSupplies as $supply) {
         $supply->update(['status' => 'completed']);
@@ -126,6 +126,9 @@ Route::resource('supplies', SupplyController::class)->only(['index', 'create', '
 
 // Custom route to mark supply completed
 Route::patch('supplies/{supply}/completed', [SupplyController::class, 'completed'])->name('supplies.completed');
+
+// Confirm a pending supply
+Route::patch('supplies/{supply}/confirm', [SupplyController::class, 'confirm'])->name('supplies.confirm');
 
 // Additional supplies routes for edit, update, destroy
 Route::get('supplies/{supply}/edit', [SupplyController::class, 'edit'])->name('supplies.edit');
@@ -669,58 +672,6 @@ Route::prefix('retailer-to-customer-picking')->name('retailer-to-customer-pickin
 
         return back()->with('success', 'Item marked as picked.');
     })->whereNumber('pickingList')->whereNumber('item')->name('update-item');
-});
-
-Route::prefix('supplies')->name('supplies.')->group(function () {
-    // Store new supply
-    Route::post('/', function (\App\Http\Requests\StoreSupplyRequest $request) {
-        // Create the supply header first
-        $supply = \App\Models\Supply::create([
-            'vendor_id'    => $request->vendor_id,
-            'warehouse_id' => $request->warehouse_id,
-            'supply_date'  => $request->supply_date,
-            'status'       => 'pending', // default status
-            'notes'        => $request->notes,
-        ]);
-
-        // Create related items
-        $total = 0;
-        foreach ($request->input('products', []) as $item) {
-            $subtotal = (float) $item['quantity'] * (float) $item['unit_cost'];
-            $supply->items()->create([
-                'product_id' => $item['product_id'],
-                'quantity'   => $item['quantity'],
-                'unit_cost'  => $item['unit_cost'],
-                'subtotal'   => $subtotal,
-            ]);
-            $total += $subtotal;
-        }
-
-        // Update total cost
-        $supply->update(['total_cost' => $total]);
-
-        return redirect()->route('supplies.show', $supply->id)
-            ->with('success', 'Supply recorded successfully.');
-    })->name('store');
-
-    // Update existing supply (PUT/PATCH)
-    Route::match(['put', 'patch'], '/{id}', function ($id) {
-        return back()->with('success', "Supply {$id} updated (placeholder).");
-    })->whereNumber('id')->name('update');
-
-    // Destroy supply
-    Route::delete('/{id}', function ($id) {
-        return back()->with('success', "Supply {$id} deleted (placeholder).");
-    })->whereNumber('id')->name('destroy');
-
-    // Mark processing
-    Route::patch('/{id}/processing', fn ($id) => back()->with('success', "Supply {$id} marked processing."))->whereNumber('id')->name('processing');
-
-    // Mark completed
-    Route::patch('/{id}/completed', fn ($id) => back()->with('success', "Supply {$id} marked completed."))->whereNumber('id')->name('completed');
-
-    // Show completion options page is GET implemented earlier (?) but ensure process route
-    Route::post('/{id}/process-completion', fn ($id) => back()->with('success', "Supply {$id} completion processed."))->whereNumber('id')->name('process-completion');
 });
 
 // Placeholder routes referenced by order-related views

@@ -385,8 +385,8 @@
                                     <span class="fw-semibold text-success">${{ number_format($item->unit_cost, 2) }}</span>
                                 </td>
                                 <td>
-                                    <span class="badge bg-{{ $item->supply->status == 'completed' ? 'success' : ($item->supply->status == 'processing' ? 'primary' : 'warning') }}">
-                                        <i class="bi bi-{{ $item->supply->status == 'completed' ? 'check-circle' : ($item->supply->status == 'processing' ? 'arrow-clockwise' : 'exclamation-circle') }} me-1"></i>
+                                    <span class="badge bg-{{ $item->supply->status == 'completed' ? 'success' : ($item->supply->status == 'confirmed' ? 'info' : 'warning') }}">
+                                        <i class="bi bi-{{ $item->supply->status == 'completed' ? 'check-circle' : ($item->supply->status == 'confirmed' ? 'arrow-clockwise' : 'exclamation-circle') }} me-1"></i>
                                         {{ ucfirst($item->supply->status) }}
                                     </span>
                                 </td>

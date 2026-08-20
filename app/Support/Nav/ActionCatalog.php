@@ -37,14 +37,6 @@ final class ActionCatalog
             ],
             'note' => 'Nothing enters inventory here - a supply only records what was ordered.',
         ],
-        'supplies.processing' => [
-            'label' => 'Mark supply as processing',
-            'module' => 'Procurement',
-            'where' => 'Processing on the supply detail page',
-            'effects' => [
-                ['key' => 'procurement.supplies', 'what' => 'The supply moves to Processing.'],
-            ],
-        ],
         'supplies.completed' => [
             'label' => 'Mark supply completed',
             'module' => 'Procurement',

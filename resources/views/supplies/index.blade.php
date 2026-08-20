@@ -63,9 +63,9 @@
                             @php
                                 $statusBadge = match($supply->status) {
                                     'pending'    => 'warning',
-                                    'processing' => 'primary',
                                     'confirmed'  => 'info',
                                     'completed'  => 'success',
+                                    'cancelled'  => 'danger',
                                     default      => 'secondary'
                                 };
                             @endphp

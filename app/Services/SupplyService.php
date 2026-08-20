@@ -231,9 +231,9 @@ class SupplyService
                 'label' => 'Status',
                 'options' => [
                     'pending' => 'Pending',
-                    'processing' => 'Processing',
                     'confirmed' => 'Confirmed',
                     'completed' => 'Completed',
+                    'cancelled' => 'Cancelled',
                 ],
             ],
             'vendor_id' => [

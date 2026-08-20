@@ -274,7 +274,7 @@
                             <td>{{ $supply->quantity }}</td>
                             <td>${{ number_format($supply->unit_cost, 2) }}</td>
                             <td>
-                                <span class="badge bg-{{ $supply->status == 'pending' ? 'warning' : ($supply->status == 'processing' ? 'primary' : 'success') }}">
+                                <span class="badge bg-{{ $supply->status == 'pending' ? 'warning' : ($supply->status == 'confirmed' ? 'info' : 'success') }}">
                                     {{ ucfirst($supply->status) }}
                                 </span>
                             </td>

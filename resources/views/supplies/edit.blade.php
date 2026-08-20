@@ -79,7 +79,7 @@
                 <div class="col-md-12 mb-3">
                     <label class="form-label">Status</label>
                     <div>
-                        <span class="text-{{ $supply->status == 'pending' ? 'warning' : ($supply->status == 'processing' ? 'primary' : 'success') }}">
+                        <span class="text-{{ $supply->status == 'pending' ? 'warning' : ($supply->status == 'confirmed' ? 'info' : ($supply->status == 'cancelled' ? 'danger' : 'success')) }}">
                             {{ ucfirst($supply->status) }}
                         </span>
                         <small class="text-muted ms-2">(Status can be changed from the supplies list or detail page)</small>

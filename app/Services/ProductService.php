@@ -594,7 +594,7 @@ class ProductService
                 $pendingSupplies = DB::table('supply_items')
                     ->join('supplies', 'supply_items.supply_id', '=', 'supplies.id')
                     ->where('supply_items.product_id', $product->id)
-                    ->whereIn('supplies.status', ['pending', 'processing'])
+                    ->whereIn('supplies.status', ['pending', 'confirmed'])
                     ->sum('supply_items.quantity');
 
                 // Get pending orders
