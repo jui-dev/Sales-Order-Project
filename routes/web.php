@@ -76,6 +76,15 @@ Route::resource('customers', CustomerController::class);
 // Vendors Routes
 Route::resource('vendors', VendorController::class);
 
+// Vendor price list - which products a vendor carries, and at what cost.
+// Registered after the resource so {vendor}/products does not collide with show.
+Route::post('vendors/{vendor}/products', [VendorController::class, 'assignProduct'])
+    ->whereNumber('vendor')->name('vendors.products.assign');
+Route::put('vendors/{vendor}/price-list', [VendorController::class, 'updatePriceList'])
+    ->whereNumber('vendor')->name('vendors.price-list.update');
+Route::delete('vendors/{vendor}/products/{vendorProduct}', [VendorController::class, 'removeProduct'])
+    ->whereNumber('vendor')->whereNumber('vendorProduct')->name('vendors.products.remove');
+
 // Orders UI Routes
 Route::get('/orders', [\App\Http\Controllers\OrderController::class, 'index'])->name('orders.index');
 

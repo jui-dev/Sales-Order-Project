@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Services\VendorService;
+use App\Http\Requests\AssignVendorProductRequest;
 use App\Http\Requests\StoreVendorRequest;
+use App\Http\Requests\UpdateVendorPriceListRequest;
 use App\Http\Requests\UpdateVendorRequest;
 use App\Exceptions\DataNotFoundException;
 use App\Traits\HasApiResponses;
@@ -76,8 +78,13 @@ class VendorController extends Controller
     public function show(int $id): View|RedirectResponse
     {
         try {
-            $vendor = $this->service->get($id);
-            return view('vendors.show', compact('vendor'));
+            $vendor = $this->service->getWithPriceList($id);
+            // Only products not already on this vendor's list are offerable.
+            $assignableProducts = \App\Models\Product::orderBy('name')
+                ->whereNotIn('id', $vendor->vendorProducts->pluck('product_id'))
+                ->get(['id', 'name', 'sku']);
+
+            return view('vendors.show', compact('vendor', 'assignableProducts'));
         } catch (DataNotFoundException $e) {
             return redirect()->route('vendors.index')
                 ->with('error', $e->getMessage());
@@ -113,6 +120,54 @@ class VendorController extends Controller
                 ->with('error', $e->getMessage());
         } catch (\Exception $e) {
             return back()->withInput()->with('error', 'Unable to update vendor. Please try again.');
+        }
+    }
+
+    /* ---------------------------------------------------------------------
+     | Price list
+     |---------------------------------------------------------------------*/
+
+    public function assignProduct(AssignVendorProductRequest $request, int $id): RedirectResponse
+    {
+        try {
+            $this->service->assignProduct(
+                $id,
+                (int) $request->validated('product_id'),
+                $request->validated('unit_cost'),
+            );
+
+            return redirect()->route('vendors.show', $id)
+                ->with('success', 'Product added to this vendor\'s price list.');
+        } catch (DataNotFoundException $e) {
+            return redirect()->route('vendors.index')->with('error', $e->getMessage());
+        } catch (\Exception $e) {
+            return back()->with('error', 'Unable to add the product. Please try again.');
+        }
+    }
+
+    public function updatePriceList(UpdateVendorPriceListRequest $request, int $id): RedirectResponse
+    {
+        try {
+            $this->service->updatePriceList($id, $request->validated('rows', []));
+
+            return redirect()->route('vendors.show', $id)
+                ->with('success', 'Price list updated.');
+        } catch (DataNotFoundException $e) {
+            return redirect()->route('vendors.index')->with('error', $e->getMessage());
+        } catch (\Exception $e) {
+            return back()->with('error', 'Unable to update the price list. Please try again.');
+        }
+    }
+
+    public function removeProduct(int $id, int $vendorProduct): RedirectResponse
+    {
+        try {
+            $this->service->removeProduct($id, $vendorProduct);
+
+            return redirect()->route('vendors.show', $id)
+                ->with('success', 'Product removed from this vendor\'s price list.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Unable to remove the product. Please try again.');
         }
     }
 

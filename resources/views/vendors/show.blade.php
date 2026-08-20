@@ -48,6 +48,124 @@
     </div>
 </div>
 
+<h2>Price List</h2>
+<div class="card mb-4">
+    <div class="card-body">
+        <p class="text-muted">
+            Which products this vendor can supply, and what they charge. A purchase order
+            addressed to this vendor prices its lines from here.
+        </p>
+
+        {{-- Add a product to the list --}}
+        <form action="{{ route('vendors.products.assign', $vendor) }}" method="POST" class="row g-2 align-items-end mb-4">
+            @csrf
+            <div class="col-md-6">
+                <label for="product_id" class="form-label">Add a product</label>
+                <select name="product_id" id="product_id"
+                        class="form-select @error('product_id') is-invalid @enderror" required>
+                    <option value="">Select a product…</option>
+                    @foreach ($assignableProducts as $product)
+                        <option value="{{ $product->id }}">{{ $product->name }} ({{ $product->sku }})</option>
+                    @endforeach
+                </select>
+                @error('product_id')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="col-md-3">
+                <label for="unit_cost" class="form-label">Unit Cost <span class="text-muted">(optional)</span></label>
+                <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    <input type="number" name="unit_cost" id="unit_cost"
+                           class="form-control @error('unit_cost') is-invalid @enderror"
+                           min="0" step="0.01" placeholder="0.00">
+                    @error('unit_cost')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100"
+                        @disabled($assignableProducts->isEmpty())>Add to Price List</button>
+            </div>
+        </form>
+
+        {{-- Edit the existing rows --}}
+        <form action="{{ route('vendors.price-list.update', $vendor) }}" method="POST" id="price-list-form">
+            @csrf
+            @method('PUT')
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th style="width: 10rem;">Unit Cost</th>
+                        <th style="width: 12rem;">Vendor SKU</th>
+                        <th style="width: 6rem;">Active</th>
+                        <th style="width: 6rem;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($vendor->vendorProducts as $row)
+                        <tr>
+                            <td>{{ $row->product->name ?? 'Unknown product' }}</td>
+                            <td class="text-muted">{{ $row->product->sku ?? '—' }}</td>
+                            <td>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" name="rows[{{ $row->id }}][unit_cost]"
+                                           class="form-control" min="0" step="0.01"
+                                           value="{{ old("rows.{$row->id}.unit_cost", $row->unit_cost) }}"
+                                           placeholder="Not priced">
+                                </div>
+                            </td>
+                            <td>
+                                <input type="text" name="rows[{{ $row->id }}][vendor_sku]"
+                                       class="form-control form-control-sm"
+                                       value="{{ old("rows.{$row->id}.vendor_sku", $row->vendor_sku) }}">
+                            </td>
+                            <td>
+                                {{-- Paired hidden field so an unchecked box still posts a value --}}
+                                <input type="hidden" name="rows[{{ $row->id }}][is_active]" value="0">
+                                <input type="checkbox" class="form-check-input"
+                                       name="rows[{{ $row->id }}][is_active]" value="1"
+                                       @checked($row->is_active)>
+                            </td>
+                            <td>
+                                {{-- form= points at the delete form below: a form cannot be nested inside another --}}
+                                <button type="submit" form="remove-{{ $row->id }}"
+                                        class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('Remove this product from the price list?')">
+                                    Remove
+                                </button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">
+                                No products assigned to this vendor yet.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+
+            @if ($vendor->vendorProducts->isNotEmpty())
+                <button type="submit" class="btn btn-success">Save Price List</button>
+            @endif
+        </form>
+
+        {{-- Delete forms live outside the table so no form is nested in another --}}
+        @foreach ($vendor->vendorProducts as $row)
+            <form id="remove-{{ $row->id }}" method="POST"
+                  action="{{ route('vendors.products.remove', [$vendor, $row->id]) }}" class="d-none">
+                @csrf
+                @method('DELETE')
+            </form>
+        @endforeach
+    </div>
+</div>
+
 <h2>Supply History</h2>
 <div class="card">
     <div class="card-body">

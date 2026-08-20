@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -48,6 +49,16 @@ class Product extends Model
     public function supplyItems(): HasMany
     {
         return $this->hasMany(\App\Models\SupplyItem::class);
+    }
+
+    /**
+     * The vendors who can supply this product, carrying each one's cost.
+     */
+    public function vendors(): BelongsToMany
+    {
+        return $this->belongsToMany(\App\Models\Vendor::class, 'vendor_products')
+            ->withPivot('unit_cost', 'vendor_sku', 'is_active')
+            ->withTimestamps();
     }
 
     public function orderItems(): HasMany
