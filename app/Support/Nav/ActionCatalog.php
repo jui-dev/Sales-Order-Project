@@ -51,17 +51,6 @@ final class ActionCatalog
                 ['key' => 'procurement.purchase-orders', 'what' => 'The order moves to Sent and can now be received against.'],
             ],
         ],
-        'purchase-orders.record-supply' => [
-            'label' => 'Record a supply against a purchase order',
-            'module' => 'Procurement',
-            'where' => 'Record Supply on the purchase order page',
-            'effects' => [
-                ['key' => 'procurement.supplies', 'what' => 'A Pending supply is created for what arrived, linked back to the order.'],
-                ['key' => 'procurement.purchase-orders', 'what' => 'Received quantities are recounted; the order closes or stays partially received.'],
-                ['key' => 'picking.vendor-to-warehouse', 'what' => 'It appears on the vendor picking screen.'],
-            ],
-            'note' => 'Still nothing in inventory - stock moves when the GRN is posted.',
-        ],
         'supplies.store' => [
             'label' => 'Record a supply',
             'module' => 'Procurement',
@@ -69,6 +58,7 @@ final class ActionCatalog
             'effects' => [
                 ['key' => 'procurement.supplies', 'what' => 'The supply is created as Pending.'],
                 ['key' => 'picking.vendor-to-warehouse', 'what' => 'It appears on the vendor picking screen, which lists supplies rather than records of its own.'],
+                ['key' => 'procurement.purchase-orders', 'what' => 'When the form was opened from an order, the supply is linked back to it and received quantities are recounted, so the order closes or stays partially received.'],
             ],
             'note' => 'Nothing enters inventory here, and no price changes - a supply only records what arrived.',
         ],

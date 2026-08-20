@@ -11,6 +11,7 @@ use App\Models\VendorProduct;
 use App\Models\Warehouse;
 use App\Services\GrnService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -62,6 +63,25 @@ class PurchaseOrderTest extends TestCase
         $this->patch(route('purchase-orders.send', $order));
 
         return $order->fresh();
+    }
+
+    /**
+     * A delivery against an order, recorded the way the screens do it: through
+     * the supply form, carrying the order it belongs to.
+     */
+    private function recordSupply(PurchaseOrder $order, int $quantity, ?Product $product = null): TestResponse
+    {
+        $product ??= $this->product;
+
+        return $this->post(route('supplies.store'), [
+            'purchase_order_id' => $order->id,
+            'vendor_id' => $order->vendor_id,
+            'warehouse_id' => $order->warehouse_id,
+            'supply_date' => now()->toDateString(),
+            'products' => [
+                ['product_id' => $product->id, 'quantity' => $quantity, 'unit_cost' => 47.50],
+            ],
+        ]);
     }
 
     public function test_an_order_starts_as_a_draft_with_its_total_calculated(): void
@@ -131,10 +151,7 @@ class PurchaseOrderTest extends TestCase
     {
         $order = $this->createOrder();
 
-        $this->post(route('purchase-orders.record-supply', $order), [
-            'supply_date' => now()->toDateString(),
-            'products' => [['product_id' => $this->product->id, 'quantity' => 5, 'unit_cost' => 47.50]],
-        ]);
+        $this->recordSupply($order, 5);
 
         $this->assertSame(0, Supply::count());
     }
@@ -143,10 +160,7 @@ class PurchaseOrderTest extends TestCase
     {
         $order = $this->sentOrder(10);
 
-        $this->post(route('purchase-orders.record-supply', $order), [
-            'supply_date' => now()->toDateString(),
-            'products' => [['product_id' => $this->product->id, 'quantity' => 10, 'unit_cost' => 47.50]],
-        ])->assertRedirect();
+        $this->recordSupply($order, 10)->assertRedirect();
 
         $order->refresh();
         $this->assertSame(PurchaseOrder::STATUS_RECEIVED, $order->status);
@@ -158,20 +172,14 @@ class PurchaseOrderTest extends TestCase
     {
         $order = $this->sentOrder(10);
 
-        $this->post(route('purchase-orders.record-supply', $order), [
-            'supply_date' => now()->toDateString(),
-            'products' => [['product_id' => $this->product->id, 'quantity' => 4, 'unit_cost' => 47.50]],
-        ])->assertRedirect();
+        $this->recordSupply($order, 4)->assertRedirect();
 
         $order->refresh();
         $this->assertSame(PurchaseOrder::STATUS_PARTIALLY_RECEIVED, $order->status);
         $this->assertSame(6, $order->items->first()->outstanding());
 
         // The rest turns up later.
-        $this->post(route('purchase-orders.record-supply', $order), [
-            'supply_date' => now()->toDateString(),
-            'products' => [['product_id' => $this->product->id, 'quantity' => 6, 'unit_cost' => 47.50]],
-        ])->assertRedirect();
+        $this->recordSupply($order, 6)->assertRedirect();
 
         $order->refresh();
         $this->assertSame(PurchaseOrder::STATUS_RECEIVED, $order->status);
@@ -182,10 +190,7 @@ class PurchaseOrderTest extends TestCase
     {
         $order = $this->sentOrder(5);
 
-        $this->post(route('purchase-orders.record-supply', $order), [
-            'supply_date' => now()->toDateString(),
-            'products' => [['product_id' => $this->product->id, 'quantity' => 5, 'unit_cost' => 47.50]],
-        ]);
+        $this->recordSupply($order, 5);
 
         $supply = Supply::firstOrFail();
         $this->assertSame($order->id, $supply->purchase_order_id);
@@ -194,14 +199,38 @@ class PurchaseOrderTest extends TestCase
         $this->assertSame('pending', $supply->status);
     }
 
+    public function test_a_delivery_cannot_bring_a_product_that_was_not_ordered(): void
+    {
+        $order = $this->sentOrder(5);
+        $stranger = Product::factory()->create();
+
+        $this->recordSupply($order, 5, $stranger)
+            ->assertSessionHasErrors('products.0.product_id');
+
+        $this->assertSame(0, Supply::count());
+    }
+
+    public function test_a_supply_with_no_order_behind_it_is_unaffected(): void
+    {
+        $this->post(route('supplies.store'), [
+            'vendor_id' => $this->vendor->id,
+            'warehouse_id' => $this->warehouse->id,
+            'supply_date' => now()->toDateString(),
+            'products' => [
+                ['product_id' => $this->product->id, 'quantity' => 3, 'unit_cost' => 47.50],
+            ],
+        ])->assertRedirect(route('supplies.index'));
+
+        $supply = Supply::firstOrFail();
+        $this->assertNull($supply->purchase_order_id);
+        $this->assertSame(3, $supply->items->first()->quantity);
+    }
+
     public function test_ordering_and_receiving_only_prices_the_product_at_the_grn(): void
     {
         $order = $this->sentOrder(5);
 
-        $this->post(route('purchase-orders.record-supply', $order), [
-            'supply_date' => now()->toDateString(),
-            'products' => [['product_id' => $this->product->id, 'quantity' => 5, 'unit_cost' => 47.50]],
-        ]);
+        $this->recordSupply($order, 5);
 
         // Ordered and delivered, but not yet received into stock.
         $this->assertEquals(0, $this->product->fresh()->selling_price);
@@ -223,13 +252,94 @@ class PurchaseOrderTest extends TestCase
         $this->assertSame(PurchaseOrder::STATUS_CANCELLED, $order->fresh()->status);
 
         // And can no longer be received against.
-        $this->post(route('purchase-orders.record-supply', $order), [
-            'supply_date' => now()->toDateString(),
-            'products' => [['product_id' => $this->product->id, 'quantity' => 5, 'unit_cost' => 47.50]],
-        ]);
+        $this->recordSupply($order, 5);
 
         $this->assertSame(0, Supply::count());
         $this->assertSame(PurchaseOrder::STATUS_CANCELLED, $order->fresh()->status);
+    }
+
+    public function test_the_supply_form_is_prefilled_from_the_order(): void
+    {
+        $order = $this->sentOrder(10);
+
+        $response = $this->get(route('supplies.create', ['purchase_order' => $order->id]));
+
+        $response->assertOk();
+        $this->assertSame($order->id, $response->viewData('purchaseOrder')->id);
+
+        // Vendor and warehouse are pinned to the order rather than chosen again.
+        $response->assertSee('name="vendor_id" value="'.$order->vendor_id.'"', false);
+        $response->assertSee('name="warehouse_id" value="'.$order->warehouse_id.'"', false);
+        $response->assertSee('name="purchase_order_id" value="'.$order->id.'"', false);
+
+        $lines = $response->viewData('prefillLines');
+        $this->assertCount(1, $lines);
+        $this->assertSame($this->product->id, $lines[0]['product_id']);
+        $this->assertSame(10, $lines[0]['quantity']);
+        $this->assertEquals(47.50, $lines[0]['unit_cost']);
+    }
+
+    public function test_the_supply_form_prefills_only_what_is_still_outstanding(): void
+    {
+        $order = $this->sentOrder(10);
+        $this->recordSupply($order, 4);
+
+        $lines = $this->get(route('supplies.create', ['purchase_order' => $order->id]))
+            ->assertOk()
+            ->viewData('prefillLines');
+
+        $this->assertSame(6, $lines[0]['quantity']);
+    }
+
+    public function test_the_supply_form_refuses_an_order_that_cannot_be_received_against(): void
+    {
+        $order = $this->createOrder();
+
+        $this->get(route('supplies.create', ['purchase_order' => $order->id]))
+            ->assertRedirect(route('purchase-orders.show', $order->id));
+    }
+
+    public function test_the_requested_orders_page_lists_only_orders_awaiting_a_delivery(): void
+    {
+        $sent = $this->sentOrder(5);
+        $draft = $this->createOrder(3);
+
+        $this->get(route('supplies.purchase-orders'))
+            ->assertOk()
+            ->assertSee($sent->code)
+            ->assertDontSee($draft->code);
+    }
+
+    public function test_a_fully_received_order_drops_off_the_requested_list(): void
+    {
+        $order = $this->sentOrder(5);
+        $this->recordSupply($order, 5);
+
+        $this->get(route('supplies.purchase-orders'))
+            ->assertOk()
+            ->assertDontSee($order->code);
+    }
+
+    public function test_the_supplies_list_counts_the_orders_awaiting_a_delivery(): void
+    {
+        $this->sentOrder(5);
+
+        $this->get(route('supplies.index'))
+            ->assertOk()
+            ->assertViewHas('awaitingOrdersCount', 1)
+            ->assertSee('Requested Purchase Orders');
+    }
+
+    public function test_the_supplies_list_shows_the_order_a_supply_came_from(): void
+    {
+        $order = $this->sentOrder(5);
+        $this->recordSupply($order, 5);
+
+        // Fully received, so it is off the awaiting list but still named on the row.
+        $this->get(route('supplies.index'))
+            ->assertOk()
+            ->assertViewHas('awaitingOrdersCount', 0)
+            ->assertSee($order->code);
     }
 
     public function test_the_price_list_endpoint_returns_the_vendors_products_and_costs(): void

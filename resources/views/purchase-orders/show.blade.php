@@ -42,7 +42,7 @@
 
             @case(\App\Models\PurchaseOrder::STATUS_SENT)
             @case(\App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED)
-                <a href="{{ route('purchase-orders.receive', $order) }}" class="btn btn-primary">
+                <a href="{{ route('supplies.create', ['purchase_order' => $order->id]) }}" class="btn btn-primary">
                     <i class="bi bi-box-seam me-1"></i>Record Supply
                 </a>
                 @break

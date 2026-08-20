@@ -2,9 +2,19 @@
 @section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Supplies</h1>
-        <a href="{{ route('supplies.create') }}" class="btn btn-success">
-            <i class="bi bi-plus-circle me-1"></i> Record New Supply
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+            @can('purchase-orders.view')
+                <a href="{{ route('supplies.purchase-orders') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-clipboard-check me-1"></i> Requested Purchase Orders
+                    @if(($awaitingOrdersCount ?? 0) > 0)
+                        <span class="badge bg-primary ms-1">{{ $awaitingOrdersCount }}</span>
+                    @endif
+                </a>
+            @endcan
+            <a href="{{ route('supplies.create') }}" class="btn btn-success">
+                <i class="bi bi-plus-circle me-1"></i> Record New Supply
+            </a>
+        </div>
     </div>
 @endsection
 
@@ -31,6 +41,7 @@
                     <tr>
                         <th>ID</th>
                         <th>Vendor</th>
+                        <th>Order</th>
                         <th>Warehouse</th>
                         <th>Products</th>
                         <th>Total Items</th>
@@ -45,6 +56,13 @@
                     <tr>
                         <td>{{ $supply->formatted_id ?? $supply->id }}</td>
                         <td>{{ $supply->vendor->name }}</td>
+                        <td>
+                            @if($supply->purchaseOrder)
+                                <a href="{{ route('purchase-orders.show', $supply->purchase_order_id) }}">{{ $supply->purchaseOrder->code }}</a>
+                            @else
+                                <span class="text-muted">&mdash;</span>
+                            @endif
+                        </td>
                         <td>{{ $supply->warehouse->name }}</td>
                         <td>
                             <ul class="list-unstyled mb-0">
@@ -117,7 +135,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="9" class="text-center py-4">
+                        <td colspan="10" class="text-center py-4">
                             <div class="text-muted">
                                 <i class="bi bi-inbox display-1 d-block mb-3"></i>
                                 <h5>No Supplies Found</h5>

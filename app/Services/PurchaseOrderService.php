@@ -42,6 +42,27 @@ class PurchaseOrderService
         );
     }
 
+    /**
+     * The orders that have been sent to a vendor and are still waiting on goods.
+     *
+     * Drives the "Requested Purchase Orders" list on the supplies side, where a
+     * delivery is actually recorded against one.
+     *
+     * @return Collection<int, PurchaseOrder>
+     */
+    public function awaitingSupply(): Collection
+    {
+        return $this->handleServiceOperation(
+            function () {
+                return PurchaseOrder::awaitingSupply()
+                    ->with(['vendor', 'warehouse', 'items.product'])
+                    ->latest()
+                    ->get();
+            },
+            'purchase orders'
+        );
+    }
+
     public function get(int $id): PurchaseOrder
     {
         return $this->handleServiceOperation(

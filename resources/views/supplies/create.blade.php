@@ -1,13 +1,25 @@
 @extends('layouts.app')
 @section('page-header')
 <div class="mb-4">
-    <h1>Record New Supply</h1>
+    <h1>{{ ($purchaseOrder ?? null) ? 'Record Supply for '.$purchaseOrder->code : 'Record New Supply' }}</h1>
 </div>
 @endsection
 
 @section('content')
 
 <div class="supply-form">
+
+    @if($purchaseOrder ?? null)
+        <div class="supply-notice">
+            <i class="bi bi-clipboard-check"></i>
+            <div>
+                This delivery is against
+                <a href="{{ route('purchase-orders.show', $purchaseOrder->id) }}">{{ $purchaseOrder->code }}</a>.
+                The vendor, the receiving warehouse and the items below come from the order — change the quantities
+                to match what actually turned up, and remove any line that did not arrive.
+            </div>
+        </div>
+    @endif
 
     <div class="supply-notice">
         <i class="bi bi-info-circle"></i>
@@ -19,6 +31,9 @@
 
     <form action="{{ route('supplies.store') }}" method="POST">
         @csrf
+        @if($purchaseOrder ?? null)
+            <input type="hidden" name="purchase_order_id" value="{{ $purchaseOrder->id }}">
+        @endif
 
         {{-- Section 1: Supply details --}}
         <div class="card supply-card mb-4">
@@ -34,31 +49,47 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label for="vendor_id" class="form-label">Vendor <span class="text-danger">*</span></label>
-                        <select name="vendor_id" id="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror" required>
-                            <option value="">Select Vendor</option>
-                            @foreach($vendors as $vendor)
-                                <option value="{{ $vendor->id }}" {{ old('vendor_id') == $vendor->id ? 'selected' : '' }}>
-                                    {{ $vendor->name }} (ID: {{ $vendor->id }})
-                                </option>
-                            @endforeach
-                        </select>
+                        @if($purchaseOrder ?? null)
+                            {{-- Pinned to the order: a delivery cannot arrive from a different vendor. --}}
+                            <select id="vendor_id" class="form-select" disabled>
+                                <option value="{{ $purchaseOrder->vendor_id }}">{{ $purchaseOrder->vendor->name ?? 'Unknown vendor' }}</option>
+                            </select>
+                            <input type="hidden" name="vendor_id" value="{{ $purchaseOrder->vendor_id }}">
+                        @else
+                            <select name="vendor_id" id="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror" required>
+                                <option value="">Select Vendor</option>
+                                @foreach($vendors as $vendor)
+                                    <option value="{{ $vendor->id }}" {{ old('vendor_id') == $vendor->id ? 'selected' : '' }}>
+                                        {{ $vendor->name }} (ID: {{ $vendor->id }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        @endif
                         @error('vendor_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
                     </div>
 
                     <div class="col-md-6">
                         <label for="warehouse_id" class="form-label">Receiving Warehouse <span class="text-danger">*</span></label>
-                        <select name="warehouse_id" id="warehouse_id" class="form-select @error('warehouse_id') is-invalid @enderror" required>
-                            <option value="">Select Warehouse</option>
-                            @foreach($warehouses as $warehouse)
-                                <option value="{{ $warehouse->id }}" {{ old('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
-                                    {{ $warehouse->name }} (ID: {{ $warehouse->id }})
-                                </option>
-                            @endforeach
-                        </select>
+                        @if($purchaseOrder ?? null)
+                            {{-- Pinned to the order: the goods land where they were ordered to. --}}
+                            <select id="warehouse_id" class="form-select" disabled>
+                                <option value="{{ $purchaseOrder->warehouse_id }}">{{ $purchaseOrder->warehouse->name ?? 'Unknown warehouse' }}</option>
+                            </select>
+                            <input type="hidden" name="warehouse_id" value="{{ $purchaseOrder->warehouse_id }}">
+                        @else
+                            <select name="warehouse_id" id="warehouse_id" class="form-select @error('warehouse_id') is-invalid @enderror" required>
+                                <option value="">Select Warehouse</option>
+                                @foreach($warehouses as $warehouse)
+                                    <option value="{{ $warehouse->id }}" {{ old('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
+                                        {{ $warehouse->name }} (ID: {{ $warehouse->id }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        @endif
                         @error('warehouse_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
                     </div>
 
@@ -217,6 +248,10 @@
                 'parent_category' => $p->category->parent_id ?? $p->category_id,
             ];
         })->values()->toJson() !!};
+
+        // Set when the form was opened from a purchase order: one entry per line
+        // still outstanding, at the cost agreed on the order.
+        const prefillLines = @json($prefillLines ?? []);
 
         // DOM refs for the typeahead
         const searchInput      = document.getElementById('product-search-input');
@@ -592,10 +627,11 @@
                 .filter(Boolean);
         }
 
-        // Helper: create a new supply-item row for a given product id (if it does not exist)
+        // Helper: create a new supply-item row for a given product id (if it does
+        // not exist). Returns the row it created or reused, null if it declined.
         function addSupplyItem(productId) {
-            if (!productId) return;
-            if (currentProductIds().includes(productId)) return; // avoid duplicates
+            if (!productId) return null;
+            if (currentProductIds().includes(productId)) return null; // avoid duplicates
 
             // Try to reuse the very first blank row if it hasn't been filled yet
             const firstSelect = document.querySelector('.supply-item .product-select');
@@ -603,7 +639,7 @@
                 firstSelect.value = productId;
                 updateProductStockInfo(firstSelect);
                 updateTotal();
-                return;
+                return firstSelect.closest('.supply-item');
             }
 
             itemIndex++;
@@ -635,10 +671,25 @@
             setupEventListeners();
             updateProductStockInfo(select);
             updateTotal();
+
+            return template;
         }
 
         // Bind events for the initial (first) row
         setupEventListeners();
+
+        // Lines carried over from a purchase order. Dispatching `change` on the
+        // product select reuses the handler above, so Category and Subcategory
+        // fill themselves in from the product that was ordered.
+        prefillLines.forEach(function (line) {
+            const row = addSupplyItem(String(line.product_id));
+            if (!row) return;
+
+            row.querySelector('.item-quantity').value = line.quantity;
+            row.querySelector('.item-unit-cost').value = line.unit_cost;
+            row.querySelector('.product-select').dispatchEvent(new Event('change'));
+            updateSubtotal(row);
+        });
 
         // Previous datalist-driven handlers removed in favour of custom type-ahead
     });

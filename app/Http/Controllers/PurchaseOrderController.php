@@ -3,14 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\DataNotFoundException;
-use App\Http\Requests\RecordPurchaseOrderSupplyRequest;
 use App\Http\Requests\StorePurchaseOrderRequest;
 use App\Http\Requests\UpdatePurchaseOrderRequest;
 use App\Models\PurchaseOrder;
 use App\Models\Vendor;
 use App\Models\Warehouse;
 use App\Services\PurchaseOrderService;
-use App\Services\SupplyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -116,45 +114,6 @@ class PurchaseOrderController extends Controller
     public function cancel(int $id): RedirectResponse
     {
         return $this->runTransition(fn () => $this->service->cancel($id), $id, 'Purchase order cancelled.');
-    }
-
-    /**
-     * The "goods have arrived" form, prefilled with what is still outstanding.
-     */
-    public function receive(int $id): View|RedirectResponse
-    {
-        try {
-            $order = $this->service->get($id);
-
-            if (! $order->isReceivable()) {
-                return redirect()->route('purchase-orders.show', $id)
-                    ->with('error', 'Only a sent purchase order can have a supply recorded against it.');
-            }
-
-            return view('purchase-orders.receive', ['order' => $order]);
-        } catch (DataNotFoundException $e) {
-            return redirect()->route('purchase-orders.index')->with('error', $e->getMessage());
-        }
-    }
-
-    public function recordSupply(RecordPurchaseOrderSupplyRequest $request, PurchaseOrder $purchaseOrder): RedirectResponse
-    {
-        try {
-            $data = $request->validated();
-
-            // A line recorded as zero received is not a delivery line at all.
-            $data['products'] = array_values(array_filter(
-                $data['products'],
-                fn (array $line) => (int) $line['quantity'] > 0
-            ));
-
-            $supply = $this->service->recordSupply($purchaseOrder->id, $data, app(SupplyService::class));
-
-            return redirect()->route('supplies.show', $supply->id)
-                ->with('success', 'Supply recorded against the purchase order. Complete it to receive the goods.');
-        } catch (\Exception $e) {
-            return back()->withInput()->with('error', $e->getMessage());
-        }
     }
 
     /**

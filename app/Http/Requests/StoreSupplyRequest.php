@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\PurchaseOrder;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreSupplyRequest extends FormRequest
 {
@@ -28,11 +30,54 @@ class StoreSupplyRequest extends FormRequest
             'supply_date'               => ['required', 'date'],
             'notes'                     => ['nullable', 'string'],
 
+            // Set when the supply is a delivery against a purchase order. The
+            // order then owns the vendor and the warehouse, and counts what has
+            // arrived so far - so the link has to survive validation.
+            'purchase_order_id'         => ['nullable', 'integer', 'exists:purchase_orders,id'],
+
             // Nested products
             'products'                  => ['required', 'array', 'min:1'],
             'products.*.product_id'     => ['required', 'integer', 'exists:products,id'],
             'products.*.quantity'       => ['required', 'integer', 'min:1'],
             'products.*.unit_cost'      => ['required', 'numeric', 'min:0'],
+        ];
+    }
+
+    /**
+     * A delivery cannot bring goods that were never ordered.
+     *
+     * A line that did not turn up at all is left off the form rather than sent
+     * as a zero, so there is nothing to check on the low side.
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator) {
+                $orderId = $this->input('purchase_order_id');
+
+                if (! $orderId) {
+                    return;
+                }
+
+                $ordered = PurchaseOrder::query()
+                    ->find($orderId)
+                    ?->items
+                    ->pluck('product_id')
+                    ->all() ?? [];
+
+                if (! $ordered) {
+                    return;
+                }
+
+                foreach ($this->input('products', []) as $index => $line) {
+                    if (! in_array((int) ($line['product_id'] ?? 0), $ordered, true)) {
+                        $validator->errors()->add(
+                            "products.{$index}.product_id",
+                            'That product was not on this purchase order.'
+                        );
+                    }
+                }
+            },
         ];
     }
 
@@ -48,4 +93,4 @@ class StoreSupplyRequest extends FormRequest
             'products.*.unit_cost.min'   => 'Unit cost cannot be negative.',
         ];
     }
-} 
+}

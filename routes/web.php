@@ -157,10 +157,14 @@ Route::middleware('permission:purchase-orders.manage')->group(function () {
         ->whereNumber('purchaseOrder')->name('purchase-orders.send');
     Route::patch('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])
         ->whereNumber('purchaseOrder')->name('purchase-orders.cancel');
-    Route::get('purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])
-        ->whereNumber('purchaseOrder')->name('purchase-orders.receive');
-    Route::post('purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'recordSupply'])
-        ->whereNumber('purchaseOrder')->name('purchase-orders.record-supply');
+});
+
+// The orders still waiting on a delivery, listed on the supplies side so a
+// supply can be recorded straight from the order that asked for it. Registered
+// ahead of the resource, or `supplies/{supply}` swallows the URI.
+Route::middleware('permission:purchase-orders.view,purchase-orders.manage')->group(function () {
+    Route::get('supplies/purchase-orders', [SupplyController::class, 'awaitingOrders'])
+        ->name('supplies.purchase-orders');
 });
 
 // Supplies Routes (Controller)

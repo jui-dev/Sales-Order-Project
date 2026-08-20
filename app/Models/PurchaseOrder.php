@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasFormattedId;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -122,6 +123,18 @@ class PurchaseOrder extends Model
             self::STATUS_SENT,
             self::STATUS_PARTIALLY_RECEIVED,
         ], true);
+    }
+
+    /**
+     * Orders that are with the vendor and still waiting on goods - the query
+     * side of isReceivable(), for listing and counting them.
+     */
+    public function scopeAwaitingSupply(Builder $query): Builder
+    {
+        return $query->whereIn('status', [
+            self::STATUS_SENT,
+            self::STATUS_PARTIALLY_RECEIVED,
+        ]);
     }
 
     public function isCancellable(): bool

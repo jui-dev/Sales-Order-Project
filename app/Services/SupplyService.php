@@ -168,7 +168,7 @@ class SupplyService
     {
         return $this->getPaginatedOrEmpty(
             function () use ($filters, $perPage) {
-                $query = Supply::with(['vendor', 'warehouse']);
+                $query = Supply::with(['vendor', 'warehouse', 'purchaseOrder', 'items.product']);
 
                 // Apply search filter
                 if (! empty($filters['search'])) {
