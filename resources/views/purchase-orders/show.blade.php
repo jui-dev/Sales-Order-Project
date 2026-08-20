@@ -20,11 +20,41 @@
             {{ $order->vendor->name ?? 'Unknown vendor' }} &rarr; {{ $order->warehouse->name ?? 'Unknown warehouse' }}
         </p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap gap-2">
         @if ($order->isEditable())
             <a href="{{ route('purchase-orders.edit', $order) }}" class="btn btn-outline-primary">Edit</a>
         @endif
-        <a href="{{ route('purchase-orders.index') }}" class="btn btn-outline-secondary">Back to Orders</a>
+
+        @switch($order->status)
+            @case(\App\Models\PurchaseOrder::STATUS_DRAFT)
+                <form action="{{ route('purchase-orders.approve', $order) }}" method="POST">
+                    @csrf @method('PATCH')
+                    <button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Approve</button>
+                </form>
+                @break
+
+            @case(\App\Models\PurchaseOrder::STATUS_APPROVED)
+                <form action="{{ route('purchase-orders.send', $order) }}" method="POST">
+                    @csrf @method('PATCH')
+                    <button class="btn btn-primary"><i class="bi bi-send me-1"></i>Send to Vendor</button>
+                </form>
+                @break
+
+            @case(\App\Models\PurchaseOrder::STATUS_SENT)
+            @case(\App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED)
+                <a href="{{ route('purchase-orders.receive', $order) }}" class="btn btn-primary">
+                    <i class="bi bi-box-seam me-1"></i>Record Supply
+                </a>
+                @break
+        @endswitch
+
+        @if ($order->isCancellable())
+            <form action="{{ route('purchase-orders.cancel', $order) }}" method="POST"
+                  onsubmit="return confirm('Cancel this purchase order?')">
+                @csrf @method('PATCH')
+                <button class="btn btn-outline-danger">Cancel Order</button>
+            </form>
+        @endif
     </div>
 </div>
 @endsection
@@ -71,30 +101,19 @@
 
 {{-- What happens next --}}
 <div class="card mb-4">
-    <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+    <div class="card-body">
         @switch($order->status)
             @case(\App\Models\PurchaseOrder::STATUS_DRAFT)
-                <span class="text-muted me-auto">Approve this order to sign it off internally.</span>
-                <form action="{{ route('purchase-orders.approve', $order) }}" method="POST">
-                    @csrf @method('PATCH')
-                    <button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Approve</button>
-                </form>
+                <span class="text-muted">Approve this order to sign it off internally.</span>
                 @break
 
             @case(\App\Models\PurchaseOrder::STATUS_APPROVED)
-                <span class="text-muted me-auto">Send the order to the vendor.</span>
-                <form action="{{ route('purchase-orders.send', $order) }}" method="POST">
-                    @csrf @method('PATCH')
-                    <button class="btn btn-primary"><i class="bi bi-send me-1"></i>Send to Vendor</button>
-                </form>
+                <span class="text-muted">Send the order to the vendor.</span>
                 @break
 
             @case(\App\Models\PurchaseOrder::STATUS_SENT)
             @case(\App\Models\PurchaseOrder::STATUS_PARTIALLY_RECEIVED)
-                <span class="text-muted me-auto">When the goods arrive, record what actually turned up.</span>
-                <a href="{{ route('purchase-orders.receive', $order) }}" class="btn btn-primary">
-                    <i class="bi bi-box-seam me-1"></i>Record Supply
-                </a>
+                <span class="text-muted">When the goods arrive, record what actually turned up.</span>
                 @break
 
             @case(\App\Models\PurchaseOrder::STATUS_RECEIVED)
@@ -107,14 +126,6 @@
                 <span class="text-muted mb-0">This order was cancelled.</span>
                 @break
         @endswitch
-
-        @if ($order->isCancellable())
-            <form action="{{ route('purchase-orders.cancel', $order) }}" method="POST"
-                  onsubmit="return confirm('Cancel this purchase order?')">
-                @csrf @method('PATCH')
-                <button class="btn btn-outline-danger">Cancel Order</button>
-            </form>
-        @endif
     </div>
 </div>
 
