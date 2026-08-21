@@ -7,11 +7,6 @@
         {{-- A supply is always recorded against an order, so the way in is the
              list of orders awaiting a delivery - there is no order-less form. --}}
         <div class="d-flex flex-wrap gap-2">
-            @can('purchase-orders.manage')
-                <a href="{{ route('purchase-orders.create') }}" class="btn btn-outline-primary">
-                    <i class="bi bi-plus-circle me-1"></i> Create Purchase Order
-                </a>
-            @endcan
             @can('purchase-orders.view')
                 <a href="{{ route('supplies.purchase-orders') }}" class="btn btn-success">
                     <i class="bi bi-clipboard-check me-1"></i> Requested Purchase Orders
