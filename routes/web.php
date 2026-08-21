@@ -385,8 +385,11 @@ Route::get('/stock-transfers/warehouse-to-retailer/create', function () {
                         'warehouse_id'    => $stock->location_id,
                         // Available = on-hand minus any reserved qty (if reservation not tracked we just use quantity)
                         'available_stock' => (int) (($stock->quantity ?? 0) - ($stock->reserved_quantity ?? 0)),
-                        // We currently have no per-warehouse cost column, so fall back to the product's purchase_price
-                        'unit_cost'       => (float) ($product->purchase_price ?? 0),
+                        // Cost is per product, not per warehouse: the costing
+                        // ledger holds one moving average for the goods wherever
+                        // they sit. This is a COST, and the form labels it as one.
+                        'unit_cost'       => app(\App\Services\Pricing\ProductCostService::class)
+                            ->costAtOrLegacy($product),
                     ];
                 });
 

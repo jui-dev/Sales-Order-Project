@@ -15,8 +15,30 @@ use Carbon\Carbon;
 
 class ReturnJournalHandler
 {
-    public function __construct(private readonly AccountingService $accountingService)
+    public function __construct(
+        private readonly AccountingService $accountingService,
+        private readonly \App\Services\Pricing\ProductCostService $costs,
+    ) {
+    }
+
+    /**
+     * What a product cost at a given moment, for valuing a return.
+     *
+     * A return has to be booked at the cost the goods left at, or the entry
+     * putting inventory back will not match the one that relieved it. Falls
+     * back to the product's current cost only for goods received before the
+     * ledger existed.
+     */
+    private function unitCostAt(?\App\Models\Product $product, $at): float
     {
+        if (! $product) {
+            return 0.0;
+        }
+
+        return $this->costs->costAtOrLegacy(
+            $product,
+            $at instanceof \DateTimeInterface ? Carbon::instance(Carbon::parse($at)->toDateTime()) : now(),
+        );
     }
 
     /**
@@ -75,9 +97,13 @@ class ReturnJournalHandler
             // INVENTORY AND COGS ADJUSTMENT
             // ========================================
             
-            // Calculate total cost of returned items for inventory adjustment
-            $totalCost = $creditNote->items->sum(function ($item) {
-                return $item->quantity * ($item->product->purchase_price ?? 0);
+            // Value the returned goods at what they cost when they were sold,
+            // not at today's cost. Reading the live figure meant a delivery
+            // arriving after the sale changed the inventory this return puts
+            // back, so it no longer matched the COGS that had been relieved.
+            $returnedAt = $creditNote->created_at ?? now();
+            $totalCost = $creditNote->items->sum(function ($item) use ($returnedAt) {
+                return $item->quantity * $this->unitCostAt($item->product, $returnedAt);
             });
 
             if ($totalCost > 0) {
@@ -192,9 +218,12 @@ class ReturnJournalHandler
                 'description' => "Vendor Return - Reverse Accounts Payable #{$debitNote->debit_note_number}",
             ];
 
-            // 2. Take the returned goods back out of inventory, at cost.
-            $totalCost = round($debitNote->items->sum(function ($item) {
-                return $item->quantity * ($item->product->purchase_price ?? 0);
+            // 2. Take the returned goods back out of inventory, at cost - the
+            // cost as it stood when the note was raised, so a later delivery
+            // cannot restate an entry already on the ledger.
+            $raisedAt = $debitNote->created_at ?? now();
+            $totalCost = round($debitNote->items->sum(function ($item) use ($raisedAt) {
+                return $item->quantity * $this->unitCostAt($item->product, $raisedAt);
             }), 2);
 
             if ($totalCost > 0) {
@@ -302,9 +331,14 @@ class ReturnJournalHandler
             return null;
         }
 
-        // Valued the same way the outbound transfer was, so the two halves of
-        // the round trip cancel when the price has not moved in between.
-        $totalCost = round($return->quantity * ($return->product->purchase_price ?? 0), 2);
+        // Valued the same way the outbound transfer was: at the cost in force
+        // when that transfer went out. Reading the live cost made the two
+        // halves of the round trip cancel only while the price stood still -
+        // any delivery in between left a difference stranded on the ledger.
+        $totalCost = round($return->quantity * $this->unitCostAt(
+            $return->product,
+            $transfer->transfer_date ? \Illuminate\Support\Carbon::parse($transfer->transfer_date) : now(),
+        ), 2);
 
         // AccountingService rejects a zero-total entry, and a product with no
         // purchase price carries no inventory value to move.

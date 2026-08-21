@@ -24,10 +24,21 @@ class StockTransferObserver
             return;
         }
 
-        // Determine total inventory value transferred based on product purchase prices
+        // Value the goods at what they cost on the day they moved, not at
+        // whatever the product costs now. Reading the live figure meant a later
+        // delivery silently restated a transfer already posted to the ledger,
+        // so the two halves of an out-and-back no longer cancelled.
         $transfer->loadMissing('items.product');
-        $totalCost = $transfer->items->sum(function ($item) {
-            $unitCost = $item->product->purchase_price ?? 0;
+        $costs = app(\App\Services\Pricing\ProductCostService::class);
+        $movedAt = $transfer->transfer_date
+            ? \Illuminate\Support\Carbon::parse($transfer->transfer_date)
+            : now();
+
+        $totalCost = $transfer->items->sum(function ($item) use ($costs, $movedAt) {
+            $unitCost = $item->product
+                ? $costs->costAtOrLegacy($item->product, $movedAt)
+                : 0;
+
             return $unitCost * $item->quantity;
         });
         $totalCost = round($totalCost, 2);

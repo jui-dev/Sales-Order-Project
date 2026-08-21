@@ -497,8 +497,8 @@ async function calculateAvailableStock(productId, warehouseId) {
     }
 }
 
-function calculateSubtotal(quantity, unitPrice) {
-    return (parseFloat(quantity) || 0) * (parseFloat(unitPrice) || 0);
+function calculateSubtotal(quantity, unitCost) {
+    return (parseFloat(quantity) || 0) * (parseFloat(unitCost) || 0);
 }
 
 // Sum every row's subtotal into the summary card
@@ -512,8 +512,8 @@ function updateTransferTotal() {
 const updateItemTotals = debounce(function(input) {
     const itemRow = input.closest('.item-row');
     const quantity = parseInt(input.value) || 0;
-    const unitPrice = parseFloat(itemRow.querySelector('input[name$="[unit_price]"]').value) || 0;
-    const subtotal = calculateSubtotal(quantity, unitPrice);
+    const unitCost = parseFloat(itemRow.querySelector('input[name$="[unit_cost]"]').value) || 0;
+    const subtotal = calculateSubtotal(quantity, unitCost);
 
     itemRow.querySelector('input[name$="[subtotal]"]').value = subtotal.toFixed(2);
     updateTransferTotal();
@@ -549,9 +549,9 @@ async function addItem() {
                 : Object.values(product.warehouse_stocks);
 
             const stock = warehouseStocksArray.find(s => parseInt(s.warehouse_id) === parseInt(warehouseId));
-            const unitPrice = stock ? parseFloat(stock.unit_cost) || 0 : 0;
+            const unitCost = stock ? parseFloat(stock.unit_cost) || 0 : 0;
             
-            return `<option value="${product.id}" data-stock="${availableStock}" data-price="${unitPrice.toFixed(2)}">
+            return `<option value="${product.id}" data-stock="${availableStock}" data-price="${unitCost.toFixed(2)}">
                 ${product.name} (Available: ${availableStock})
             </option>`;
         }).join('');
@@ -583,10 +583,13 @@ async function addItem() {
                     <div class="invalid-feedback quantity-error"></div>
                 </div>
                 <div class="col-lg-4 col-md-4 col-sm-6">
-                    <label class="form-label">Unit Price</label>
+                    {{-- This is what the goods COST us, not what they sell for. It was
+                             labelled "Unit Price" while being populated from the product
+                             cost, which is exactly the confusion this rename removes. --}}
+                    <label class="form-label">Unit Cost</label>
                     <div class="input-group">
                         <span class="input-group-text">$</span>
-                        <input type="number" class="form-control" name="items[${itemCount}][unit_price]" readonly>
+                        <input type="number" class="form-control" name="items[${itemCount}][unit_cost]" readonly>
                     </div>
                 </div>
                 <div class="col-lg-5 col-md-4">
@@ -640,7 +643,7 @@ async function updateProductDetails(select) {
         const itemRow = select.closest('.item-row');
         const quantityInput = itemRow.querySelector('input[name$="[quantity]"]');
         const quantityHint = itemRow.querySelector('.quantity-hint');
-        const unitPriceInput = itemRow.querySelector('input[name$="[unit_price]"]');
+        const unitCostInput = itemRow.querySelector('input[name$="[unit_cost]"]');
         const subtotalInput = itemRow.querySelector('input[name$="[subtotal]"]');
         const warehouseId = document.getElementById('from_location_id').value;
         const productId = select.value;
@@ -654,12 +657,12 @@ async function updateProductDetails(select) {
                 : Object.values(product.warehouse_stocks);
 
             const stock = warehouseStocksArray.find(s => parseInt(s.warehouse_id) === parseInt(warehouseId));
-            const unitPrice = stock ? parseFloat(stock.unit_cost) || 0 : 0;
+            const unitCost = stock ? parseFloat(stock.unit_cost) || 0 : 0;
             
             quantityInput.setAttribute('max', availableStock);
             quantityInput.setAttribute('data-available-stock', availableStock);
             quantityHint.textContent = `Available: ${availableStock} units`;
-            unitPriceInput.value = unitPrice.toFixed(2);
+            unitCostInput.value = unitCost.toFixed(2);
             
             quantityInput.value = '';
             subtotalInput.value = '';
@@ -669,7 +672,7 @@ async function updateProductDetails(select) {
             quantityHint.textContent = 'Select product first';
             quantityInput.setAttribute('max', 0);
             quantityInput.setAttribute('data-available-stock', 0);
-            unitPriceInput.value = '';
+            unitCostInput.value = '';
             subtotalInput.value = '';
             quantityInput.value = '';
             updateTransferTotal();

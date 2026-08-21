@@ -204,9 +204,16 @@ class StockManagementService
             $txn->destinationLocation = $txn->location; // where stock arrived
         }
 
-        // Unit & Total Costs – fallback to product purchase_price
+        // Unit & Total Costs - a transaction that never captured its own cost
+        // is valued at what the goods cost on the day it happened, not at
+        // today's figure, which would drift with every later delivery.
         if (empty($txn->unit_cost) || $txn->unit_cost === 0.0) {
-            $txn->unit_cost = $txn->product?->purchase_price ?? 0.0;
+            $txn->unit_cost = $txn->product
+                ? app(\App\Services\Pricing\ProductCostService::class)->costAtOrLegacy(
+                    $txn->product,
+                    $txn->transaction_date ? \Illuminate\Support\Carbon::parse($txn->transaction_date) : now(),
+                )
+                : 0.0;
         }
         $txn->total_cost = $txn->unit_cost * abs($txn->quantity);
 
