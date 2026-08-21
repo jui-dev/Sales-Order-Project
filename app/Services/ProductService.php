@@ -223,15 +223,18 @@ class ProductService
     {
         return $this->getPaginatedOrEmpty(
             function() use ($filters, $perPage) {
-                $query = Product::with('category');
+                // Price is no longer a column on products - it lives in dated
+                // rows on the default sale list - so the listing joins it in
+                // order to show, filter and sort by it.
+                $query = Product::with('category')->withCurrentPricing();
 
                 // Apply search filter
                 if (!empty($filters['search'])) {
                     $search = $filters['search'];
                     $query->where(function ($q) use ($search) {
-                        $q->where('name', 'like', "%{$search}%")
-                          ->orWhere('sku', 'like', "%{$search}%")
-                          ->orWhere('description', 'like', "%{$search}%");
+                        $q->where('products.name', 'like', "%{$search}%")
+                          ->orWhere('products.sku', 'like', "%{$search}%")
+                          ->orWhere('products.description', 'like', "%{$search}%");
                     });
                 }
 
@@ -254,26 +257,32 @@ class ProductService
                     $query->where('category_id', $filters['subcategory_id']);
                 }
 
-                // Apply price filters
+                // Apply price filters against the joined in-force price.
                 if (!empty($filters['price_min'])) {
-                    $query->where('selling_price', '>=', $filters['price_min']);
+                    $query->where('current_price_row.unit_price', '>=', $filters['price_min']);
                 }
                 if (!empty($filters['price_max'])) {
-                    $query->where('selling_price', '<=', $filters['price_max']);
+                    $query->where('current_price_row.unit_price', '<=', $filters['price_max']);
                 }
 
                 // Apply stock filters
                 if (!empty($filters['stock_min'])) {
-                    $query->where('available_stocks', '>=', $filters['stock_min']);
+                    $query->where('products.available_stocks', '>=', $filters['stock_min']);
                 }
                 if (!empty($filters['stock_max'])) {
-                    $query->where('available_stocks', '<=', $filters['stock_max']);
+                    $query->where('products.available_stocks', '<=', $filters['stock_max']);
                 }
 
-                // Apply sorting
+                // Apply sorting. Sorting by price means the joined column;
+                // everything else is a real column on products, and is
+                // qualified so the join cannot make it ambiguous.
                 $sortField = $filters['sort'] ?? 'id';
                 $sortDirection = $filters['direction'] ?? 'desc';
-                $query->orderBy($sortField, $sortDirection);
+
+                $query->orderBy(
+                    $sortField === 'selling_price' ? 'current_price_row.unit_price' : "products.{$sortField}",
+                    $sortDirection,
+                );
 
                 return $query->paginate($perPage);
             },

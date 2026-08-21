@@ -76,6 +76,31 @@ class ProductCostLedgerTest extends TestCase
         );
     }
 
+    public function test_two_receipts_on_one_day_do_not_double_the_stock_valuation(): void
+    {
+        $product = Product::factory()->create();
+        $warehouse = \App\Models\Warehouse::factory()->create();
+
+        // Same effective_at on both rows - the case that made a join on
+        // MAX(effective_at) match two rows and value the stock twice.
+        $sameDay = Carbon::parse('2026-08-20');
+        $this->costs->recordReceipt($product, 50, 400.00, $sameDay);
+        $this->costs->recordReceipt($product, 5, 200.00, $sameDay);
+
+        \App\Models\ProductStock::create([
+            'product_id' => $product->id,
+            'location_id' => $warehouse->id,
+            'location_type' => \App\Models\Warehouse::class,
+            'quantity' => 55,
+            'reserved_quantity' => 0,
+        ]);
+
+        $summary = app(\App\Services\TransactionFlowService::class)->getStockSummary();
+
+        // 55 * 381.8182 = 21,000. Twice that would be the bug.
+        $this->assertEqualsWithDelta(21000.00, (float) $summary['total_stock_value'], 0.05);
+    }
+
     public function test_the_ledger_is_append_only(): void
     {
         $product = Product::factory()->create();

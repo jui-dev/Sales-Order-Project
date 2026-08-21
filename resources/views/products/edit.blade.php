@@ -66,17 +66,23 @@
                 <label class="form-label">Selling Price</label>
                 <div class="input-group">
                     <span class="input-group-text">$</span>
-                    {{-- Read-only: derived from cost + markup when goods are received --}}
+                    {{-- Read-only here on purpose. Price is not a property of the
+                         product: it lives on a price list, varies by buyer, and is
+                         edited under Catalog > Product Pricing so the change is
+                         dated rather than overwriting what was charged before. --}}
+                    @php($editPrice = $product->currentPrice())
+                    @php($editCost = $product->currentCost())
                     <input type="text" class="form-control" disabled
-                           value="{{ $product->selling_price > 0 ? number_format($product->selling_price, 2) : 'Not set yet' }}">
+                           value="{{ $editPrice !== null ? number_format($editPrice, 2) : 'Not priced yet' }}">
                 </div>
                 <div class="form-text">
-                    @if ($product->purchase_price > 0)
-                        ${{ number_format($product->purchase_price, 2) }} cost
+                    @if ($editCost !== null)
+                        ${{ number_format($editCost, 2) }} cost
                         + {{ rtrim(rtrim(number_format($product->markup ?? 0, 2), '0'), '.') }}% markup
                     @else
                         Set once the first goods are received.
                     @endif
+                    <a href="{{ route('product-pricing.history', $product->id) }}" class="ms-1">Price history</a>
                 </div>
             </div>
         </div>

@@ -103,6 +103,82 @@ class Product extends Model
     }
 
     /* ---------------------------------------------------------------------
+     | Pricing
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Attach the product's current sale price and cost as selectable columns.
+     *
+     * Prices live in dated rows on price lists rather than in a column here, so
+     * a listing that wants to show, filter or sort by price has to reach them
+     * in SQL - fetching per row would be a query per product.
+     *
+     * The price is LEFT JOINed rather than sub-selected because it is filtered
+     * and sorted on. Only one row per (list, product, min_quantity) can be in
+     * force at a time, so the join cannot multiply rows. Cost is a plain
+     * sub-select: it is displayed but never filtered.
+     *
+     * Exposes `current_price` and `current_cost`.
+     *
+     * Because it joins, any further constraint must qualify its columns -
+     * `where('products.id', ...)`, not `where('id', ...)`, which the database
+     * will reject as ambiguous.
+     */
+    public function scopeWithCurrentPricing(
+        \Illuminate\Database\Eloquent\Builder $query,
+        ?\DateTimeInterface $at = null,
+    ): \Illuminate\Database\Eloquent\Builder {
+        $at ??= now();
+
+        $defaultSaleList = \App\Models\PriceList::query()
+            ->where('type', \App\Models\PriceList::TYPE_SALE)
+            ->where('is_default', true)
+            ->value('id');
+
+        return $query
+            ->select('products.*')
+            ->leftJoin('price_list_items as current_price_row', function ($join) use ($at, $defaultSaleList) {
+                $join->on('current_price_row.product_id', '=', 'products.id')
+                    ->where('current_price_row.price_list_id', '=', $defaultSaleList)
+                    ->where('current_price_row.min_quantity', '=', 1)
+                    ->where('current_price_row.starts_at', '<=', $at)
+                    ->where(function ($q) use ($at) {
+                        $q->whereNull('current_price_row.ends_at')
+                            ->orWhere('current_price_row.ends_at', '>', $at);
+                    });
+            })
+            ->addSelect(['current_price_row.unit_price as current_price'])
+            ->addSelect([
+                'current_cost' => \App\Models\ProductCost::query()
+                    ->select('unit_cost')
+                    ->whereColumn('product_costs.product_id', 'products.id')
+                    ->where('product_costs.effective_at', '<=', $at)
+                    ->orderByDesc('product_costs.effective_at')
+                    ->orderByDesc('product_costs.id')
+                    ->limit(1),
+            ]);
+    }
+
+    /**
+     * This product's current sale price on the default list, or null.
+     *
+     * For a single product. A listing should use scopeWithCurrentPricing so it
+     * does not run a query per row.
+     */
+    public function currentPrice(): ?float
+    {
+        $resolved = app(\App\Services\Pricing\PriceResolver::class)->forSale($this);
+
+        return $resolved?->unitPrice;
+    }
+
+    /** What the stock on hand is currently carried at, or null if unknown. */
+    public function currentCost(): ?float
+    {
+        return app(\App\Services\Pricing\ProductCostService::class)->costAt($this);
+    }
+
+    /* ---------------------------------------------------------------------
      | Computed Attributes
      |---------------------------------------------------------------------*/
 

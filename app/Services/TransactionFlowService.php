@@ -20,10 +20,31 @@ class TransactionFlowService
         // Total products
         $totalProducts = Product::count();
 
-        // Total stock value (on-hand across all locations) = sum(quantity * purchase_price)
+        // Total stock value (on-hand across all locations) AT COST - what the
+        // goods are carried at, not what they would sell for. The dashboard
+        // reports the same inventory at retail, and both are labelled so the
+        // two figures are not read as contradicting each other.
+        //
+        // Cost lives in the dated product_costs ledger rather than in a column
+        // on products, so the join is to each product's most recent row.
+        // A correlated sub-select rather than a join: two receipts booked on the
+        // same day share an effective_at, so joining on the maximum date alone
+        // matches both rows and doubles that product's value. The ORDER BY here
+        // is the same tie-break ProductCost::scopeInForceAt applies.
+        //
+        // A product with no recorded cost yields NULL, which SUM skips - stock
+        // of unknown cost contributes nothing rather than counting as free.
         $totalStockValue = ProductStock::query()
-            ->join('products', 'product_stocks.product_id', '=', 'products.id')
-            ->selectRaw('SUM(product_stocks.quantity * products.purchase_price) as total_value')
+            ->selectRaw(
+                'SUM(product_stocks.quantity * (
+                    SELECT pc.unit_cost FROM product_costs pc
+                    WHERE pc.product_id = product_stocks.product_id
+                      AND pc.effective_at <= ?
+                    ORDER BY pc.effective_at DESC, pc.id DESC
+                    LIMIT 1
+                )) as total_value',
+                [now()]
+            )
             ->value('total_value') ?? 0;
 
         // Pending movements (picking lists status pending)

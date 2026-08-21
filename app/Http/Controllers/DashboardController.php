@@ -30,7 +30,12 @@ class DashboardController extends Controller
             'returnsToday' => StockTransaction::whereIn('transaction_type', ['customer_return', 'vendor_return', 'retailer_return'])
                 ->whereDate('created_at', $today)->count(),
             'pendingOrders' => Order::where('status', 'pending')->count(),
-            'currentStockValue' => Product::sum(DB::raw('available_stocks * selling_price')),
+            // Inventory at RETAIL. Price is no longer a column on products, so
+            // this sums the price in force on the default sale list.
+            // TransactionFlowService reports the same stock at cost.
+            'currentStockValue' => Product::withCurrentPricing()
+                ->get(['products.id', 'products.available_stocks'])
+                ->sum(fn ($product) => (float) ($product->current_price ?? 0) * (int) ($product->available_stocks ?? 0)),
             'outstandingPayments' => Invoice::where('payment_status', 'unpaid')->sum('total'),
             'totalProducts' => Product::count(),
             'totalCustomers' => Customer::count(),
@@ -159,10 +164,11 @@ class DashboardController extends Controller
      */
     public function getLowStockProducts(): JsonResponse
     {
-        $lowStockProducts = Product::where('available_stocks', '<=', 10)
-            ->orderBy('available_stocks')
+        $lowStockProducts = Product::withCurrentPricing()
+            ->where('products.available_stocks', '<=', 10)
+            ->orderBy('products.available_stocks')
             ->limit(10)
-            ->get(['id', 'name', 'sku', 'available_stocks', 'selling_price']);
+            ->get(['products.id', 'products.name', 'products.sku', 'products.available_stocks']);
         
         return response()->json($lowStockProducts);
     }

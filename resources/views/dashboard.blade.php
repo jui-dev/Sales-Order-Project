@@ -23,7 +23,12 @@
     $returnsToday = StockTransaction::whereIn('transaction_type', ['customer_return', 'vendor_return', 'retailer_return'])
         ->whereDate('created_at', $today)->count();
     $pendingOrders = Order::where('status', 'pending')->count();
-    $currentStockValue = Product::sum(DB::raw('available_stocks * selling_price'));
+    // Stock valued at its RETAIL price - what it would fetch, not what it cost.
+    // TransactionFlowService reports the same inventory at cost, so both are
+    // labelled explicitly; two unlabelled figures that disagree read as a bug.
+    $currentStockValue = Product::withCurrentPricing()
+        ->get(['products.id', 'products.available_stocks'])
+        ->sum(fn ($product) => (float) ($product->current_price ?? 0) * (int) ($product->available_stocks ?? 0));
     $outstandingPayments = Invoice::where('payment_status', 'unpaid')->sum('total');
     
     // Sales Trend Data (Last 30 days)
@@ -164,7 +169,11 @@
             <div class="card-body p-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted">Stock Value</h6>
+                        {{-- Named for its basis. Stock management reports the same
+                             inventory at cost, and two figures both called "Stock
+                             Value" that disagree look like a fault rather than
+                             two different questions. --}}
+                        <h6 class="text-muted">Stock Value <span class="small">(at retail)</span></h6>
                         <h3 class="text-primary">${{ number_format($currentStockValue, 2) }}</h3>
                     </div>
                     <div class="bg-subtle p-3 rounded-3">

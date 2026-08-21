@@ -48,7 +48,10 @@
                 <div class="stat-icon mb-2">
                     <i class="bi bi-currency-dollar text-success fs-1"></i>
                 </div>
-                <h3 class="fw-bold text-success mb-1">${{ number_format($product->selling_price, 2) }}</h3>
+                @php($currentPrice = $product->currentPrice())
+                <h3 class="fw-bold text-success mb-1">
+                    {{ $currentPrice !== null ? '$' . number_format($currentPrice, 2) : 'Not priced' }}
+                </h3>
                 <p class="text-muted mb-0 small">Selling Price</p>
             </div>
         </div>
@@ -59,9 +62,12 @@
                 <div class="stat-icon mb-2">
                     <i class="bi bi-graph-up text-primary fs-1"></i>
                 </div>
-                <h3 class="fw-bold text-primary mb-1">
-                    @if($product->gp !== null)
-                        ${{ number_format($product->gp, 2) }}
+                {{-- Derived from the price and cost in force, so it always agrees
+                     with the two figures shown beside it. --}}
+                @php($statCost = $product->currentCost())
+                <h3 class="fw-bold mb-1 {{ ($currentPrice !== null && $statCost !== null && $currentPrice - $statCost < 0) ? 'text-danger' : 'text-primary' }}">
+                    @if($currentPrice !== null && $statCost !== null)
+                        ${{ number_format($currentPrice - $statCost, 2) }}
                     @else
                         <span class="text-muted">N/A</span>
                     @endif
@@ -146,33 +152,47 @@
                             <h6 class="section-title text-success fw-semibold mb-3">
                                 <i class="bi bi-currency-dollar me-2"></i>Pricing Information
                             </h6>
+                            {{-- Resolved live: the price in force on the default sale
+                                 list, and the cost the stock on hand is carried at. --}}
+                            @php($detailPrice = $product->currentPrice())
+                            @php($detailCost = $product->currentCost())
                             <div class="detail-item mb-3">
                                 <label class="text-muted small fw-semibold text-uppercase">Selling Price</label>
                                 <div class="detail-value">
-                                    <span class="fw-bold text-success fs-5">${{ number_format($product->selling_price, 2) }}</span>
+                                    @if($detailPrice !== null)
+                                        <span class="fw-bold text-success fs-5">${{ number_format($detailPrice, 2) }}</span>
+                                    @else
+                                        <span class="text-muted">No agreed price</span>
+                                    @endif
+                                    <a href="{{ route('product-pricing.history', $product->id) }}"
+                                       class="small ms-2 text-decoration-none">History</a>
                                 </div>
                             </div>
                             <div class="detail-item mb-3">
-                                <label class="text-muted small fw-semibold text-uppercase">Purchase Price</label>
+                                <label class="text-muted small fw-semibold text-uppercase">Purchase Cost</label>
                                 <div class="detail-value">
-                                    @if($product->purchase_price)
-                                        <span class="fw-bold text-info fs-5">${{ number_format($product->purchase_price, 2) }}</span>
+                                    @if($detailCost !== null)
+                                        <span class="fw-bold text-info fs-5">${{ number_format($detailCost, 2) }}</span>
+                                        <span class="small text-muted ms-1">weighted average</span>
                                     @else
-                                        <span class="text-muted">Not set</span>
+                                        <span class="text-muted">Never received</span>
                                     @endif
                                 </div>
                             </div>
                             <div class="detail-item mb-3">
                                 <label class="text-muted small fw-semibold text-uppercase">Gross Profit</label>
                                 <div class="detail-value">
-                                    @if($product->gp !== null)
-                                        <span class="fw-bold text-primary fs-5">${{ number_format($product->gp, 2) }}</span>
-                                        @php
-                                            $profitMargin = $product->selling_price > 0 ? ($product->gp / $product->selling_price) * 100 : 0;
-                                        @endphp
-                                        <span class="badge bg-success-subtle text-success ms-2">{{ number_format($profitMargin, 1) }}%</span>
+                                    @if($detailPrice !== null && $detailCost !== null)
+                                        @php($gross = $detailPrice - $detailCost)
+                                        @php($profitMargin = $detailPrice > 0 ? ($gross / $detailPrice) * 100 : 0)
+                                        <span class="fw-bold {{ $gross < 0 ? 'text-danger' : 'text-primary' }} fs-5">
+                                            ${{ number_format($gross, 2) }}
+                                        </span>
+                                        <span class="badge {{ $gross < 0 ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success' }} ms-2">
+                                            {{ number_format($profitMargin, 1) }}%
+                                        </span>
                                     @else
-                                        <span class="text-muted">Not calculated</span>
+                                        <span class="text-muted">Needs both a price and a cost</span>
                                     @endif
                                 </div>
                             </div>

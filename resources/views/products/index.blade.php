@@ -61,7 +61,14 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <strong class="text-success">${{ number_format($product->selling_price, 2) }}</strong>
+                                    {{-- The price in force on the default sale list. A product with
+                                         none is not priced at zero - it has no agreed price, and the
+                                         order form derives one from cost until somebody sets it. --}}
+                                    @if($product->current_price !== null)
+                                        <strong class="text-success">${{ number_format((float) $product->current_price, 2) }}</strong>
+                                    @else
+                                        <span class="badge bg-warning text-dark">Not priced</span>
+                                    @endif
                                 </td>
                                 <td>
                                     <span class="badge bg-{{ ($product->available_stocks ?? 0) > 0 ? 'success' : 'danger' }}">
@@ -72,10 +79,30 @@
                                     </small>
                                 </td>
                                 <td>
-                                    <small class="text-muted">${{ $product->purchase_price ? number_format($product->purchase_price, 2) : '-' }}</small>
+                                    {{-- The weighted average the stock on hand is carried at, not
+                                         the last delivery's price. --}}
+                                    <small class="text-muted">
+                                        {{ $product->current_cost !== null ? '$' . number_format((float) $product->current_cost, 2) : '-' }}
+                                    </small>
                                 </td>
                                 <td>
-                                    <small class="text-info">{{ $product->gp ? '$' . number_format($product->gp, 2) : '-' }}</small>
+                                    {{-- Margin is derived from the two figures beside it, so it can no
+                                         longer disagree with them the way the stored column did. A
+                                         negative one means the product is priced below what the stock
+                                         on hand actually cost - worth seeing, not worth hiding. --}}
+                                    @if($product->current_price !== null && $product->current_cost !== null)
+                                        @php($margin = (float) $product->current_price - (float) $product->current_cost)
+                                        @if($margin < 0)
+                                            <small class="text-danger fw-semibold" data-bs-toggle="tooltip"
+                                                   title="Priced below the cost the stock on hand is carried at.">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>${{ number_format($margin, 2) }}
+                                            </small>
+                                        @else
+                                            <small class="text-info">${{ number_format($margin, 2) }}</small>
+                                        @endif
+                                    @else
+                                        <small class="text-muted">-</small>
+                                    @endif
                                 </td>
                                 <td>
                                     <div class="d-flex flex-wrap gap-1">

@@ -24,10 +24,14 @@
     $requested = $items->sum(fn ($item) => $item->quantity_requested ?? $item->quantity ?? 0);
     $moved     = $items->sum(fn ($item) => $item->quantity_picked ?? 0);
 
-    // Valued at product cost - the same basis StockTransferObserver posts to the ledger.
-    $value = $items->sum(function ($item) {
+    // Valued at the cost in force on the transfer date - the same basis
+    // StockTransferObserver posts to the ledger, so the page and the journal
+    // entry agree even after a later delivery moves the cost.
+    $costs = app(\App\Services\Pricing\ProductCostService::class);
+    $movedAt = $transfer->transfer_date ? \Illuminate\Support\Carbon::parse($transfer->transfer_date) : now();
+    $value = $items->sum(function ($item) use ($costs, $movedAt) {
         $quantity = $item->quantity_requested ?? $item->quantity ?? 0;
-        return ($item->product->purchase_price ?? 0) * $quantity;
+        return ($item->product ? $costs->costAtOrLegacy($item->product, $movedAt) : 0) * $quantity;
     });
 
     // Units the band shows travelling: what is reserved, or what actually left.
