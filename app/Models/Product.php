@@ -25,6 +25,7 @@ class Product extends Model
         'purchase_price',
         'gross_profit',
         'markup',
+        'pricing_mode',
         'auto_pricing_enabled',
         'available_stocks',
         'last_price_update',
@@ -81,6 +82,24 @@ class Product extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(\App\Models\ProductCategory::class, 'category_id');
+    }
+
+    /**
+     * Every price this product carries on any list, past and present.
+     * Read through PriceResolver rather than directly when pricing anything.
+     */
+    public function priceListItems(): HasMany
+    {
+        return $this->hasMany(\App\Models\PriceListItem::class);
+    }
+
+    /**
+     * The costing ledger - what the stock on hand has been worth over time.
+     * See [ProductCostService].
+     */
+    public function costs(): HasMany
+    {
+        return $this->hasMany(\App\Models\ProductCost::class);
     }
 
     /* ---------------------------------------------------------------------

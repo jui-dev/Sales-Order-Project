@@ -20,6 +20,7 @@ class Order extends Model
 
     protected $fillable = [
         'customer_id',
+        'sales_channel_id',
         'status',
         'order_date',
         'total_amount',
@@ -40,6 +41,15 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    /**
+     * The route this sale came in through, where one was recorded. Nullable -
+     * orders predating channels, and any single-channel business, have none.
+     */
+    public function salesChannel(): BelongsTo
+    {
+        return $this->belongsTo(SalesChannel::class);
     }
 
     public function orderItems(): HasMany
