@@ -610,6 +610,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.fulfillment-location-select').forEach(select => {
         select.addEventListener('change', function() {
             updateStockInfo(this);
+            // Warehouse and retailer fulfilment can be priced differently, so
+            // the line has to be re-quoted when the location changes.
+            updateSubtotal(this.closest('.order-item'));
         });
     });
 
@@ -758,7 +761,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // they want, so it cannot be baked into the option list. Resolved server
     // side by the same rules that validate the submission, which is what keeps
     // the figure shown and the figure charged from drifting apart.
-    async function fetchUnitPrice(productId, quantity) {
+    async function fetchUnitPrice(productId, quantity, item) {
         const params = new URLSearchParams({ product_id: productId, quantity: quantity || 1 });
 
         const customerId = document.querySelector('[name="customer_id"]')?.value;
@@ -766,6 +769,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const channelId = document.querySelector('[name="sales_channel_id"]')?.value;
         if (channelId) params.append('sales_channel_id', channelId);
+
+        // Where this line is fulfilled from changes what the customer pays, so
+        // it is part of the question rather than an afterthought.
+        const locId = item?.querySelector('.fulfillment-location-select')?.value;
+        const locType = item?.querySelector('.fulfillment-location-type')?.value;
+        if (locId && locType) {
+            params.append('fulfillment_location_id', locId);
+            params.append('fulfillment_location_type', locType);
+        }
 
         const response = await fetch(`{{ route('orders.price-quote') }}?${params}`, {
             headers: { 'Accept': 'application/json' },
@@ -794,7 +806,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const quantity = parseInt(quantityInput.value) || 0;
 
         try {
-            const quote = await fetchUnitPrice(select.value, quantity);
+            const quote = await fetchUnitPrice(select.value, quantity, item);
 
             if (!quote.priced) {
                 unitPriceInput.value = '';

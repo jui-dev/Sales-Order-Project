@@ -36,11 +36,15 @@ class PurchaseOrderTest extends TestCase
         $this->warehouse = Warehouse::factory()->create();
         $this->product = Product::factory()->create(['purchase_price' => 0, 'selling_price' => 0, 'markup' => 25]);
 
+        // The pivot records that the vendor carries the product; what they
+        // charge lives on their purchase price list, where it is dated.
         VendorProduct::create([
             'vendor_id' => $this->vendor->id,
             'product_id' => $this->product->id,
-            'unit_cost' => 47.50,
         ]);
+
+        $lists = app(\App\Services\Pricing\PriceListService::class);
+        $lists->setPrice($lists->forVendor($this->vendor), $this->product, 47.50);
     }
 
     private function createOrder(int $quantity = 10, float $unitCost = 47.50): PurchaseOrder
@@ -354,7 +358,7 @@ class PurchaseOrderTest extends TestCase
     {
         $this->get(route('purchase-orders.vendor-products', $this->vendor))
             ->assertOk()
-            ->assertJsonFragment(['id' => $this->product->id, 'unit_cost' => '47.50']);
+            ->assertJsonFragment(['id' => $this->product->id, 'unit_cost' => 47.50]);
     }
 
     public function test_the_create_form_is_stepped_vendor_then_items_then_delivery(): void

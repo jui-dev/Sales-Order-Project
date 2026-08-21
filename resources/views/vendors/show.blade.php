@@ -48,12 +48,14 @@
     </div>
 </div>
 
-<h2>Price List</h2>
+<h2>Products Supplied</h2>
 <div class="card mb-4">
     <div class="card-body">
         <p class="text-muted">
-            Which products this vendor can supply, and what they charge. A purchase order
-            addressed to this vendor prices its lines from here.
+            Which products this vendor can supply. What they charge is shown here but set under
+            <a href="{{ route('product-pricing.index') }}">Catalog &rsaquo; Product Pricing</a>,
+            so cost is decided in one place. A purchase order addressed to this vendor prices its
+            lines from that figure.
         </p>
 
         {{-- Add a product to the list --}}
@@ -73,20 +75,8 @@
                 @enderror
             </div>
             <div class="col-md-3">
-                <label for="unit_cost" class="form-label">Unit Cost <span class="text-muted">(optional)</span></label>
-                <div class="input-group">
-                    <span class="input-group-text">$</span>
-                    <input type="number" name="unit_cost" id="unit_cost"
-                           class="form-control @error('unit_cost') is-invalid @enderror"
-                           min="0" step="0.01" placeholder="0.00">
-                    @error('unit_cost')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-            </div>
-            <div class="col-md-3">
                 <button type="submit" class="btn btn-primary w-100"
-                        @disabled($assignableProducts->isEmpty())>Add to Price List</button>
+                        @disabled($assignableProducts->isEmpty())>Add product</button>
             </div>
         </form>
 
@@ -111,13 +101,19 @@
                             <td>{{ $row->product->name ?? 'Unknown product' }}</td>
                             <td class="text-muted">{{ $row->product->sku ?? '—' }}</td>
                             <td>
-                                <div class="input-group input-group-sm">
-                                    <span class="input-group-text">$</span>
-                                    <input type="number" name="rows[{{ $row->id }}][unit_cost]"
-                                           class="form-control" min="0" step="0.01"
-                                           value="{{ old("rows.{$row->id}.unit_cost", $row->unit_cost) }}"
-                                           placeholder="Not priced">
-                                </div>
+                                {{-- Shown, not edited. Costs are set under Catalog >
+                                     Product Pricing so there is one place money is
+                                     decided - two editable copies of a price is how
+                                     they drifted apart before. --}}
+                                @if($row->current_cost !== null)
+                                    <span class="fw-semibold">${{ number_format($row->current_cost, 2) }}</span>
+                                @else
+                                    <span class="badge bg-warning text-dark">Not priced</span>
+                                @endif
+                                @if($row->product)
+                                    <a href="{{ route('product-pricing.edit', $row->product->id) }}"
+                                       class="small d-block text-decoration-none">Set price</a>
+                                @endif
                             </td>
                             <td>
                                 <input type="text" name="rows[{{ $row->id }}][vendor_sku]"
@@ -151,7 +147,7 @@
             </table>
 
             @if ($vendor->vendorProducts->isNotEmpty())
-                <button type="submit" class="btn btn-success">Save Price List</button>
+                <button type="submit" class="btn btn-success">Save changes</button>
             @endif
         </form>
 

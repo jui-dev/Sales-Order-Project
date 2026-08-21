@@ -598,6 +598,63 @@
     </div>
 </div>
 
+<!-- Vendors who can supply this product -->
+<div class="card mb-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0 fw-semibold">
+            <i class="bi bi-truck me-2 text-primary"></i>Vendors Who Supply This
+        </h5>
+        <a href="{{ route('product-pricing.edit', $product->id) }}" class="btn btn-sm btn-outline-primary">
+            Set prices
+        </a>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small">
+            Who you can buy this from. What each of them charges is set under
+            <a href="{{ route('product-pricing.edit', $product->id) }}">Product Pricing</a>,
+            so cost is decided in one place.
+        </p>
+
+        @forelse($product->vendors as $vendor)
+            <span class="badge bg-secondary-subtle text-secondary-emphasis me-1 mb-1 p-2">
+                <i class="bi bi-building me-1"></i>{{ $vendor->name }}
+            </span>
+        @empty
+            <p class="text-warning mb-3">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                No vendor is recorded as supplying this product, so it cannot be ordered yet.
+            </p>
+        @endforelse
+
+        @can('products.manage')
+        {{-- Add-only for now. Removing a vendor with purchase orders or received
+             stock behind them would strand those records, so that needs handling
+             properly rather than a delete button. --}}
+        <form action="{{ route('products.vendors.add', $product->id) }}" method="POST"
+              class="row g-2 align-items-end mt-3 pt-3 border-top">
+            @csrf
+            <div class="col-md-6">
+                <label for="vendor_id" class="form-label small">Add a vendor</label>
+                <select name="vendor_id" id="vendor_id"
+                        class="form-select form-select-sm @error('vendor_id') is-invalid @enderror" required>
+                    <option value="">Select a vendor…</option>
+                    @foreach($assignableVendors as $vendor)
+                        <option value="{{ $vendor->id }}">{{ $vendor->name }}</option>
+                    @endforeach
+                </select>
+                @error('vendor_id')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-sm btn-primary w-100"
+                        @disabled($assignableVendors->isEmpty())>Add vendor</button>
+            </div>
+        </form>
+        @endcan
+    </div>
+</div>
+
 <!-- Stock Calculation Summary Card -->
 <div class="card mb-4">
     <div class="card-header bg-light">

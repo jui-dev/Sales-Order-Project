@@ -52,10 +52,17 @@ class PricingPagesRenderTest extends TestCase
             ->assertSee(route('product-pricing.index'), false);
     }
 
-    public function test_a_price_list_page_renders(): void
+    public function test_the_product_pricing_pages_render(): void
     {
-        $list = app(PriceListService::class)->defaultFor(PriceList::TYPE_SALE);
+        $product = Product::factory()->create(['name' => 'Widget']);
 
-        $this->get(route('product-pricing.show', $list->id))->assertOk()->assertSee($list->name);
+        $this->get(route('product-pricing.index'))
+            ->assertOk()
+            ->assertSee('what a vendor charges you')
+            ->assertSee('what you charge to customer');
+
+        $this->get(route('product-pricing.edit', $product->id))
+            ->assertOk()
+            ->assertSee('Widget');
     }
 }

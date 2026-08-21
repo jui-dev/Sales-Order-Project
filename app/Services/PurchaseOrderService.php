@@ -273,6 +273,13 @@ class PurchaseOrderService
      */
     public function assignableProducts(int $vendorId): SupportCollection
     {
+        $vendor = \App\Models\Vendor::find($vendorId);
+
+        // Carriage comes from the pivot; the cost comes from the vendor's
+        // purchase price list, where it is dated. Two stores for one number is
+        // how the prices in this system drifted apart in the first place.
+        $costs = $vendor ? app(VendorService::class)->currentVendorCosts($vendor) : [];
+
         return VendorProduct::with('product')
             ->where('vendor_id', $vendorId)
             ->where('is_active', true)
@@ -282,7 +289,9 @@ class PurchaseOrderService
                 'id' => $row->product->id,
                 'name' => $row->product->name,
                 'sku' => $row->product->sku,
-                'unit_cost' => $row->unit_cost,
+                // Absent means no price agreed - deliberately not zero, which a
+                // purchase order line would happily accept as free.
+                'unit_cost' => $costs[$row->product_id] ?? null,
             ])
             ->sortBy('name')
             ->values();

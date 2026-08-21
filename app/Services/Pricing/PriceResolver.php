@@ -107,9 +107,17 @@ class PriceResolver
         // place. Anything unassigned sits below every named match but still
         // qualifies - that is what makes a base list a fallback rather than a
         // list that never applies.
+        //
+        // Each entity contributes two keys: the exact one, and a class-level
+        // one for assignments made with a null id ("any warehouse"). The exact
+        // match outranks the class match, so a rate agreed for one store beats
+        // the price every store gets.
         $rank = [];
+        $step = 2;
         foreach ($assignables as $index => $assignable) {
-            $rank[$assignable->getMorphClass().':'.$assignable->getKey()] = count($assignables) - $index;
+            $base = (count($assignables) - $index) * $step;
+            $rank[$assignable->getMorphClass().':'.$assignable->getKey()] = $base + 1;
+            $rank[$assignable->getMorphClass().':*'] = $base;
         }
 
         $candidates = PriceListItem::query()
@@ -156,7 +164,8 @@ class PriceResolver
      */
     private function specificity(PriceListItem $item, array $rank): ?int
     {
-        $assignments = $item->priceList->assignments;
+        $list = $item->priceList;
+        $assignments = $list->assignments;
 
         if ($assignments->isEmpty()) {
             return 0;
@@ -164,11 +173,20 @@ class PriceResolver
 
         $best = null;
         foreach ($assignments as $assignment) {
-            $key = $assignment->assignable_type.':'.$assignment->assignable_id;
+            // A null assignable_id means the assignment covers the whole class -
+            // any warehouse, any retailer - rather than one named record.
+            $key = $assignment->assignable_type.':'.($assignment->assignable_id ?? '*');
 
             if (isset($rank[$key])) {
                 $best = max($best ?? 0, $rank[$key]);
             }
+        }
+
+        // The default list stays reachable even when its own assignment does not
+        // match - it is the fallback, so an order with no fulfilment location
+        // chosen yet still gets a price. It ranks below every real match.
+        if ($best === null && $list->is_default) {
+            return 0;
         }
 
         return $best;

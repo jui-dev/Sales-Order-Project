@@ -77,9 +77,20 @@ class StoreOrderRequest extends FormRequest
                         continue; // The exists rule already reported this.
                     }
 
+                    // The same context the form was quoted under, including
+                    // where the line is fulfilled from - a warehouse sale and a
+                    // retailer sale can be priced differently, so validating
+                    // without it would reject the figure the form was shown.
+                    $location = match ($line['fulfillment_location_type'] ?? null) {
+                        'warehouse' => \App\Models\Warehouse::find($line['fulfillment_location_id'] ?? null),
+                        'retailer' => \App\Models\Retailer::find($line['fulfillment_location_id'] ?? null),
+                        default => null,
+                    };
+
                     $resolved = $resolver->forSale($product, new PriceContext(
                         customer: $customer,
                         salesChannel: $channel,
+                        fulfilmentLocation: $location,
                         quantity: (int) ($line['quantity'] ?? 1),
                     ));
 

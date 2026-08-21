@@ -12,6 +12,11 @@ class VendorService
 {
     use HasErrorHandling;
 
+    public function __construct(
+        private readonly \App\Services\Pricing\PriceListService $priceLists,
+    ) {
+    }
+
     public function list(): Collection
     {
         return $this->getCollectionOrEmpty(Vendor::class, 'vendors');
@@ -73,6 +78,15 @@ class VendorService
                 $vendor = $this->findOrFail(Vendor::class, $id, 'vendor');
                 $vendor->load(['supplies', 'vendorProducts.product']);
 
+                // Cost lives on the vendor's purchase price list, not on the
+                // pivot, so the screen resolves it per row. Loaded in one query
+                // and matched up here rather than resolving per row.
+                $current = $this->currentVendorCosts($vendor);
+
+                $vendor->vendorProducts->each(function (VendorProduct $row) use ($current) {
+                    $row->current_cost = $current[$row->product_id] ?? null;
+                });
+
                 return $vendor;
             },
             'vendor',
@@ -81,21 +95,52 @@ class VendorService
     }
 
     /**
+     * What this vendor currently charges, keyed by product id.
+     *
+     * A product they carry but have not priced is simply absent, which is how
+     * "no price agreed" stays distinguishable from a price of zero.
+     *
+     * @return array<int, float>
+     */
+    public function currentVendorCosts(Vendor $vendor): array
+    {
+        $list = \App\Models\PriceList::query()
+            ->where('type', \App\Models\PriceList::TYPE_PURCHASE)
+            ->where('code', 'vendor-'.$vendor->id)
+            ->first();
+
+        if (! $list) {
+            return [];
+        }
+
+        return \App\Models\PriceListItem::query()
+            ->where('price_list_id', $list->id)
+            ->where('min_quantity', 1)
+            ->inForceAt(now())
+            ->pluck('unit_price', 'product_id')
+            ->map(fn ($cost) => (float) $cost)
+            ->all();
+    }
+
+    /**
      * Add a product to the vendor's price list.
      *
-     * Assignment and pricing are deliberately separate: the row starts with a
-     * null unit_cost so an unpriced product is visible as "needs a price"
-     * rather than quietly reading as zero on a purchase order.
+     * Assignment and pricing are deliberately separate: a row with no price
+     * agreed is visible as "needs a price" rather than quietly reading as zero
+     * on a purchase order.
+     *
+     * The pivot records only that the vendor carries the product. What they
+     * charge goes on their purchase price list, so a quote agreed today cannot
+     * restate an order raised last month.
      */
-    public function assignProduct(int $vendorId, int $productId, ?float $unitCost = null): VendorProduct
+    public function assignProduct(int $vendorId, int $productId): VendorProduct
     {
         return $this->handleServiceOperation(
-            function () use ($vendorId, $productId, $unitCost) {
+            function () use ($vendorId, $productId) {
                 $vendor = $this->findOrFail(Vendor::class, $vendorId, 'vendor');
 
                 return VendorProduct::firstOrCreate(
                     ['vendor_id' => $vendor->id, 'product_id' => $productId],
-                    ['unit_cost' => $unitCost],
                 );
             },
             'vendor',
@@ -125,10 +170,11 @@ class VendorService
                     foreach ($owned as $row) {
                         $input = $rows[$row->id];
 
+                        // Carriage only. Cost is deliberately NOT writable from
+                        // this screen: it is set under Product Pricing, so there
+                        // is one editable copy of a price rather than two that
+                        // can drift apart.
                         $row->update([
-                            'unit_cost' => ($input['unit_cost'] ?? null) === null || $input['unit_cost'] === ''
-                                ? null
-                                : (float) $input['unit_cost'],
                             'vendor_sku' => $input['vendor_sku'] ?? null,
                             'is_active' => (bool) ($input['is_active'] ?? false),
                         ]);

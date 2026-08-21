@@ -82,6 +82,36 @@ class ProductController extends Controller
         }
     }
 
+    /**
+     * Record that a vendor can supply this product.
+     *
+     * Deliberately add-only for now. Removing a vendor who already has purchase
+     * orders or received stock behind them would strand those records, so that
+     * needs handling properly rather than a delete button.
+     *
+     * What the vendor charges is NOT set here - it is set under Product
+     * Pricing, so cost lives in one place.
+     */
+    public function addVendor(Request $request, int $id): RedirectResponse
+    {
+        $data = $request->validate([
+            'vendor_id' => ['required', 'exists:vendors,id'],
+        ]);
+
+        try {
+            $product = $this->service->get($id);
+
+            \App\Models\VendorProduct::firstOrCreate([
+                'vendor_id' => $data['vendor_id'],
+                'product_id' => $product->id,
+            ]);
+
+            return back()->with('success', 'Vendor added. Set what they charge under Product Pricing.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Unable to add that vendor. Please try again.');
+        }
+    }
+
     public function show(int $id): View|RedirectResponse
     {
         try {
@@ -93,7 +123,17 @@ class ProductController extends Controller
             $transactionHistory = $this->service->transactionHistory($product);
             $stockAnalysis = $this->service->stockAnalysis($product);
 
-            return view('products.show', compact('product', 'transactionHistory', 'stockAnalysis'));
+            // Who can supply this product, and who else could be added. What
+            // each of them charges is set under Catalog > Product Pricing, so
+            // there is one place money is decided.
+            $product->load('vendors');
+            $assignableVendors = \App\Models\Vendor::whereNotIn('id', $product->vendors->pluck('id'))
+                ->orderBy('name')
+                ->get(['id', 'name']);
+
+            return view('products.show', compact(
+                'product', 'transactionHistory', 'stockAnalysis', 'assignableVendors'
+            ));
         } catch (DataNotFoundException $e) {
             return redirect()->route('products.index')
                 ->with('error', $e->getMessage());

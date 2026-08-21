@@ -36,15 +36,26 @@ class PriceListService
         int $minQuantity = 1,
         ?CarbonInterface $from = null,
         ?int $userId = null,
+        array $derivation = [],
     ): PriceListItem {
         $from ??= Carbon::now();
 
-        return DB::transaction(function () use ($list, $product, $unitPrice, $minQuantity, $from, $userId) {
+        return DB::transaction(function () use ($list, $product, $unitPrice, $minQuantity, $from, $userId, $derivation) {
             $current = $this->currentRow($list, $product, $minQuantity, $from);
 
-            if ($current && (float) $current->unit_price === round($unitPrice, 4)) {
-                // No change - leave the standing row alone rather than closing
-                // it and opening an identical one.
+            $markup = $derivation['markup_percent'] ?? null;
+            $basisId = $derivation['basis_price_list_item_id'] ?? null;
+            $auto = (bool) ($derivation['is_auto_derived'] ?? false);
+
+            $unchanged = $current
+                && (float) $current->unit_price === round($unitPrice, 4)
+                && (float) ($current->markup_percent ?? -1) === (float) ($markup ?? -1)
+                && $current->basis_price_list_item_id === $basisId
+                && $current->is_auto_derived === $auto;
+
+            if ($unchanged) {
+                // Nothing moved - leave the standing row alone rather than
+                // closing it and opening an identical one.
                 return $current;
             }
 
@@ -58,6 +69,9 @@ class PriceListService
                 'product_id' => $product->id,
                 'unit_price' => round($unitPrice, 4),
                 'min_quantity' => $minQuantity,
+                'markup_percent' => $markup,
+                'basis_price_list_item_id' => $basisId,
+                'is_auto_derived' => $auto,
                 'starts_at' => $from,
                 'ends_at' => null,
                 'created_by' => $userId,

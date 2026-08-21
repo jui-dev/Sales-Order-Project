@@ -24,8 +24,9 @@ class AssignVendorProductRequest extends FormRequest
                     fn ($query) => $query->where('vendor_id', $this->route('vendor'))
                 ),
             ],
-            // Optional: a product may be assigned before a price is agreed.
-            'unit_cost' => ['nullable', 'numeric', 'min:0'],
+            // No cost here on purpose. Assigning a product records that the
+            // vendor can supply it; what they charge is set under Catalog >
+            // Product Pricing, so there is one place a price is written.
         ];
     }
 

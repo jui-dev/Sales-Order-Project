@@ -25,6 +25,9 @@ class PriceListItem extends Model
         'product_id',
         'unit_price',
         'min_quantity',
+        'markup_percent',
+        'basis_price_list_item_id',
+        'is_auto_derived',
         'starts_at',
         'ends_at',
         'created_by',
@@ -33,6 +36,8 @@ class PriceListItem extends Model
     protected $casts = [
         'unit_price' => 'decimal:4',
         'min_quantity' => 'integer',
+        'markup_percent' => 'decimal:2',
+        'is_auto_derived' => 'boolean',
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
     ];
@@ -50,6 +55,28 @@ class PriceListItem extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * The vendor quote this sale price was worked out from.
+     *
+     * Records the reasoning, not a rule: stock is pooled, so a unit on the
+     * shelf has no vendor identity and the basis cannot decide what is charged.
+     * It is what makes the gross profit shown beside the price mean something.
+     */
+    public function basis(): BelongsTo
+    {
+        return $this->belongsTo(PriceListItem::class, 'basis_price_list_item_id');
+    }
+
+    /** The gross profit this price earns against the basis it was set from. */
+    public function grossProfit(): ?float
+    {
+        if (! $this->basis) {
+            return null;
+        }
+
+        return round((float) $this->unit_price - (float) $this->basis->unit_price, 2);
     }
 
     /* ---------------------------------------------------------------------

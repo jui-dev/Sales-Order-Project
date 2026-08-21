@@ -2,22 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StorePriceListRequest;
-use App\Http\Requests\UpdatePriceListRowsRequest;
 use App\Models\PriceList;
+use App\Models\PriceListItem;
 use App\Models\Product;
+use App\Models\Vendor;
 use App\Services\Pricing\PriceListService;
 use App\Services\ProductPricingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
- * The Catalog > Product Pricing screens.
+ * Catalog > Product Pricing.
  *
- * Every write goes through PriceListService so that changing a price closes the
- * standing row and opens a new one, rather than overwriting what the business
- * charged last month.
+ * Product-centric on purpose: pricing is decided one product at a time, cost
+ * first and then the price it justifies, so the person setting a selling price
+ * can see what the goods were bought for and what margin they are leaving.
+ *
+ * Every write goes through PriceListService, so changing a price closes the
+ * standing row and opens a new one rather than rewriting what was charged
+ * before.
  */
 class ProductPricingController extends Controller
 {
@@ -27,112 +32,171 @@ class ProductPricingController extends Controller
     ) {
     }
 
-    public function index(): View
+    public function index(Request $request): View
     {
         return view('product-pricing.index', [
-            'lists' => $this->service->allLists(),
-            'unpriced' => $this->service->unpricedProducts(),
+            'products' => $this->service->productsWithPricing(
+                $request->string('search')->toString() ?: null
+            ),
+            'fulfilmentKinds' => ProductPricingService::FULFILMENT_KINDS,
+            'unpricedCount' => $this->service->unpricedProducts()->count(),
         ]);
     }
 
-    public function show(Request $request, int $id): View
+    /** The per-product editor: costs first, then the prices they justify. */
+    public function edit(int $productId): View
     {
-        $list = PriceList::with('assignments.assignable')->findOrFail($id);
+        $product = Product::findOrFail($productId);
 
-        return view('product-pricing.show', [
-            'list' => $list,
-            'rows' => $this->service->currentRows($list, $request->string('search')->toString() ?: null),
-            'assignableProducts' => $this->service->assignableProducts($list),
+        return view('product-pricing.edit', $this->service->editorData($product) + [
+            'assignableVendors' => $this->service->assignableVendors($product),
         ]);
-    }
-
-    public function store(StorePriceListRequest $request): RedirectResponse
-    {
-        try {
-            $list = $this->lists->create($request->validated());
-
-            return redirect()->route('product-pricing.show', $list->id)
-                ->with('success', 'Price list created.');
-        } catch (\Throwable $e) {
-            return back()->withInput()->with('error', 'Unable to create the price list. Please try again.');
-        }
     }
 
     /**
-     * Add a price for a product this list does not carry yet.
+     * Save what each vendor charges for this product.
+     *
+     * Clearing a field means "no price agreed", which closes the standing quote
+     * rather than writing a zero a purchase order would accept as free.
      */
-    public function addPrice(Request $request, int $id): RedirectResponse
+    public function updatePurchasePrices(Request $request, int $productId): RedirectResponse
     {
-        $list = PriceList::findOrFail($id);
+        $product = Product::findOrFail($productId);
 
         $data = $request->validate([
-            'product_id' => ['required', 'exists:products,id'],
-            'unit_price' => ['required', 'numeric', 'min:0'],
-            'min_quantity' => ['nullable', 'integer', 'min:1'],
+            'vendors' => ['required', 'array'],
+            'vendors.*.unit_cost' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         try {
-            $this->lists->setPrice(
-                $list,
-                Product::findOrFail($data['product_id']),
-                (float) $data['unit_price'],
-                (int) ($data['min_quantity'] ?? 1),
-                null,
-                $request->user()?->id,
-            );
+            DB::transaction(function () use ($product, $data, $request) {
+                // Re-scoped to vendors that actually carry this product, so a
+                // tampered form cannot price it against somebody else.
+                $carried = $product->vendors()->pluck('vendors.id')->all();
 
-            return back()->with('success', 'Price added.');
+                foreach ($data['vendors'] as $vendorId => $input) {
+                    if (! in_array((int) $vendorId, $carried, true)) {
+                        continue;
+                    }
+
+                    $list = $this->lists->forVendor(Vendor::findOrFail($vendorId));
+                    $cost = $input['unit_cost'] ?? null;
+
+                    if ($cost === null || $cost === '') {
+                        $this->lists->removePrice($list, $product);
+
+                        continue;
+                    }
+
+                    $this->lists->setPrice($list, $product, (float) $cost, 1, null, $request->user()?->id);
+                }
+            });
+
+            return back()->with('success', 'Purchase prices saved.');
         } catch (\Throwable $e) {
-            return back()->with('error', 'Unable to add that price. Please try again.');
+            \Log::error('Failed to save purchase prices for product '.$productId.': '.$e->getMessage());
+
+            return back()->with('error', 'Unable to save those purchase prices. Please try again.');
         }
     }
 
     /**
-     * Apply edits to several rows at once.
+     * Save what we charge, per fulfilment kind.
      *
-     * A row whose price is unchanged is left alone rather than re-dated, so
-     * saving the form without touching anything does not churn the history.
+     * A row set to follow its basis recomputes from that vendor's cost and the
+     * markup; unticking pins whatever figure was typed. The basis is recorded
+     * either way, because it is what makes the gross profit shown mean
+     * something - it does not decide what is charged, since pooled stock has no
+     * vendor identity.
      */
-    public function updateRows(UpdatePriceListRowsRequest $request, int $id): RedirectResponse
+    public function updateSalePrices(Request $request, int $productId): RedirectResponse
     {
-        $list = PriceList::findOrFail($id);
+        $product = Product::findOrFail($productId);
+
+        $data = $request->validate([
+            'sale' => ['required', 'array'],
+            'sale.*.enabled' => ['nullable', 'boolean'],
+            'sale.*.unit_price' => ['nullable', 'numeric', 'min:0'],
+            'sale.*.markup_percent' => ['nullable', 'numeric', 'min:0'],
+            'sale.*.basis_price_list_item_id' => ['nullable', 'integer'],
+            'sale.*.is_auto_derived' => ['nullable', 'boolean'],
+        ]);
 
         try {
-            $changed = $this->lists->bulkSet(
-                $list,
-                $request->rowsForService($list),
-                null,
-                $request->user()?->id,
-            );
+            DB::transaction(function () use ($product, $data, $request) {
+                foreach ($data['sale'] as $kind => $input) {
+                    if (! isset(ProductPricingService::FULFILMENT_KINDS[$kind])) {
+                        continue;
+                    }
 
-            return back()->with(
-                'success',
-                $changed === 0 ? 'No prices changed.' : "{$changed} price(s) updated."
-            );
+                    $list = $this->service->saleListFor($kind);
+
+                    if (! ($input['enabled'] ?? false)) {
+                        $this->lists->removePrice($list, $product);
+
+                        continue;
+                    }
+
+                    $basis = $this->resolveBasis($product, $input['basis_price_list_item_id'] ?? null);
+                    $auto = (bool) ($input['is_auto_derived'] ?? false);
+                    // Null-coalesced: a row with no markup posted is a hand-typed
+                    // price, not an error. Reading the key directly raised a
+                    // warning that surfaced as a silent "please try again".
+                    $markup = ($input['markup_percent'] ?? null) !== null
+                        ? (float) $input['markup_percent']
+                        : null;
+
+                    // A price that follows its basis is computed here, not
+                    // trusted from the form - the browser's arithmetic is a
+                    // convenience, not the record.
+                    if ($auto && $basis && $markup !== null) {
+                        $price = round((float) $basis->unit_price * (1 + ($markup / 100)), 2);
+                    } else {
+                        $price = (float) ($input['unit_price'] ?? 0);
+                    }
+
+                    if ($price <= 0) {
+                        continue;
+                    }
+
+                    $this->lists->setPrice($list, $product, $price, 1, null, $request->user()?->id, [
+                        'markup_percent' => $markup,
+                        'basis_price_list_item_id' => $basis?->id,
+                        'is_auto_derived' => $auto,
+                    ]);
+                }
+            });
+
+            return back()->with('success', 'Selling prices saved.');
         } catch (\Throwable $e) {
-            return back()->with('error', 'Unable to update those prices. Please try again.');
+            \Log::error('Failed to save selling prices for product '.$productId.': '.$e->getMessage());
+
+            return back()->with('error', 'Unable to save those selling prices. Please try again.');
         }
     }
 
     /**
-     * Stop this list pricing a product, without losing what it charged.
+     * The purchase row a sale price is being reasoned from.
+     *
+     * Re-scoped to this product's own vendor quotes, so a posted id cannot
+     * anchor a price to something unrelated.
      */
-    public function removePrice(int $id, int $productId): RedirectResponse
+    private function resolveBasis(Product $product, ?int $basisId): ?PriceListItem
     {
-        $list = PriceList::findOrFail($id);
-
-        try {
-            $this->lists->removePrice($list, Product::findOrFail($productId));
-
-            return back()->with('success', 'Price removed. Its history is still on file.');
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Unable to remove that price. Please try again.');
+        if (! $basisId) {
+            return null;
         }
+
+        return PriceListItem::query()
+            ->join('price_lists', 'price_lists.id', '=', 'price_list_items.price_list_id')
+            ->where('price_lists.type', PriceList::TYPE_PURCHASE)
+            ->where('price_list_items.product_id', $product->id)
+            ->where('price_list_items.id', $basisId)
+            ->select('price_list_items.*')
+            ->first();
     }
 
-    /**
-     * What one product has been priced and costed at, over time.
-     */
+    /** What one product has been priced and costed at, over time. */
     public function history(int $productId): View
     {
         $product = Product::findOrFail($productId);

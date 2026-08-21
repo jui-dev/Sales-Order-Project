@@ -126,58 +126,13 @@
         </div>
     </div>
 
-    {{-- Section 3: Pricing --}}
+    {{-- Section 3: Vendors --}}
     <div class="card product-card mb-4">
         <div class="card-header product-card__header">
             <span class="product-card__step">3</span>
             <div>
-                <h2 class="product-card__title">Pricing</h2>
-                <p class="product-card__subtitle">How much you mark the product up over what you paid for it.</p>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="product-panel">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label for="markup" class="form-label">Markup %</label>
-                    <div class="input-group">
-                        <input type="number"
-                               class="form-control @error('markup') is-invalid @enderror"
-                               id="markup"
-                               name="markup"
-                               value="{{ old('markup', config('pricing.default_markup', 25)) }}"
-                               min="0"
-                               step="0.01"
-                               placeholder="25">
-                        <span class="input-group-text">%</span>
-                        @error('markup')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-                    <div class="form-text">Leave as-is to use the system default.</div>
-                </div>
-
-                <div class="col-md-8">
-                    <div class="alert alert-info mb-0">
-                        <i class="bi bi-info-circle me-1"></i>
-                        <strong>There is no selling price to enter here.</strong>
-                        What you pay is set per vendor on the vendor's price list, because the same
-                        product can cost different amounts from different vendors. The selling price is
-                        worked out as <code>cost + markup</code> once goods are actually received.
-                    </div>
-                </div>
-            </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Section 4: Vendors --}}
-    <div class="card product-card mb-4">
-        <div class="card-header product-card__header">
-            <span class="product-card__step">4</span>
-            <div>
                 <h2 class="product-card__title">Vendors</h2>
-                <p class="product-card__subtitle">Who can supply this product. Set each vendor's cost afterwards on their page.</p>
+                <p class="product-card__subtitle">Who can supply this product. What each of them charges is set under Catalog &rsaquo; Product Pricing.</p>
             </div>
         </div>
         <div class="card-body">
@@ -209,7 +164,7 @@
         </div>
     </div>
 
-    {{-- Section 5: Review & submit --}}
+    {{-- Section 4: Review & submit --}}
     <div class="card product-card product-summary mb-4">
         <div class="card-body">
             <div class="product-summary__inner">
@@ -348,13 +303,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Markup formatting
-    const markupInput = document.getElementById('markup');
-    if (markupInput) {
-        markupInput.addEventListener('blur', function() {
-            if (this.value) {
-                this.value = parseFloat(this.value).toFixed(2);
-            }
-        });
+;
     }
 });
 </script>

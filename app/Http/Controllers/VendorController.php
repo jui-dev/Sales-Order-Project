@@ -130,14 +130,10 @@ class VendorController extends Controller
     public function assignProduct(AssignVendorProductRequest $request, int $id): RedirectResponse
     {
         try {
-            $this->service->assignProduct(
-                $id,
-                (int) $request->validated('product_id'),
-                $request->validated('unit_cost'),
-            );
+            $this->service->assignProduct($id, (int) $request->validated('product_id'));
 
             return redirect()->route('vendors.show', $id)
-                ->with('success', 'Product added to this vendor\'s price list.');
+                ->with('success', 'Product added. Set what this vendor charges under Product Pricing.');
         } catch (DataNotFoundException $e) {
             return redirect()->route('vendors.index')->with('error', $e->getMessage());
         } catch (\Exception $e) {

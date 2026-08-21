@@ -145,22 +145,29 @@ class ProductPricingLifecycleTest extends TestCase
         $this->assertTrue($product->vendors->contains($vendor));
     }
 
-    public function test_the_product_forms_render_without_a_selling_price_field(): void
+    /**
+     * A product form describes the product, not what it is worth.
+     *
+     * Price, cost and markup all moved to Catalog > Product Pricing: cost
+     * differs per vendor, price differs by where the order is fulfilled from,
+     * and both change over time. Leaving a second editable copy here is how
+     * two figures for one product drifted apart in the first place.
+     */
+    public function test_the_product_forms_carry_no_pricing_fields(): void
     {
         Vendor::factory()->create(['name' => 'Acme']);
         $product = Product::factory()->create();
 
         $this->get(route('products.create'))
             ->assertOk()
-            ->assertSee('Markup')
             ->assertSee('Acme')
-            ->assertDontSee('name="selling_price"', false);
+            ->assertDontSee('name="selling_price"', false)
+            ->assertDontSee('name="markup"', false);
 
         $this->get(route('products.edit', $product))
             ->assertOk()
-            ->assertSee('Markup')
-            // Present as a read-only display, but never as a submittable field.
-            ->assertDontSee('name="selling_price"', false);
+            ->assertDontSee('name="selling_price"', false)
+            ->assertDontSee('name="markup"', false);
     }
 
     public function test_editing_a_product_keeps_its_vendor_costs_intact(): void

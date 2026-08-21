@@ -45,44 +45,27 @@
                 @enderror
             </div>
 
-            <div class="col-md-3">
-                <label for="markup" class="form-label">Markup %</label>
-                <div class="input-group">
-                    <input type="number"
-                           class="form-control @error('markup') is-invalid @enderror"
-                           id="markup"
-                           name="markup"
-                           value="{{ old('markup', $product->markup) }}"
-                           min="0"
-                           step="0.01">
-                    <span class="input-group-text">%</span>
-                    @error('markup')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-            </div>
-
-            <div class="col-md-3">
-                <label class="form-label">Selling Price</label>
-                <div class="input-group">
-                    <span class="input-group-text">$</span>
-                    {{-- Read-only here on purpose. Price is not a property of the
-                         product: it lives on a price list, varies by buyer, and is
-                         edited under Catalog > Product Pricing so the change is
-                         dated rather than overwriting what was charged before. --}}
-                    @php($editPrice = $product->currentPrice())
-                    @php($editCost = $product->currentCost())
-                    <input type="text" class="form-control" disabled
-                           value="{{ $editPrice !== null ? number_format($editPrice, 2) : 'Not priced yet' }}">
-                </div>
-                <div class="form-text">
-                    @if ($editCost !== null)
-                        ${{ number_format($editCost, 2) }} cost
-                        + {{ rtrim(rtrim(number_format($product->markup ?? 0, 2), '0'), '.') }}% markup
-                    @else
-                        Set once the first goods are received.
-                    @endif
-                    <a href="{{ route('product-pricing.history', $product->id) }}" class="ms-1">Price history</a>
+            <div class="col-md-6">
+                <label class="form-label">Pricing</label>
+                {{-- Not editable here on purpose. Cost and price are neither of
+                     them properties of the product: cost differs per vendor,
+                     price differs by where the order is fulfilled from, and both
+                     change over time. They are set in one place so there is no
+                     second copy to disagree with this one. --}}
+                @php($editPrice = $product->currentPrice())
+                @php($editCost = $product->currentCost())
+                <div class="d-flex align-items-center gap-3 pt-1">
+                    <span>
+                        <span class="text-muted small d-block">Cost</span>
+                        <strong>{{ $editCost !== null ? '$' . number_format($editCost, 2) : 'Never received' }}</strong>
+                    </span>
+                    <span>
+                        <span class="text-muted small d-block">Sells for</span>
+                        <strong>{{ $editPrice !== null ? '$' . number_format($editPrice, 2) : 'Not priced' }}</strong>
+                    </span>
+                    <a href="{{ route('product-pricing.edit', $product->id) }}" class="btn btn-sm btn-outline-primary">
+                        Set prices
+                    </a>
                 </div>
             </div>
         </div>
@@ -95,9 +78,10 @@
         </div>
         <div class="form-section-body">
             <p class="text-muted">
-                Who can supply this product. Each vendor's cost is set on
-                <a href="{{ route('vendors.index') }}">their own page</a>, because the same product
-                can cost different amounts from different vendors.
+                Who can supply this product. What each of them charges is set under
+                <a href="{{ route('product-pricing.edit', $product->id) }}">Product Pricing</a> &mdash;
+                the same product can cost different amounts from different vendors, and keeping that
+                in one place is what stops two figures disagreeing.
             </p>
             @forelse ($vendors as $vendor)
                 @if ($loop->first)<div class="row g-2">@endif

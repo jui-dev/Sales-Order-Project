@@ -61,24 +61,28 @@ Route::middleware('permission:product-pricing.view,product-pricing.manage')
     ->prefix('product-pricing')->name('product-pricing.')->group(function () {
         Route::get('/', [ProductPricingController::class, 'index'])->name('index');
 
+        Route::get('/products/{product}', [ProductPricingController::class, 'edit'])
+            ->whereNumber('product')->name('edit');
+
         Route::get('/products/{product}/history', [ProductPricingController::class, 'history'])
             ->whereNumber('product')->name('history');
 
-        Route::get('/{id}', [ProductPricingController::class, 'show'])
-            ->whereNumber('id')->name('show');
-
         Route::middleware('permission:product-pricing.manage')->group(function () {
-            Route::post('/', [ProductPricingController::class, 'store'])->name('store');
-            Route::post('/{id}/prices', [ProductPricingController::class, 'addPrice'])
-                ->whereNumber('id')->name('prices.add');
-            Route::put('/{id}/prices', [ProductPricingController::class, 'updateRows'])
-                ->whereNumber('id')->name('prices.update');
-            Route::delete('/{id}/prices/{product}', [ProductPricingController::class, 'removePrice'])
-                ->whereNumber('id')->whereNumber('product')->name('prices.remove');
+            Route::put('/products/{product}/purchase', [ProductPricingController::class, 'updatePurchasePrices'])
+                ->whereNumber('product')->name('purchase.update');
+            Route::put('/products/{product}/sale', [ProductPricingController::class, 'updateSalePrices'])
+                ->whereNumber('product')->name('sale.update');
         });
     });
 
 Route::get('products/ajax/subcategories', [ProductController::class, 'getSubcategories'])->name('products.get-subcategories');
+
+// Record another vendor who can supply a product. Add-only: removing one with
+// orders behind it would strand those records. Registered before the resource
+// so {product}/vendors is not read as a show.
+Route::post('products/{id}/vendors', [ProductController::class, 'addVendor'])
+    ->whereNumber('id')->middleware('permission:products.manage')->name('products.vendors.add');
+
 Route::resource('products', ProductController::class);
 Route::get('products/{id}/transaction-history', [ProductController::class, 'transactionHistory'])->name('products.transaction-history');
 Route::get('products/{id}/stock-analysis', [ProductController::class, 'stockAnalysis'])->name('products.stock-analysis')->whereNumber('id');

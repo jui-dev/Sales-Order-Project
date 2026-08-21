@@ -115,6 +115,10 @@ class OrderController extends Controller
             'customer_id' => ['nullable', 'exists:customers,id'],
             'sales_channel_id' => ['nullable', 'exists:sales_channels,id'],
             'quantity' => ['nullable', 'integer', 'min:1'],
+            // What the customer pays depends on where their order is fulfilled
+            // from, so the form has to say which it picked.
+            'fulfillment_location_id' => ['nullable', 'integer'],
+            'fulfillment_location_type' => ['nullable', 'in:warehouse,retailer,other'],
         ]);
 
         $product = \App\Models\Product::findOrFail($data['product_id']);
@@ -124,6 +128,10 @@ class OrderController extends Controller
             salesChannel: isset($data['sales_channel_id'])
                 ? \App\Models\SalesChannel::find($data['sales_channel_id'])
                 : null,
+            fulfilmentLocation: $this->fulfilmentLocation(
+                $data['fulfillment_location_type'] ?? null,
+                $data['fulfillment_location_id'] ?? null,
+            ),
             quantity: (int) ($data['quantity'] ?? 1),
         ));
 
@@ -141,6 +149,27 @@ class OrderController extends Controller
             'price_list_name' => $price->priceListName,
             'derived' => $price->isDerived(),
         ]);
+    }
+
+    /**
+     * Turn the form's location type/id pair into the model it names.
+     *
+     * The sale price lists are assigned to Warehouse and Retailer as classes,
+     * so the resolver only needs an instance of the right kind - but it is the
+     * real record, so a rate agreed for one specific store can outrank the
+     * price every store gets without changing anything here.
+     */
+    private function fulfilmentLocation(?string $type, ?int $id): ?object
+    {
+        if (! $type || ! $id) {
+            return null;
+        }
+
+        return match ($type) {
+            'warehouse' => \App\Models\Warehouse::find($id),
+            'retailer' => \App\Models\Retailer::find($id),
+            default => null,
+        };
     }
 
     public function store(StoreOrderRequest $request): RedirectResponse
