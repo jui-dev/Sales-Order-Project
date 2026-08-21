@@ -134,6 +134,38 @@ class PriceListService
     }
 
     /**
+     * The purchase list carrying what one vendor charges, created on demand.
+     *
+     * A vendor gets a list the first time a price is agreed with them, so
+     * onboarding a supplier does not require setting one up by hand. Matches
+     * the code the seeding migration used, so an existing vendor's list is
+     * found rather than duplicated.
+     */
+    public function forVendor(\App\Models\Vendor $vendor): PriceList
+    {
+        $existing = PriceList::ofType(PriceList::TYPE_PURCHASE)
+            ->where('code', 'vendor-'.$vendor->id)
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        return DB::transaction(function () use ($vendor) {
+            $list = PriceList::create([
+                'name' => 'Vendor: '.$vendor->name,
+                'code' => 'vendor-'.$vendor->id,
+                'type' => PriceList::TYPE_PURCHASE,
+                'is_active' => true,
+            ]);
+
+            $this->assignTo($list, $vendor);
+
+            return $list;
+        });
+    }
+
+    /**
      * The default list for a type, which is the fallback when nothing more
      * specific matches.
      */
