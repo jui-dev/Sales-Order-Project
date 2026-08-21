@@ -74,8 +74,8 @@ class ProductController extends Controller
     public function store(StoreProductRequest $request): RedirectResponse
     {
         try {
-            $product = $this->service->create($request->validated());
-            return redirect()->route('products.show', $product->id)
+            $this->service->create($request->validated());
+            return redirect()->route('products.index')
                 ->with('success', 'Product created successfully.');
         } catch (\Exception $e) {
             return back()->withInput()->with('error', 'Unable to create product. Please try again.');
