@@ -116,10 +116,12 @@ class ProductPricingController extends Controller
         $data = $request->validate([
             'sale' => ['required', 'array'],
             'sale.*.enabled' => ['nullable', 'boolean'],
-            'sale.*.unit_price' => ['nullable', 'numeric', 'min:0'],
-            'sale.*.markup_percent' => ['nullable', 'numeric', 'min:0'],
-            'sale.*.basis_price_list_item_id' => ['nullable', 'integer'],
-            'sale.*.is_auto_derived' => ['nullable', 'boolean'],
+            // Which basis line is the one orders charge, for this kind.
+            'sale.*.charged_basis' => ['nullable', 'string'],
+            'sale.*.lines' => ['nullable', 'array'],
+            'sale.*.lines.*.unit_price' => ['nullable', 'numeric', 'min:0'],
+            'sale.*.lines.*.markup_percent' => ['nullable', 'numeric', 'min:0'],
+            'sale.*.lines.*.is_auto_derived' => ['nullable', 'boolean'],
         ]);
 
         try {
@@ -137,33 +139,55 @@ class ProductPricingController extends Controller
                         continue;
                     }
 
-                    $basis = $this->resolveBasis($product, $input['basis_price_list_item_id'] ?? null);
-                    $auto = (bool) ($input['is_auto_derived'] ?? false);
-                    // Null-coalesced: a row with no markup posted is a hand-typed
-                    // price, not an error. Reading the key directly raised a
-                    // warning that surfaced as a silent "please try again".
-                    $markup = ($input['markup_percent'] ?? null) !== null
-                        ? (float) $input['markup_percent']
-                        : null;
+                    // The form keys lines by basis id, with 'none' standing for
+                    // a price that was set against no vendor cost.
+                    $chargedKey = $input['charged_basis'] ?? null;
+                    $saved = [];
 
-                    // A price that follows its basis is computed here, not
-                    // trusted from the form - the browser's arithmetic is a
-                    // convenience, not the record.
-                    if ($auto && $basis && $markup !== null) {
-                        $price = round((float) $basis->unit_price * (1 + ($markup / 100)), 2);
-                    } else {
-                        $price = (float) ($input['unit_price'] ?? 0);
+                    foreach ($input['lines'] ?? [] as $basisKey => $line) {
+                        $basis = $basisKey === 'none'
+                            ? null
+                            : $this->resolveBasis($product, (int) $basisKey);
+
+                        if ($basisKey !== 'none' && ! $basis) {
+                            continue; // Not one of this product's own quotes.
+                        }
+
+                        $auto = (bool) ($line['is_auto_derived'] ?? false);
+                        // Null-coalesced: a line with no markup posted is a
+                        // hand-typed price, not an error.
+                        $markup = ($line['markup_percent'] ?? null) !== null
+                            ? (float) $line['markup_percent']
+                            : null;
+
+                        // A price that follows its basis is computed here, not
+                        // trusted from the form - the browser's arithmetic is a
+                        // convenience, not the record.
+                        $price = ($auto && $basis && $markup !== null)
+                            ? round((float) $basis->unit_price * (1 + ($markup / 100)), 2)
+                            : (float) ($line['unit_price'] ?? 0);
+
+                        if ($price <= 0) {
+                            continue; // Nothing entered for this vendor cost.
+                        }
+
+                        $saved[] = $this->lists->setPrice(
+                            $list, $product, $price, 1, null, $request->user()?->id,
+                            [
+                                'markup_percent' => $markup,
+                                'basis_price_list_item_id' => $basis?->id,
+                                'is_auto_derived' => $auto,
+                                'is_charged' => (string) $basisKey === (string) $chargedKey,
+                            ]
+                        );
                     }
 
-                    if ($price <= 0) {
-                        continue;
+                    // Several prices can stand at once, but exactly one is what
+                    // an order pays. Without this a product could end up with
+                    // prices on file and none of them chargeable.
+                    if ($saved) {
+                        $this->lists->ensureOneCharged($list, $product);
                     }
-
-                    $this->lists->setPrice($list, $product, $price, 1, null, $request->user()?->id, [
-                        'markup_percent' => $markup,
-                        'basis_price_list_item_id' => $basis?->id,
-                        'is_auto_derived' => $auto,
-                    ]);
                 }
             });
 

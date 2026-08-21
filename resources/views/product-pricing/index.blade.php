@@ -29,7 +29,7 @@
 
 <div class="card">
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0 pricing-table">
             <thead>
                 <tr>
                     <th style="width: 26%;">Product</th>
@@ -60,7 +60,7 @@
                          at zero, which a purchase order would accept as free. --}}
                     <td>
                         @forelse($product->purchase_rows as $vendorId => $row)
-                            <div class="d-flex justify-content-between border-bottom py-1">
+                            <div class="d-flex justify-content-between border-bottom py-1 price-line">
                                 <span class="small text-truncate me-2">{{ $row->list_name }}</span>
                                 <span class="fw-semibold">${{ number_format((float) $row->unit_price, 2) }}</span>
                             </div>
@@ -69,30 +69,43 @@
                         @endforelse
                     </td>
 
-                    {{-- What we charge, split by where the order is fulfilled from. --}}
+                    {{-- What we charge: split by where the order is fulfilled from,
+                         and within that, one price per vendor cost it was derived
+                         from. Only the row marked Charged is what an order pays. --}}
                     <td>
                         @php($hasSale = false)
                         @foreach($fulfilmentKinds as $key => $kind)
-                            @php($row = $product->sale_rows[$key] ?? null)
-                            @if($row)
+                            @php($rows = $product->sale_rows[$key] ?? collect())
+                            @if($rows->isNotEmpty())
                                 @php($hasSale = true)
-                                @php($gp = $row->grossProfit())
-                                <div class="d-flex justify-content-between border-bottom py-1">
-                                    <span class="small text-truncate me-2">
-                                        {{ $kind['label'] }}
-                                        @if($row->is_auto_derived)
-                                            <i class="bi bi-magic text-muted" title="Follows cost + markup"></i>
-                                        @endif
-                                    </span>
-                                    <span>
-                                        <span class="fw-semibold">${{ number_format((float) $row->unit_price, 2) }}</span>
-                                        @if($gp !== null)
-                                            <small class="{{ $gp < 0 ? 'text-danger fw-semibold' : 'text-success' }}">
-                                                ({{ $gp < 0 ? '-' : '+' }}${{ number_format(abs($gp), 2) }})
-                                            </small>
-                                        @endif
-                                    </span>
-                                </div>
+                                <div class="small fw-semibold text-muted mt-1">{{ $kind['label'] }}</div>
+                                @foreach($rows as $row)
+                                    @php($gp = $row->grossProfit())
+                                    <div class="d-flex justify-content-between border-bottom py-1 price-line">
+                                        <span class="small text-truncate me-2">
+                                            @if($row->is_charged)
+                                                <i class="bi bi-check-circle-fill text-success" title="Charged on orders"></i>
+                                            @else
+                                                <i class="bi bi-circle text-muted" title="Not charged"></i>
+                                            @endif
+                                            @if($row->basis)
+                                                from ${{ number_format((float) $row->basis->unit_price, 2) }}
+                                            @else
+                                                no cost basis
+                                            @endif
+                                        </span>
+                                        <span>
+                                            <span class="fw-semibold {{ $row->is_charged ? '' : 'text-muted' }}">
+                                                ${{ number_format((float) $row->unit_price, 2) }}
+                                            </span>
+                                            @if($gp !== null)
+                                                <small class="{{ $gp < 0 ? 'text-danger fw-semibold' : 'text-success' }}">
+                                                    ({{ $gp < 0 ? '-' : '+' }}${{ number_format(abs($gp), 2) }})
+                                                </small>
+                                            @endif
+                                        </span>
+                                    </div>
+                                @endforeach
                             @endif
                         @endforeach
                         @unless($hasSale)
@@ -125,4 +138,25 @@
         <x-pagination :paginator="$products" />
     </div>
 </div>
+@endsection
+
+@section('styles')
+<style>
+    /* The three columns answer three different questions - what the product is,
+       what it costs, what it sells for - so they are ruled apart rather than
+       left to run together. */
+    .pricing-table th:not(:last-child),
+    .pricing-table td:not(:last-child) {
+        border-right: 1px solid var(--bs-border-color);
+    }
+
+    .pricing-table th {
+        vertical-align: top;
+    }
+
+    /* Rows inside a cell are their own small list; the last needs no rule. */
+    .pricing-table .price-line:last-child {
+        border-bottom: 0 !important;
+    }
+</style>
 @endsection

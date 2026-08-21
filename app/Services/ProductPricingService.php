@@ -111,6 +111,8 @@ class ProductPricingService
 
         $codes = collect(self::FULFILMENT_KINDS)->pluck('code')->all();
 
+        // Grouped by product, then by fulfilment kind - each kind may hold
+        // several rows now, one per vendor cost the price was derived from.
         return PriceListItem::query()
             ->join('price_lists', 'price_lists.id', '=', 'price_list_items.price_list_id')
             ->whereIn('price_lists.code', $codes)
@@ -119,9 +121,11 @@ class ProductPricingService
             ->whereNull('price_list_items.ends_at')
             ->with('basis')
             ->select('price_list_items.*', 'price_lists.code as list_code')
+            ->orderByDesc('price_list_items.is_charged')
+            ->orderBy('price_list_items.id')
             ->get()
             ->groupBy('product_id')
-            ->map(fn ($rows) => $rows->keyBy(
+            ->map(fn ($rows) => $rows->groupBy(
                 fn ($row) => collect(self::FULFILMENT_KINDS)
                     ->search(fn ($kind) => $kind['code'] === $row->list_code)
             ));
@@ -161,24 +165,65 @@ class ProductPricingService
                 return $vendor;
             });
 
+        $defaultMarkup = (float) ($product->markup ?? config('pricing.default_markup', 25));
+
+        // One editable line per vendor cost, per fulfilment kind. A vendor with
+        // an agreed cost but no selling price yet still gets a line, so the gap
+        // is visible and fillable rather than hidden.
         $saleKinds = [];
         foreach (self::FULFILMENT_KINDS as $key => $kind) {
-            $row = $sale->get($key);
-            $saleKinds[$key] = $kind + [
-                'row' => $row,
-                'unit_price' => $row ? (float) $row->unit_price : null,
-                'markup_percent' => $row?->markup_percent !== null
-                    ? (float) $row->markup_percent
-                    : (float) ($product->markup ?? config('pricing.default_markup', 25)),
-                'basis_id' => $row?->basis_price_list_item_id,
-                'is_auto_derived' => (bool) ($row?->is_auto_derived ?? true),
-                'gross_profit' => $row?->grossProfit(),
-                // Charged on a real order, so the figure is fixed. Setting a
-                // new one opens a row from today and leaves this one closed but
-                // readable as what was actually charged.
-                'is_locked' => $row ? $row->isInUse() : false,
-                'locked_by' => $row?->usageSummary(),
-            ];
+            $rows = $sale->get($key) ?? collect();
+            $byBasis = $rows->keyBy('basis_price_list_item_id');
+
+            $lines = [];
+            foreach ($vendors as $vendor) {
+                if (! $vendor->price_row) {
+                    continue; // Nothing to derive a price from yet.
+                }
+
+                $row = $byBasis->get($vendor->price_row->id);
+
+                $lines[] = [
+                    'basis_id' => $vendor->price_row->id,
+                    'vendor_name' => $vendor->name,
+                    'cost' => (float) $vendor->price_row->unit_price,
+                    'row' => $row,
+                    'unit_price' => $row ? (float) $row->unit_price : null,
+                    'markup_percent' => $row && $row->markup_percent !== null
+                        ? (float) $row->markup_percent
+                        : $defaultMarkup,
+                    'is_auto_derived' => (bool) ($row?->is_auto_derived ?? true),
+                    'is_charged' => (bool) ($row?->is_charged ?? false),
+                    'gross_profit' => $row?->grossProfit(),
+                    // Charged on a real order, so the figure is fixed. Setting
+                    // a new one opens a row from today and leaves this one
+                    // closed but readable as what was actually charged.
+                    'is_locked' => $row ? $row->isInUse() : false,
+                    'locked_by' => $row?->usageSummary(),
+                ];
+            }
+
+            // A price set before any vendor cost existed has no basis to sit
+            // under, so it keeps a line of its own rather than disappearing.
+            if ($unanchored = $byBasis->get(null)) {
+                array_unshift($lines, [
+                    'basis_id' => null,
+                    'vendor_name' => 'No vendor basis',
+                    'cost' => null,
+                    'row' => $unanchored,
+                    'unit_price' => (float) $unanchored->unit_price,
+                    'markup_percent' => $unanchored->markup_percent !== null
+                        ? (float) $unanchored->markup_percent
+                        : $defaultMarkup,
+                    'is_auto_derived' => false,
+                    'is_charged' => (bool) $unanchored->is_charged,
+                    'gross_profit' => null,
+                    'is_locked' => $unanchored->isInUse(),
+                    'locked_by' => $unanchored->usageSummary(),
+                ]);
+            }
+
+            $saleKinds[$key] = $kind + ['lines' => $lines];
         }
 
         return [

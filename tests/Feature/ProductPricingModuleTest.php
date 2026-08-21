@@ -128,12 +128,16 @@ class ProductPricingModuleTest extends TestCase
             'sale' => [
                 'warehouse' => [
                     'enabled' => '1',
-                    'basis_price_list_item_id' => $basis->id,
-                    'markup_percent' => '25',
-                    'is_auto_derived' => '1',
-                    // A figure the browser might have sent. The server must
-                    // work the price out itself rather than trust it.
-                    'unit_price' => '1.00',
+                    'charged_basis' => (string) $basis->id,
+                    'lines' => [
+                        $basis->id => [
+                            'markup_percent' => '25',
+                            'is_auto_derived' => '1',
+                            // A figure the browser might have sent. The server
+                            // must work the price out itself rather than trust it.
+                            'unit_price' => '1.00',
+                        ],
+                    ],
                 ],
             ],
         ])->assertRedirect();
@@ -154,10 +158,14 @@ class ProductPricingModuleTest extends TestCase
             'sale' => [
                 'warehouse' => [
                     'enabled' => '1',
-                    'basis_price_list_item_id' => $basis->id,
-                    'markup_percent' => '25',
-                    'is_auto_derived' => '0',
-                    'unit_price' => '619.99',
+                    'charged_basis' => (string) $basis->id,
+                    'lines' => [
+                        $basis->id => [
+                            'markup_percent' => '25',
+                            'is_auto_derived' => '0',
+                            'unit_price' => '619.99',
+                        ],
+                    ],
                 ],
             ],
         ])->assertRedirect();
@@ -177,12 +185,12 @@ class ProductPricingModuleTest extends TestCase
         $this->put(route('product-pricing.sale.update', $product->id), [
             'sale' => [
                 'warehouse' => [
-                    'enabled' => '1', 'basis_price_list_item_id' => $basis->id,
-                    'markup_percent' => '25', 'is_auto_derived' => '1',
+                    'enabled' => '1', 'charged_basis' => (string) $basis->id,
+                    'lines' => [$basis->id => ['markup_percent' => '25', 'is_auto_derived' => '1']],
                 ],
                 'retailer' => [
-                    'enabled' => '1', 'basis_price_list_item_id' => $basis->id,
-                    'markup_percent' => '40', 'is_auto_derived' => '1',
+                    'enabled' => '1', 'charged_basis' => (string) $basis->id,
+                    'lines' => [$basis->id => ['markup_percent' => '40', 'is_auto_derived' => '1']],
                 ],
             ],
         ])->assertRedirect();
@@ -204,8 +212,8 @@ class ProductPricingModuleTest extends TestCase
 
         $this->put(route('product-pricing.sale.update', $product->id), [
             'sale' => ['retailer' => [
-                'enabled' => '1', 'basis_price_list_item_id' => $basis->id,
-                'markup_percent' => '40', 'is_auto_derived' => '1',
+                'enabled' => '1', 'charged_basis' => (string) $basis->id,
+                'lines' => [$basis->id => ['markup_percent' => '40', 'is_auto_derived' => '1']],
             ]],
         ]);
 
@@ -239,7 +247,8 @@ class ProductPricingModuleTest extends TestCase
 
         $this->put(route('product-pricing.sale.update', $product->id), [
             'sale' => ['warehouse' => [
-                'enabled' => '1', 'is_auto_derived' => '0', 'unit_price' => '540.00',
+                'enabled' => '1', 'charged_basis' => 'none',
+                'lines' => ['none' => ['is_auto_derived' => '0', 'unit_price' => '540.00']],
             ]],
         ])->assertRedirect();
 
@@ -258,6 +267,110 @@ class ProductPricingModuleTest extends TestCase
             ->assertOk()
             ->assertSee('500.00')
             ->assertSee('540.00');
+    }
+
+    /**
+     * The same product bought at two costs justifies two selling prices.
+     *
+     * Both stand at once so the margin on each is legible, but only the one
+     * flagged is what an order pays - pooled stock gives a sold unit no vendor
+     * identity, so the choice is recorded rather than inferred.
+     */
+    public function test_a_product_carries_a_selling_price_per_vendor_cost(): void
+    {
+        $product = Product::factory()->create();
+        $cheap = Vendor::factory()->create(['name' => 'Budget Supplies']);
+        $dear = Vendor::factory()->create(['name' => 'Premium Supplies']);
+
+        foreach ([[$cheap, 200.00], [$dear, 400.00]] as [$vendor, $cost]) {
+            \App\Models\VendorProduct::create([
+                'vendor_id' => $vendor->id,
+                'product_id' => $product->id,
+            ]);
+            $this->lists->setPrice($this->lists->forVendor($vendor), $product, $cost);
+        }
+
+        $cheapBasis = app(PriceResolver::class)->forPurchase($product, $cheap)->priceListItemId;
+        $dearBasis = app(PriceResolver::class)->forPurchase($product, $dear)->priceListItemId;
+
+        $this->put(route('product-pricing.sale.update', $product->id), [
+            'sale' => ['warehouse' => [
+                'enabled' => '1',
+                // The dear one is what orders actually charge.
+                'charged_basis' => (string) $dearBasis,
+                'lines' => [
+                    $cheapBasis => ['markup_percent' => '25', 'is_auto_derived' => '1'],
+                    $dearBasis => ['markup_percent' => '25', 'is_auto_derived' => '1'],
+                ],
+            ]],
+        ])->assertRedirect();
+
+        $rows = PriceListItem::where('product_id', $product->id)
+            ->where('price_list_id', $this->pricing->saleListFor('warehouse')->id)
+            ->whereNull('ends_at')
+            ->get();
+
+        $this->assertCount(2, $rows, 'Both selling prices stand at once.');
+        $this->assertEqualsCanonicalizing(
+            [250.00, 500.00],
+            $rows->pluck('unit_price')->map(fn ($p) => (float) $p)->all()
+        );
+
+        // Exactly one is chargeable, and it is the one that was chosen.
+        $charged = $rows->where('is_charged', true);
+        $this->assertCount(1, $charged);
+        $this->assertEquals(500.00, $charged->first()->unit_price);
+
+        $this->assertEquals(500.00, app(PriceResolver::class)->forSale($product)->unitPrice);
+    }
+
+    public function test_switching_which_price_is_charged_changes_what_an_order_pays(): void
+    {
+        $product = Product::factory()->create();
+        $vendorA = Vendor::factory()->create(['name' => 'A']);
+        $vendorB = Vendor::factory()->create(['name' => 'B']);
+
+        foreach ([[$vendorA, 200.00], [$vendorB, 400.00]] as [$vendor, $cost]) {
+            \App\Models\VendorProduct::create(['vendor_id' => $vendor->id, 'product_id' => $product->id]);
+            $this->lists->setPrice($this->lists->forVendor($vendor), $product, $cost);
+        }
+
+        $basisA = app(PriceResolver::class)->forPurchase($product, $vendorA)->priceListItemId;
+        $basisB = app(PriceResolver::class)->forPurchase($product, $vendorB)->priceListItemId;
+
+        $payload = fn (string $charged) => [
+            'sale' => ['warehouse' => [
+                'enabled' => '1',
+                'charged_basis' => $charged,
+                'lines' => [
+                    $basisA => ['markup_percent' => '25', 'is_auto_derived' => '1'],
+                    $basisB => ['markup_percent' => '25', 'is_auto_derived' => '1'],
+                ],
+            ]],
+        ];
+
+        $this->put(route('product-pricing.sale.update', $product->id), $payload((string) $basisA));
+        $this->assertEquals(250.00, app(PriceResolver::class)->forSale($product)->unitPrice);
+
+        $this->put(route('product-pricing.sale.update', $product->id), $payload((string) $basisB));
+        $this->assertEquals(500.00, app(PriceResolver::class)->forSale($product)->unitPrice);
+
+        // Still two rows: switching which is charged is not a price change.
+        $this->assertSame(2, PriceListItem::where('product_id', $product->id)
+            ->where('price_list_id', $this->pricing->saleListFor('warehouse')->id)
+            ->whereNull('ends_at')->count());
+    }
+
+    public function test_a_products_only_selling_price_is_chargeable_without_being_asked(): void
+    {
+        [$product] = $this->productWithVendor(400.00);
+
+        // Set outside the editor - a goods receipt deriving a price, a seeder.
+        // A price nothing can charge would be worse than useless.
+        $row = $this->lists->setPrice($this->pricing->saleListFor('warehouse'), $product, 500.00);
+
+        $this->assertTrue($row->refresh()->is_charged);
+        $this->assertEquals(500.00, app(PriceResolver::class)->forSale($product)->unitPrice);
     }
 
     public function test_the_module_is_gated_by_permission(): void

@@ -209,7 +209,8 @@ class UsedPriceIsLockedTest extends TestCase
 
         $this->put(route('product-pricing.sale.update', $product->id), [
             'sale' => ['warehouse' => [
-                'enabled' => '1', 'is_auto_derived' => '0', 'unit_price' => '575.00',
+                'enabled' => '1', 'charged_basis' => 'none',
+                'lines' => ['none' => ['is_auto_derived' => '0', 'unit_price' => '575.00']],
             ]],
         ])->assertRedirect()->assertSessionHas('success');
 

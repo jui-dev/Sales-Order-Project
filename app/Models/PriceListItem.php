@@ -28,6 +28,7 @@ class PriceListItem extends Model
         'markup_percent',
         'basis_price_list_item_id',
         'is_auto_derived',
+        'is_charged',
         'starts_at',
         'ends_at',
         'created_by',
@@ -38,6 +39,7 @@ class PriceListItem extends Model
         'min_quantity' => 'integer',
         'markup_percent' => 'decimal:2',
         'is_auto_derived' => 'boolean',
+        'is_charged' => 'boolean',
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
     ];

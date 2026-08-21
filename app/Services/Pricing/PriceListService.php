@@ -41,17 +41,26 @@ class PriceListService
         $from ??= Carbon::now();
 
         return DB::transaction(function () use ($list, $product, $unitPrice, $minQuantity, $from, $userId, $derivation) {
-            $current = $this->currentRow($list, $product, $minQuantity, $from);
-
             $markup = $derivation['markup_percent'] ?? null;
             $basisId = $derivation['basis_price_list_item_id'] ?? null;
             $auto = (bool) ($derivation['is_auto_derived'] ?? false);
+            // Told apart from "not charged": a caller that says nothing about
+            // the flag is not asking to unset it, and comparing against a
+            // default of false would churn a new row on every save.
+            $explicitCharged = array_key_exists('is_charged', $derivation);
+            $charged = (bool) ($derivation['is_charged'] ?? false);
+
+            // The basis is part of a row's identity: one product can carry a
+            // selling price per vendor cost, so setting the price derived from
+            // one quote must not close the price derived from another.
+            $current = $this->currentRow($list, $product, $minQuantity, $from, $basisId);
 
             $unchanged = $current
                 && (float) $current->unit_price === round($unitPrice, 4)
                 && (float) ($current->markup_percent ?? -1) === (float) ($markup ?? -1)
                 && $current->basis_price_list_item_id === $basisId
-                && $current->is_auto_derived === $auto;
+                && $current->is_auto_derived === $auto
+                && (! $explicitCharged || $current->is_charged === $charged);
 
             if ($unchanged) {
                 // Nothing moved - leave the standing row alone rather than
@@ -64,7 +73,7 @@ class PriceListService
             // rows in force at once and the winner arbitrary.
             $current?->update(['ends_at' => $from]);
 
-            return PriceListItem::create([
+            $row = PriceListItem::create([
                 'price_list_id' => $list->id,
                 'product_id' => $product->id,
                 'unit_price' => round($unitPrice, 4),
@@ -72,11 +81,89 @@ class PriceListService
                 'markup_percent' => $markup,
                 'basis_price_list_item_id' => $basisId,
                 'is_auto_derived' => $auto,
+                'is_charged' => $charged,
                 'starts_at' => $from,
                 'ends_at' => null,
                 'created_by' => $userId,
             ]);
+
+            if ($charged) {
+                return $this->markAsCharged($row);
+            }
+
+            // A sale list must always have exactly one chargeable row per
+            // product: several prices can stand at once, but an order has to
+            // pay one of them. The first price set is that one by definition,
+            // which also means every caller that does not care about the flag
+            // - a goods receipt deriving a price, a seeder, a test - still
+            // produces something orders can actually use.
+            if ($list->type === PriceList::TYPE_SALE && ! $this->hasChargedRow($list, $product, $minQuantity, $row->id)) {
+                return $this->markAsCharged($row);
+            }
+
+            return $row;
         });
+    }
+
+    private function hasChargedRow(PriceList $list, Product $product, int $minQuantity, int $excludingId): bool
+    {
+        return PriceListItem::where('price_list_id', $list->id)
+            ->where('product_id', $product->id)
+            ->where('min_quantity', $minQuantity)
+            ->where('id', '!=', $excludingId)
+            ->whereNull('ends_at')
+            ->where('is_charged', true)
+            ->exists();
+    }
+
+    /**
+     * Make one row the price orders actually charge, unmarking its siblings.
+     *
+     * A product may carry a selling price per vendor cost, but only one can be
+     * charged - pooled stock gives a sold unit no vendor identity, so the
+     * choice is recorded rather than inferred.
+     */
+    public function markAsCharged(PriceListItem $row): PriceListItem
+    {
+        return DB::transaction(function () use ($row) {
+            PriceListItem::where('price_list_id', $row->price_list_id)
+                ->where('product_id', $row->product_id)
+                ->where('min_quantity', $row->min_quantity)
+                ->where('id', '!=', $row->id)
+                ->whereNull('ends_at')
+                ->where('is_charged', true)
+                ->update(['is_charged' => false]);
+
+            if (! $row->is_charged) {
+                $row->update(['is_charged' => true]);
+            }
+
+            return $row->refresh();
+        });
+    }
+
+    /**
+     * Guarantee a product's sale rows have exactly one charged among them.
+     *
+     * Called after a batch of edits: deleting or superseding rows can leave a
+     * product with none flagged, which would make it unpriceable even though
+     * prices exist. The oldest standing row is the least surprising default.
+     */
+    public function ensureOneCharged(PriceList $list, Product $product, int $minQuantity = 1): void
+    {
+        $rows = PriceListItem::where('price_list_id', $list->id)
+            ->where('product_id', $product->id)
+            ->where('min_quantity', $minQuantity)
+            ->whereNull('ends_at')
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($rows->isEmpty() || $rows->where('is_charged', true)->isNotEmpty()) {
+            return;
+        }
+
+        $this->markAsCharged($rows->first());
     }
 
     /**
@@ -90,7 +177,15 @@ class PriceListService
     ): void {
         $at ??= Carbon::now();
 
-        $this->currentRow($list, $product, $minQuantity, $at)?->update(['ends_at' => $at]);
+        // Closes every standing row for the product, not just one: a product
+        // may carry a selling price per vendor cost, and "stop charging for
+        // this" means all of them.
+        PriceListItem::where('price_list_id', $list->id)
+            ->where('product_id', $product->id)
+            ->where('min_quantity', $minQuantity)
+            ->inForceAt($at)
+            ->get()
+            ->each->update(['ends_at' => $at]);
     }
 
     /**
@@ -238,15 +333,25 @@ class PriceListService
             ->get();
     }
 
+    /**
+     * The standing row for one product on one list, at one quantity break.
+     *
+     * $basisId narrows it further where a product carries a selling price per
+     * vendor cost. Passing null means the row derived from no basis, which is
+     * its own slot rather than a wildcard - otherwise setting an unanchored
+     * price would close every anchored one.
+     */
     private function currentRow(
         PriceList $list,
         Product $product,
         int $minQuantity,
         CarbonInterface $at,
+        ?int $basisId = null,
     ): ?PriceListItem {
         return PriceListItem::where('price_list_id', $list->id)
             ->where('product_id', $product->id)
             ->where('min_quantity', $minQuantity)
+            ->where('basis_price_list_item_id', $basisId)
             ->inForceAt($at)
             ->orderByDesc('starts_at')
             ->orderByDesc('id')

@@ -129,6 +129,12 @@ class PriceResolver
             ->where(fn ($q) => $q->whereNull('price_lists.ends_at')->orWhere('price_lists.ends_at', '>', $at))
             ->where('price_list_items.product_id', $product->id)
             ->where('price_list_items.min_quantity', '<=', max(1, $quantity))
+            // A product may carry a selling price per vendor cost, all of them
+            // in force. Only the one flagged as charged is what an order pays -
+            // pooled stock gives a sold unit no vendor identity, so the choice
+            // is recorded rather than guessed at. Purchase lists hold one row
+            // per product and carry no flag, so they are exempt.
+            ->when($type === PriceList::TYPE_SALE, fn ($q) => $q->where('price_list_items.is_charged', true))
             ->inForceAt($at)
             ->select('price_list_items.*')
             ->get();
