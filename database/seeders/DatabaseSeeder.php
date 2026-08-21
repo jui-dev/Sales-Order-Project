@@ -17,6 +17,8 @@ class DatabaseSeeder extends Seeder
             ProductSeeder::class,
             CustomerSeeder::class,
             VendorSeeder::class,
+            // After both: it joins products to the vendors that carry them.
+            VendorProductSeeder::class,
             WarehouseSeeder::class,
             RetailerSeeder::class,
             ChartOfAccountsSeeder::class,
