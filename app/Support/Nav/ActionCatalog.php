@@ -57,7 +57,6 @@ final class ActionCatalog
             'where' => 'Save on the new supply form',
             'effects' => [
                 ['key' => 'procurement.supplies', 'what' => 'The supply is created as Pending.'],
-                ['key' => 'picking.vendor-to-warehouse', 'what' => 'It appears on the vendor picking screen, which lists supplies rather than records of its own.'],
                 ['key' => 'procurement.purchase-orders', 'what' => 'When the form was opened from an order, the supply is linked back to it and received quantities are recounted, so the order closes or stays partially received.'],
             ],
             'note' => 'Nothing enters inventory here, and no price changes - a supply only records what arrived.',
@@ -69,7 +68,6 @@ final class ActionCatalog
             'effects' => [
                 ['key' => 'procurement.supplies', 'what' => 'The supply moves to Completed.'],
                 ['key' => 'procurement.grns', 'what' => 'A draft goods receipt note is raised for the receiving team, and you are sent straight to it.'],
-                ['key' => 'picking.vendor-to-warehouse', 'what' => 'The supply now reads as awaiting receipt.'],
             ],
             'note' => 'Still no stock: inventory only moves when the GRN is posted.',
         ],
@@ -79,8 +77,7 @@ final class ActionCatalog
             'where' => 'Post on the GRN detail page',
             'effects' => [
                 ['key' => 'procurement.grns', 'what' => 'The GRN moves to Posted.'],
-                ['key' => 'stock.stock-management', 'what' => 'One inbound stock movement per supplied line, which is what actually puts the goods in the warehouse.'],
-                ['key' => 'picking.vendor-to-warehouse', 'what' => 'A Vendor to Warehouse stock transfer records the inbound movement.'],
+                ['key' => 'stock.stock-management', 'what' => 'One inbound stock movement per supplied line, which is what actually puts the goods in the warehouse, plus a Vendor to Warehouse stock transfer recording the delivery as a whole.'],
                 ['key' => 'procurement.supplier-bills', 'what' => 'A draft supplier bill is created automatically from the supply lines.'],
                 ['key' => 'products', 'what' => 'Each received line writes its cost to the product, and the selling price is recalculated from that cost plus the product markup.'],
                 ['key' => 'accounting.audit-logs', 'what' => 'The bill creation is written to the audit trail.'],

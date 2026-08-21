@@ -20,17 +20,17 @@ use Tests\TestCase;
 
 /**
  * The sidebar does not map one-to-one onto tables: three picking screens share
- * the picking_lists table, the Returns rows are stock movements, and the
- * Vendors -> Warehouse screen has no records of its own at all. These are the
- * cases the classifier exists to get right.
+ * the picking_lists table, the Returns rows are stock movements, and inbound
+ * transfers report against the stock ledger rather than a picking screen.
+ * These are the cases the classifier exists to get right.
  */
 class EffectClassifierTest extends TestCase
 {
-    public function test_a_supply_lights_up_both_the_supplies_list_and_the_vendor_picking_screen(): void
+    public function test_a_supply_lights_up_the_supplies_list(): void
     {
         $keys = EffectClassifier::keysFor(new Supply);
 
-        $this->assertSame(['procurement.supplies', 'picking.vendor-to-warehouse'], $keys);
+        $this->assertSame(['procurement.supplies'], $keys);
     }
 
     public function test_a_warehouse_to_retailer_picking_list_lands_on_that_screen_and_the_combined_index(): void
@@ -65,9 +65,9 @@ class EffectClassifierTest extends TestCase
     }
 
     /**
-     * GrnService::postStock() raises a Vendor -> Warehouse transfer, which
-     * belongs on the vendor picking screen rather than the retailer one it
-     * shares a table with.
+     * GrnService::postStock() raises a Vendor -> Warehouse transfer. Receiving
+     * is driven from the GRN, so the inbound leg reports against the stock
+     * ledger rather than the retailer picking screen it shares a table with.
      */
     public function test_an_inbound_transfer_is_told_apart_from_a_retailer_transfer(): void
     {
@@ -81,7 +81,7 @@ class EffectClassifierTest extends TestCase
             'to_location_type' => Retailer::class,
         ]);
 
-        $this->assertSame(['picking.vendor-to-warehouse'], EffectClassifier::keysFor($inbound));
+        $this->assertSame(['stock.stock-management'], EffectClassifier::keysFor($inbound));
         $this->assertSame(['picking.warehouse-to-retailers'], EffectClassifier::keysFor($outbound));
     }
 

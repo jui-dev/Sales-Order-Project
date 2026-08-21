@@ -102,12 +102,6 @@ final class NavCatalog
             'landing' => [],
             'permission' => 'picking.view',
         ],
-        'picking.vendor-to-warehouse' => [
-            'label' => 'Vendors → Warehouse',
-            'parent' => 'picking',
-            'landing' => ['vendor-to-warehouse-picking.index'],
-            'permission' => 'picking.view',
-        ],
         'picking.warehouse-to-retailers' => [
             'label' => 'Warehouse → Retailers',
             'parent' => 'picking',

@@ -228,7 +228,7 @@
                     $returnActive = fn ($type) => $onReturns && $returnType === $type ? ' active' : '';
 
                     $procurementOpen = request()->routeIs('purchase-orders.*', 'supplies.*', 'grns.*', 'supplier-bills.*', 'supplier-bill-payments.*');
-                    $pickingOpen = request()->routeIs('vendor-to-warehouse-picking.*', 'stock-transfers.*', 'warehouse-to-customer-picking.*', 'retailer-to-customer-picking.*', 'picking-lists.*');
+                    $pickingOpen = request()->routeIs('stock-transfers.*', 'warehouse-to-customer-picking.*', 'retailer-to-customer-picking.*', 'picking-lists.*');
                     $returnsOpen = request()->routeIs('returns.*', 'credit-notes.*', 'debit-notes.*');
                     $stockOpen = request()->routeIs('stock-management.*', 'stock-locations.*', 'picking.transaction-flow');
                     $salesOrderOpen = request()->routeIs('orders.*', 'invoices.*', 'payments.*');
@@ -290,7 +290,6 @@
                         </a>
                         <div class="collapse{{ $pickingOpen ? ' show' : '' }}" id="pickingMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('vendor-to-warehouse-picking.*') }}" href="{{ route('vendor-to-warehouse-picking.index') }}"><i class="bi bi-truck-arrow-right me-2"></i>Vendors → Warehouse<x-nav-badge for="picking.vendor-to-warehouse" /></a></li>
                                 <li><a class="nav-link px-3{{ $navActive('stock-transfers.*') }}" href="{{ route('stock-transfers.warehouse-to-retailer') }}"><i class="bi bi-building-arrow-right me-2"></i>Warehouse → Retailers<x-nav-badge for="picking.warehouse-to-retailers" /></a></li>
                                 <li><a class="nav-link px-3{{ $navActive('warehouse-to-customer-picking.*') }}" href="{{ route('warehouse-to-customer-picking.index') }}"><i class="bi bi-house-arrow-right me-2"></i>Warehouse → Customers<x-nav-badge for="picking.warehouse-to-customers" /></a></li>
                                 <li><a class="nav-link px-3{{ $navActive('retailer-to-customer-picking.*') }}" href="{{ route('retailer-to-customer-picking.index') }}"><i class="bi bi-people-arrow-right me-2"></i>Retailers → Customers<x-nav-badge for="picking.retailer-to-customers" /></a></li>

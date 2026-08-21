@@ -33,9 +33,7 @@ use Illuminate\Support\Str;
  * The map is not one-to-one, which is most of the reason the workflow is hard
  * to follow by reading the screens:
  *
- *   - "Vendors -> Warehouse" is a filtered list of supplies, not its own record
- *     (see the vendor-to-warehouse-picking route in routes/web.php).
- *   - The other three picking screens are all picking_lists rows, told apart by
+ *   - The three picking screens are all picking_lists rows, told apart by
  *     from_location_type / to_location_type.
  *   - The Returns rows are stock_transactions rows, told apart by
  *     transaction_type (see ReturnService).
@@ -135,10 +133,8 @@ final class EffectClassifier
     public static function keysFor(Model $model): array
     {
         return match ($model::class) {
-            // A supply is both its own list and the whole content of the
-            // Vendors -> Warehouse picking screen.
             PurchaseOrder::class => ['procurement.purchase-orders'],
-            Supply::class => ['procurement.supplies', 'picking.vendor-to-warehouse'],
+            Supply::class => ['procurement.supplies'],
             Grn::class => ['procurement.grns'],
             SupplierBill::class => ['procurement.supplier-bills'],
             SupplierBillPayment::class => ['procurement.supplier-bill-payments'],
@@ -168,11 +164,15 @@ final class EffectClassifier
     }
 
     /**
-     * Movements are split across the picking screens by where they run from and
-     * to, so the endpoints - not the table - decide which menu row they land on.
+     * Movements are split across the screens by where they run from and to, so
+     * the endpoints - not the table - decide which menu row they land on.
      * Posting a GRN raises a Vendor -> Warehouse transfer (GrnService::postStock)
      * while a retailer replenishment raises a Warehouse -> Retailer one, and the
      * two belong on different screens despite sharing a table.
+     *
+     * The inbound leg has no picking screen of its own - receiving is driven
+     * from the GRN - so it reports against the stock ledger, which is where the
+     * movements it records are read.
      *
      * @param  list<string>  $always  keys every record of this kind also appears on
      * @return list<string>
@@ -180,7 +180,7 @@ final class EffectClassifier
     private static function locationKeys(?string $from, ?string $to, array $always = []): array
     {
         $key = match ([$from, $to]) {
-            [Vendor::class, Warehouse::class] => 'picking.vendor-to-warehouse',
+            [Vendor::class, Warehouse::class] => 'stock.stock-management',
             [Warehouse::class, Retailer::class] => 'picking.warehouse-to-retailers',
             [Warehouse::class, Customer::class] => 'picking.warehouse-to-customers',
             [Retailer::class, Customer::class] => 'picking.retailer-to-customers',

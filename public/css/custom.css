@@ -1340,9 +1340,8 @@ a.workflow-stage:hover .workflow-stage__name {
 
 /* ---- Summary cards (index pages) -------------------------------------
    A white panel holding soft-gradient tiles, each with a coloured label, a
-   muted icon and a link to where the number is acted on. Lived in a
-   @push('styles') block on the vendor-to-warehouse-picking page, so other
-   pages using these class names rendered as plain Bootstrap cards. */
+   muted icon and a link to where the number is acted on. Shared by every
+   index page that uses these class names. */
 .summary-panel {
     background-color: #ffffff;
     border: 1px solid var(--border-color, #e9ecef);

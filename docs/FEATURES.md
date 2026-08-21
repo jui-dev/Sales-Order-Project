@@ -259,11 +259,9 @@ The largest surface in the app, split by movement direction. The shared mechanic
 
 Statuses: `pending → open → picked → verified → closed / completed`, or `cancelled`.
 
-### 8a. Vendors → Warehouse
+The inbound Vendor → Warehouse direction has no picking screen of its own: receiving is driven entirely by the GRN flow (§5).
 
-Read-only view over supplies and their resulting stock transactions, filterable by warehouse, vendor, and status. The actual inbound movement is driven by the GRN flow (§5), not from this screen. Statistics on this page are currently hardcoded to zero.
-
-### 8b. Warehouse → Retailers
+### 8a. Warehouse → Retailers
 
 A full transfer workflow, implemented entirely in `routes/web.php` closures.
 
@@ -275,7 +273,7 @@ A full transfer workflow, implemented entirely in `routes/web.php` closures.
 6. `StockTransferObserver` then posts an inter-location inventory journal entry for the total cost of goods moved.
 7. **Cancel** rolls reservations back (`reserved_quantity −= requested`, floored at zero) and cancels the items, list, and transfer.
 
-### 8c. Warehouse → Customers
+### 8b. Warehouse → Customers
 
 The fulfilment side of a confirmed sales order.
 
@@ -285,11 +283,11 @@ The fulfilment side of a confirmed sales order.
 4. Because the list references an `Order`, the observer also sets the order to `completed` and calls `InvoiceService::generateFromOrder()`.
 5. User is redirected to the invoice: *"Picking completed! Invoice has been generated automatically."*
 
-### 8d. Retailers → Customers
+### 8c. Retailers → Customers
 
 Same shape for retailer-fulfilled orders. Supports completing the whole list (idempotent — re-completing returns an informational message) or marking a single item picked in full. This is the only one of the three picking dashboards whose statistics endpoint returns real data.
 
-### 8e. All Picking Lists & Transaction Flow
+### 8d. All Picking Lists & Transaction Flow
 
 - **All Picking Lists** — a combined list across every direction, with type/status/date filters.
 - **Transaction Flow** — an overview dashboard combining stock summary, recent movements, warehouses, and retailers, with a flow diagram partial.

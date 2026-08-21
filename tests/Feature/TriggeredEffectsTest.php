@@ -57,10 +57,6 @@ class TriggeredEffectsTest extends TestCase
         // The supply itself moved, and a draft GRN was raised for receiving.
         $this->assertSame(1, $counts['procurement.supplies'] ?? 0);
         $this->assertSame(1, $counts['procurement.grns'] ?? 0);
-
-        // The vendor picking screen lists supplies rather than records of its
-        // own, so it is affected without anything being created there.
-        $this->assertSame(1, $counts['picking.vendor-to-warehouse'] ?? 0);
     }
 
     public function test_the_landing_page_names_the_records_that_were_created(): void
@@ -113,14 +109,14 @@ class TriggeredEffectsTest extends TestCase
 
         // Somewhere else entirely: the badge is still owed to the reader.
         $this->actingAs($admin)->get(route('products.index'));
-        $this->assertSame(1, session(TrackTriggeredEffects::COUNTS)['picking.vendor-to-warehouse'] ?? 0);
+        $this->assertSame(1, session(TrackTriggeredEffects::COUNTS)['procurement.grns'] ?? 0);
 
         // Opening the screen the badge points at spends it, and leaves the
         // badges for the screens they have not looked at yet.
-        $this->actingAs($admin)->get(route('vendor-to-warehouse-picking.index'));
+        $this->actingAs($admin)->get(route('grns.index'));
 
         $counts = session(TrackTriggeredEffects::COUNTS);
-        $this->assertArrayNotHasKey('picking.vendor-to-warehouse', $counts);
+        $this->assertArrayNotHasKey('procurement.grns', $counts);
         $this->assertSame(1, $counts['procurement.supplies'] ?? 0);
     }
 

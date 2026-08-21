@@ -13,7 +13,6 @@ use App\Models\StockLocation;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\SupplyController;
 use App\Http\Controllers\GrnController;
-use App\Http\Controllers\VendorPickingController;
 use App\Http\Controllers\PickingListController;
 use App\Http\Controllers\StockManagementController;
 use Illuminate\Support\Str;
@@ -573,50 +572,6 @@ Route::get('/picking-lists/{id}', function ($id) {
 
     return view('picking-lists.show', compact('pickingList'));
 })->whereNumber('id')->name('picking-lists.show');
-
-// Vendor → Warehouse picking dashboard
-Route::get('/vendor-to-warehouse-picking', [VendorPickingController::class, 'index'])
-    ->name('vendor-to-warehouse-picking.index');
-
-// Vendor to Warehouse Picking (header/detail pages)
-Route::get('/vendor-to-warehouse-picking/{id}', function ($id) {
-    $pickingList = \App\Models\PickingList::with(['items.product'])->find($id);
-    if (!$pickingList) {
-        $pickingList = new \App\Models\PickingList([
-            'id'           => $id,
-            'status'       => 'pending',
-            'picking_date' => now(),
-        ]);
-        $pickingList->setRelation('items', collect());
-    }
-    $pickingList->setRelation('pickingItems', $pickingList->items ?? collect());
-    $pickingList->picking_number ??= 'PL-' . str_pad($pickingList->id, 6, '0', STR_PAD_LEFT);
-
-    // Attach stub relationships for view
-    $pickingList->supply      = (object) ['supply_number' => 'SUP-' . $pickingList->id];
-    $pickingList->toLocation  = (object) ['name' => 'Warehouse', 'address' => null];
-
-    return view('vendor-to-warehouse-picking.show', compact('pickingList'));
-})->whereNumber('id')->name('vendor-to-warehouse-picking.show');
-
-Route::get('/vendor-to-warehouse-picking/picking-list/{id}', function ($id) {
-    // Reuse logic above to build $pickingList stub
-    $pickingList = \App\Models\PickingList::with(['items.product'])->find($id) ?? new \App\Models\PickingList([
-        'id'           => $id,
-        'status'       => 'pending',
-        'picking_date' => now(),
-    ]);
-    $pickingList->setRelation('pickingItems', $pickingList->items ?? collect());
-    $pickingList->picking_number ??= 'PL-' . str_pad($pickingList->id, 6, '0', STR_PAD_LEFT);
-    $pickingList->toLocation = (object) ['name' => 'Warehouse', 'address' => null];
-
-    return view('vendor-to-warehouse-picking.show-picking-list', compact('pickingList'));
-})->whereNumber('id')->name('vendor-to-warehouse-picking.show-picking-list');
-
-// Action route referenced by the view
-Route::post('/vendor-to-warehouse-picking/{id}/trigger', function ($id) {
-    return back()->with('success', "Triggered processing for supply {$id} (placeholder).");
-})->whereNumber('id')->name('vendor-to-warehouse-picking.trigger');
 
 // Warehouse to Customer Picking UI Routes
 Route::get('/warehouse-to-customer-picking', function () {
