@@ -80,6 +80,92 @@ class PriceListItem extends Model
     }
 
     /* ---------------------------------------------------------------------
+     | Locking
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Everything the figure on this row has been charged on.
+     *
+     * The two sides are asymmetric because the documents are: a sale price is
+     * used by an order line, a purchase quote by a purchase order line.
+     *
+     * @return array{orders: int, purchase_orders: int}
+     */
+    public function usageCounts(): array
+    {
+        return [
+            'orders' => OrderItem::where('price_list_item_id', $this->id)->count(),
+            'purchase_orders' => PurchaseOrderItem::where('price_list_item_id', $this->id)->count(),
+        ];
+    }
+
+    /**
+     * Has this exact price actually been charged on something?
+     *
+     * Once it has, the figure is a matter of record and must not move. A new
+     * price can still be set - it opens a new row from today and leaves this
+     * one closed but readable.
+     */
+    public function isInUse(): bool
+    {
+        return array_sum($this->usageCounts()) > 0;
+    }
+
+    /** A short description of what is holding this price, for the UI. */
+    public function usageSummary(): ?string
+    {
+        $counts = $this->usageCounts();
+        $parts = [];
+
+        if ($counts['orders'] > 0) {
+            $parts[] = $counts['orders'].' sales order'.($counts['orders'] === 1 ? '' : 's');
+        }
+
+        if ($counts['purchase_orders'] > 0) {
+            $parts[] = $counts['purchase_orders'].' purchase order'.($counts['purchase_orders'] === 1 ? '' : 's');
+        }
+
+        return $parts ? implode(' and ', $parts) : null;
+    }
+
+    /**
+     * Attributes that describe what was charged, as opposed to when it applied.
+     *
+     * ends_at is deliberately absent: closing a row records that it stopped
+     * applying, which is how a price is superseded. It does not change what was
+     * charged while it did apply.
+     */
+    private const PROTECTED_ONCE_USED = [
+        'unit_price',
+        'min_quantity',
+        'markup_percent',
+        'basis_price_list_item_id',
+        'product_id',
+        'price_list_id',
+    ];
+
+    protected static function booted(): void
+    {
+        // The last line of defence. The service layer already supersedes rather
+        // than overwrites, but a price that has been charged on a real document
+        // should be incapable of changing whatever calls it - a stray update in
+        // a future controller, a tinker session, a seeder.
+        static::updating(function (PriceListItem $item) {
+            $changed = array_intersect(array_keys($item->getDirty()), self::PROTECTED_ONCE_USED);
+
+            if (empty($changed) || ! $item->isInUse()) {
+                return;
+            }
+
+            throw new \DomainException(
+                'This price has already been charged on '.$item->usageSummary().
+                ' and cannot be altered. Set a new price instead - it will apply from now on, '.
+                'and this one stays on file as what was actually charged.'
+            );
+        });
+    }
+
+    /* ---------------------------------------------------------------------
      | Scopes
      |---------------------------------------------------------------------*/
 

@@ -153,6 +153,10 @@ class ProductPricingService
                 $row = $purchase->get($vendor->id);
                 $vendor->price_row = $row;
                 $vendor->current_cost = $row ? (float) $row->unit_price : null;
+                // A quote already charged on a purchase order is a matter of
+                // record. It can be superseded but never altered.
+                $vendor->is_locked = $row ? $row->isInUse() : false;
+                $vendor->locked_by = $row?->usageSummary();
 
                 return $vendor;
             });
@@ -169,6 +173,11 @@ class ProductPricingService
                 'basis_id' => $row?->basis_price_list_item_id,
                 'is_auto_derived' => (bool) ($row?->is_auto_derived ?? true),
                 'gross_profit' => $row?->grossProfit(),
+                // Charged on a real order, so the figure is fixed. Setting a
+                // new one opens a row from today and leaves this one closed but
+                // readable as what was actually charged.
+                'is_locked' => $row ? $row->isInUse() : false,
+                'locked_by' => $row?->usageSummary(),
             ];
         }
 

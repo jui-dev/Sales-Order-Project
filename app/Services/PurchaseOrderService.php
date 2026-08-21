@@ -307,6 +307,8 @@ class PurchaseOrderService
         $order->items()->delete();
 
         $total = 0.0;
+        $resolver = app(\App\Services\Pricing\PriceResolver::class);
+        $vendor = $order->vendor;
 
         foreach ($items as $item) {
             $quantity = (int) $item['quantity'];
@@ -314,11 +316,24 @@ class PurchaseOrderService
             $subtotal = $quantity * $unitCost;
             $total += $subtotal;
 
+            // Which quote this line was priced from. The line keeps its own
+            // unit_cost either way - this is provenance, and it is what makes a
+            // quote answerable about whether it has actually been used.
+            $quote = ($vendor && $product = \App\Models\Product::find($item['product_id']))
+                ? $resolver->forPurchase($product, $vendor)
+                : null;
+
             $order->items()->create([
                 'product_id' => $item['product_id'],
                 'quantity_ordered' => $quantity,
                 'quantity_received' => 0,
                 'unit_cost' => $unitCost,
+                // Only when the line was actually placed at the quoted figure.
+                // A hand-edited cost was not taken from that row, so linking it
+                // would lock a price the order never used.
+                'price_list_item_id' => ($quote && round($quote->unitPrice, 2) === round($unitCost, 2))
+                    ? $quote->priceListItemId
+                    : null,
                 'subtotal' => $subtotal,
             ]);
         }

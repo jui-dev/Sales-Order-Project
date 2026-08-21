@@ -62,23 +62,42 @@
                     </thead>
                     <tbody>
                         @foreach($vendors as $vendor)
-                        <tr>
+                        <tr class="locked-row" data-locked="{{ $vendor->is_locked ? '1' : '0' }}">
                             <td class="fw-semibold">{{ $vendor->name }}</td>
                             <td>
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text">$</span>
+                                    {{-- A quote already charged on a purchase order is
+                                         locked. It can be superseded by a new price from
+                                         today, but the figure itself is a matter of record
+                                         and PriceListItem refuses to alter it. --}}
                                     <input type="number" step="0.01" min="0"
                                            name="vendors[{{ $vendor->id }}][unit_cost]"
-                                           class="form-control purchase-cost"
+                                           class="form-control purchase-cost lockable"
                                            data-vendor="{{ $vendor->id }}"
                                            data-basis-id="{{ $vendor->price_row->id ?? '' }}"
                                            value="{{ $vendor->current_cost !== null ? number_format($vendor->current_cost, 2, '.', '') : '' }}"
                                            placeholder="No price agreed"
+                                           @if($vendor->is_locked) readonly @endif
                                            @cannot('product-pricing.manage') disabled @endcannot>
                                 </div>
+                                @if($vendor->is_locked)
+                                    @can('product-pricing.manage')
+                                    <button type="button" class="btn btn-link btn-sm p-0 unlock-btn">
+                                        Change price
+                                    </button>
+                                    @endcan
+                                @endif
                             </td>
                             <td>
-                                @if($vendor->current_cost !== null)
+                                @if($vendor->is_locked)
+                                    <span class="badge bg-secondary">
+                                        <i class="bi bi-lock-fill me-1"></i>In use
+                                    </span>
+                                    <div class="small text-muted">
+                                        Charged on {{ $vendor->locked_by }}
+                                    </div>
+                                @elseif($vendor->current_cost !== null)
                                     <span class="small text-muted">
                                         Since {{ $vendor->price_row->starts_at?->format('d M Y') }}
                                     </span>
@@ -124,16 +143,34 @@
 
             @foreach($saleKinds as $key => $kind)
             @php($vendorOptions = $vendors->filter(fn ($v) => $v->price_row !== null))
-            <div class="border rounded p-3 mb-3 sale-row" data-kind="{{ $key }}">
-                <div class="form-check form-switch mb-3">
-                    <input type="hidden" name="sale[{{ $key }}][enabled]" value="0">
-                    <input class="form-check-input sale-enabled" type="checkbox" role="switch"
-                           id="enabled-{{ $key }}" name="sale[{{ $key }}][enabled]" value="1"
-                           {{ $kind['row'] ? 'checked' : '' }}
-                           @cannot('product-pricing.manage') disabled @endcannot>
-                    <label class="form-check-label fw-semibold" for="enabled-{{ $key }}">
-                        Fulfilment location: {{ $kind['label'] }}
-                    </label>
+            <div class="border rounded p-3 mb-3 sale-row" data-kind="{{ $key }}"
+                 data-locked="{{ $kind['is_locked'] ? '1' : '0' }}">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div class="form-check form-switch">
+                        <input type="hidden" name="sale[{{ $key }}][enabled]" value="0">
+                        <input class="form-check-input sale-enabled" type="checkbox" role="switch"
+                               id="enabled-{{ $key }}" name="sale[{{ $key }}][enabled]" value="1"
+                               {{ $kind['row'] ? 'checked' : '' }}
+                               @cannot('product-pricing.manage') disabled @endcannot>
+                        <label class="form-check-label fw-semibold" for="enabled-{{ $key }}">
+                            Fulfilment location: {{ $kind['label'] }}
+                        </label>
+                    </div>
+
+                    {{-- A price already charged on an order is locked. Changing it
+                         starts a NEW price from today; the charged one stays on
+                         file, and PriceListItem refuses to alter it. --}}
+                    @if($kind['is_locked'])
+                    <div class="text-end">
+                        <span class="badge bg-secondary">
+                            <i class="bi bi-lock-fill me-1"></i>In use
+                        </span>
+                        <div class="small text-muted">Charged on {{ $kind['locked_by'] }}</div>
+                        @can('product-pricing.manage')
+                        <button type="button" class="btn btn-link btn-sm p-0 unlock-btn">Change price</button>
+                        @endcan
+                    </div>
+                    @endif
                 </div>
 
                 <div class="row g-3 sale-fields">
@@ -221,9 +258,17 @@
         const gp     = row.querySelector('.sale-gp');
         const fields = row.querySelector('.sale-fields');
         const on     = row.querySelector('.sale-enabled').checked;
+        // A locked row shows what was charged and stays put until the reader
+        // explicitly asks to set a new price.
+        const locked = row.dataset.locked === '1';
 
         fields.style.opacity = on ? '1' : '0.45';
-        [basis, markup, price, auto].forEach(el => { if (el) el.disabled = !on || el.dataset.locked === '1'; });
+        [basis, markup, price, auto].forEach(el => { if (el) el.disabled = !on || locked; });
+
+        if (locked) {
+            gp.textContent = gp.textContent || '—';
+            return;
+        }
 
         const option = basis.options[basis.selectedIndex];
         const cost = option && option.dataset.cost ? parseFloat(option.dataset.cost) : null;
@@ -254,6 +299,35 @@
             if (el) el.addEventListener('change', () => refresh(row));
         });
         refresh(row);
+    });
+
+    // "Change price" on a locked row. Deliberately an explicit action rather
+    // than an editable field: what is on screen is what was charged, and typing
+    // over it should feel like starting a new price, because that is what it
+    // does. The old row is closed and kept, never rewritten.
+    document.querySelectorAll('.unlock-btn').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const container = button.closest('.sale-row') || button.closest('tr');
+            if (!container) return;
+
+            const confirmed = window.confirm(
+                'This price has already been charged on a real order.\n\n' +
+                'It cannot be altered. Continuing starts a NEW price that applies from ' +
+                'today onwards - the charged one stays on file exactly as it was.\n\n' +
+                'Set a new price?'
+            );
+            if (!confirmed) return;
+
+            container.dataset.locked = '0';
+            container.querySelectorAll('input, select').forEach(function (el) {
+                el.disabled = false;
+                el.readOnly = false;
+            });
+
+            button.remove();
+
+            if (container.classList.contains('sale-row')) refresh(container);
+        });
     });
 })();
 </script>

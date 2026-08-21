@@ -16,6 +16,7 @@ class PurchaseOrderItem extends Model
         'quantity_ordered',
         'quantity_received',
         'unit_cost',
+        'price_list_item_id',
         'subtotal',
     ];
 
