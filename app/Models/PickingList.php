@@ -111,6 +111,35 @@ class PickingList extends Model
         return $this->toLocation()->withDefault()->getResults();
     }
 
+    /**
+     * What kind of pick this is - derived, never stored.
+     *
+     * Several screens want to badge a list as "Warehouse To Customer" or
+     * "Retailer To Customer", and used to read a picking_type column. There has
+     * never been one: no migration creates it, so the reads all came back null
+     * and the badges rendered blank. The one place that asked SQL for it
+     * directly (ProductService) simply errored.
+     *
+     * It is not worth adding, because the journey already says it. A list runs
+     * from somewhere to somewhere, both recorded, and the type is exactly that
+     * pair - which is how the index pages actually filter. Storing it as well
+     * would be a second answer to a question the locations already settle, free
+     * to disagree with them.
+     *
+     * Null when either end is unknown: a half-built list has no type yet, and
+     * saying so beats inventing one.
+     */
+    public function getPickingTypeAttribute(): ?string
+    {
+        if (! $this->from_location_type || ! $this->to_location_type) {
+            return null;
+        }
+
+        return \Illuminate\Support\Str::snake(class_basename($this->from_location_type))
+            .'_to_'
+            .\Illuminate\Support\Str::snake(class_basename($this->to_location_type));
+    }
+
     public function order(): BelongsTo
     {
         return $this->belongsTo(\App\Models\Order::class, 'reference_id');

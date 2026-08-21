@@ -503,7 +503,13 @@ class ProductService
                             'picking_lists.id',
                             'picking_lists.picking_date',
                             'picking_lists.status',
-                            'picking_lists.picking_type',
+                            // Deliberately not picking_type - there is no such
+                            // column, and asking for it made this whole query
+                            // throw, so the section came back empty every time.
+                            // The two ends are what the type is derived from;
+                            // see PickingList::getPickingTypeAttribute().
+                            'picking_lists.from_location_type',
+                            'picking_lists.to_location_type',
                             'picking_list_items.quantity',
                             DB::raw('COALESCE(from_warehouses.name, from_retailers.name) as from_location_name'),
                             DB::raw('COALESCE(to_warehouses.name, to_retailers.name) as to_location_name')
@@ -519,6 +525,14 @@ class ProductService
                                 'name' => $picking->to_location_name,
                             ] : null;
                             $picking->picking_number = 'PL-' . str_pad($picking->id, 6, '0', STR_PAD_LEFT);
+                            // These rows are stdClass, not PickingList, so the
+                            // model's accessor cannot apply. Derived the same
+                            // way so both agree.
+                            $picking->picking_type = ($picking->from_location_type && $picking->to_location_type)
+                                ? \Illuminate\Support\Str::snake(class_basename($picking->from_location_type))
+                                    .'_to_'
+                                    .\Illuminate\Support\Str::snake(class_basename($picking->to_location_type))
+                                : null;
                             return $picking;
                         });
                 } catch (Exception $e) {

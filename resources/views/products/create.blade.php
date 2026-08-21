@@ -308,9 +308,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Markup formatting
-;
-    }
 });
 </script>
 <style>

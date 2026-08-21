@@ -48,7 +48,9 @@
                 <div class="stat-icon mb-2">
                     <i class="bi bi-currency-dollar text-success fs-1"></i>
                 </div>
-                @php($currentPrice = $product->currentPrice())
+                @php
+                    $currentPrice = $product->currentPrice();
+                @endphp
                 <h3 class="fw-bold text-success mb-1">
                     {{ $currentPrice !== null ? '$' . number_format($currentPrice, 2) : 'Not priced' }}
                 </h3>
@@ -64,7 +66,9 @@
                 </div>
                 {{-- Derived from the price and cost in force, so it always agrees
                      with the two figures shown beside it. --}}
-                @php($statCost = $product->currentCost())
+                @php
+                    $statCost = $product->currentCost();
+                @endphp
                 <h3 class="fw-bold mb-1 {{ ($currentPrice !== null && $statCost !== null && $currentPrice - $statCost < 0) ? 'text-danger' : 'text-primary' }}">
                     @if($currentPrice !== null && $statCost !== null)
                         ${{ number_format($currentPrice - $statCost, 2) }}
@@ -154,8 +158,12 @@
                             </h6>
                             {{-- Resolved live: the price in force on the default sale
                                  list, and the cost the stock on hand is carried at. --}}
-                            @php($detailPrice = $product->currentPrice())
-                            @php($detailCost = $product->currentCost())
+                            @php
+                                $detailPrice = $product->currentPrice();
+                            @endphp
+                            @php
+                                $detailCost = $product->currentCost();
+                            @endphp
                             <div class="detail-item mb-3">
                                 <label class="text-muted small fw-semibold text-uppercase">Selling Price</label>
                                 <div class="detail-value">
@@ -183,8 +191,12 @@
                                 <label class="text-muted small fw-semibold text-uppercase">Gross Profit</label>
                                 <div class="detail-value">
                                     @if($detailPrice !== null && $detailCost !== null)
-                                        @php($gross = $detailPrice - $detailCost)
-                                        @php($profitMargin = $detailPrice > 0 ? ($gross / $detailPrice) * 100 : 0)
+                                        @php
+                                            $gross = $detailPrice - $detailCost;
+                                        @endphp
+                                        @php
+                                            $profitMargin = $detailPrice > 0 ? ($gross / $detailPrice) * 100 : 0;
+                                        @endphp
                                         <span class="fw-bold {{ $gross < 0 ? 'text-danger' : 'text-primary' }} fs-5">
                                             ${{ number_format($gross, 2) }}
                                         </span>
