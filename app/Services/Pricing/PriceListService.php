@@ -189,6 +189,65 @@ class PriceListService
     }
 
     /**
+     * Close every standing row for a product on a list except the ones named.
+     *
+     * A product can be priced per vendor cost or on one averaged figure, and
+     * the two are alternatives rather than layers. Switching between them has
+     * to leave only the rows the chosen way wrote standing - otherwise
+     * yesterday's per-vendor prices keep applying beside today's averaged one
+     * and which of them an order pays comes down to the resolver's tie-breaks.
+     *
+     * Closes rather than deletes, like everything else here: the superseded
+     * rows stay readable as what they charged while they applied.
+     *
+     * @param  array<int, int>  $keepIds
+     */
+    public function keepOnly(
+        PriceList $list,
+        Product $product,
+        array $keepIds,
+        int $minQuantity = 1,
+        ?CarbonInterface $at = null,
+    ): void {
+        $at ??= Carbon::now();
+
+        PriceListItem::where('price_list_id', $list->id)
+            ->where('product_id', $product->id)
+            ->where('min_quantity', $minQuantity)
+            ->whereNotIn('id', $keepIds)
+            ->inForceAt($at)
+            ->get()
+            ->each->update(['ends_at' => $at]);
+    }
+
+    /**
+     * Close the averaged row on a list, if one stands.
+     *
+     * The counterpart to keepOnly, for the other direction: going back to a
+     * price per vendor cost has to retire the single averaged figure, and only
+     * that. It is identified the way it is stored - derived, but from no
+     * particular vendor quote - which is what distinguishes it from a price
+     * somebody typed by hand before any vendor cost existed.
+     */
+    public function removeAveragedPrice(
+        PriceList $list,
+        Product $product,
+        int $minQuantity = 1,
+        ?CarbonInterface $at = null,
+    ): void {
+        $at ??= Carbon::now();
+
+        PriceListItem::where('price_list_id', $list->id)
+            ->where('product_id', $product->id)
+            ->where('min_quantity', $minQuantity)
+            ->whereNull('basis_price_list_item_id')
+            ->where('is_auto_derived', true)
+            ->inForceAt($at)
+            ->get()
+            ->each->update(['ends_at' => $at]);
+    }
+
+    /**
      * Apply a batch of prices as one change.
      *
      * @param  array<int, array{product_id: int, unit_price: float, min_quantity?: int}>  $rows

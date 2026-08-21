@@ -6,19 +6,13 @@
         <h1 class="mb-1">{{ $product->name }}</h1>
         <p class="text-muted mb-0">Pricing &middot; {{ $product->sku }}</p>
     </div>
-    <div>
-        <a href="{{ route('product-pricing.history', $product->id) }}" class="btn btn-outline-secondary">History</a>
-        <a href="{{ route('product-pricing.index') }}" class="btn btn-secondary">Back to Product Pricing</a>
-    </div>
+    <a href="{{ route('product-pricing.history', $product->id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-clock-history me-1"></i>History
+    </a>
 </div>
 @endsection
 
 @section('content')
-<x-breadcrumb :items="[
-    ['label' => 'Product Pricing', 'url' => route('product-pricing.index')],
-    ['label' => $product->name],
-]" />
-
 {{-- Step 1. Deliberately first: a selling price is set against a cost, and
      showing them the other way round invites pricing below it. --}}
 <div class="card mb-4">
@@ -53,8 +47,8 @@
                 <table class="table table-striped align-middle mb-0">
                     <thead>
                         <tr>
-                            <th>Vendor</th>
-                            <th style="width: 16rem;">Unit cost</th>
+                            <th style="width: 40%;">Vendor</th>
+                            <th style="width: 22%;">Unit cost</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -126,116 +120,231 @@
         @csrf
         @method('PUT')
         <div class="card-body">
-            <p class="small text-muted">
-                A price per fulfilment location kind. Moving stock from a warehouse to a retailer store is not a
-                sale &mdash; this is what the <em>customer</em> pays, depending on where their order is fulfilled from.
-                Within each, you can price against every vendor cost; the one marked <strong>Charge this one</strong>
-                is what an order actually pays, because pooled stock gives a sold unit no vendor identity.
+            @php($kindLabels = collect($saleKinds)->pluck('label')->implode(' and '))
+            @php($costedVendors = $vendors->filter(fn ($v) => $v->current_cost !== null)->count())
+
+            <p class="text-muted mb-3">
+                What the <em>customer</em> pays, depending on where their order is fulfilled from. Moving stock from
+                a warehouse to a retailer store is not a sale, so each kind of location is priced in its own right.
             </p>
 
-            @foreach($saleKinds as $key => $kind)
-            @php($anyRow = collect($kind['lines'])->contains(fn ($l) => $l['row'] !== null))
-            <div class="border rounded p-3 mb-3 sale-kind" data-kind="{{ $key }}">
-                <div class="form-check form-switch mb-3">
-                    <input type="hidden" name="sale[{{ $key }}][enabled]" value="0">
-                    <input class="form-check-input sale-enabled" type="checkbox" role="switch"
-                           id="enabled-{{ $key }}" name="sale[{{ $key }}][enabled]" value="1"
-                           {{ $anyRow ? 'checked' : '' }}
+            {{-- The short way through, for when the detail is not wanted: one
+                 price for every location kind, worked out from one markup.
+                 The switch needs its own wrapper - a form-switch pulls its
+                 input out into the left padding, so bordering the same element
+                 would leave the toggle sitting outside the box. --}}
+            <div class="border rounded bg-light px-3 py-2 mb-4">
+                <div class="form-check form-switch mb-0">
+                    <input type="hidden" name="mirror" value="0">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="mirror-kinds" name="mirror" value="1"
+                           {{ $mirrored ? 'checked' : '' }}
                            @cannot('product-pricing.manage') disabled @endcannot>
-                    <label class="form-check-label fw-semibold" for="enabled-{{ $key }}">
-                        Fulfilment location: {{ $kind['label'] }}
+                    <label class="form-check-label fw-semibold" for="mirror-kinds">
+                        Charge the same price at every fulfilment location
                     </label>
+                    <div class="small text-muted">
+                        Prices {{ $kindLabels }} from one block, so there is a single number to check.
+                    </div>
+                </div>
+            </div>
+
+            @foreach($saleKinds as $key => $kind)
+            <div class="border rounded mb-3 sale-kind" data-kind="{{ $key }}">
+                <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center
+                            bg-light border-bottom rounded-top px-3 py-2">
+                    <div class="form-check form-switch mb-0">
+                        <input type="hidden" name="sale[{{ $key }}][enabled]" value="0">
+                        <input class="form-check-input sale-enabled" type="checkbox" role="switch"
+                               id="enabled-{{ $key }}" name="sale[{{ $key }}][enabled]" value="1"
+                               {{ $kind['is_priced'] ? 'checked' : '' }}
+                               @cannot('product-pricing.manage') disabled @endcannot>
+                        <label class="form-check-label fw-semibold" for="enabled-{{ $key }}">
+                            <span class="kind-label-own">{{ $kind['label'] }}</span>
+                            <span class="kind-label-all d-none">Every fulfilment location ({{ $kindLabels }})</span>
+                        </label>
+                    </div>
+
+                    @if(! empty($kind['lines']))
+                    {{-- Two ways to price the same thing. Per vendor cost is the
+                         full picture; the averaged figure is one number to check,
+                         for when the per-vendor detail is more than is wanted. --}}
+                    <div class="btn-group btn-group-sm" role="group" aria-label="How to price this">
+                        <input type="radio" class="btn-check sale-mode-input" autocomplete="off"
+                               name="sale[{{ $key }}][mode]" value="vendor" id="mode-vendor-{{ $key }}"
+                               {{ $kind['mode'] === 'vendor' ? 'checked' : '' }}
+                               @cannot('product-pricing.manage') disabled @endcannot>
+                        <label class="btn btn-outline-secondary" for="mode-vendor-{{ $key }}">
+                            <i class="bi bi-list-ul me-1"></i>One price per vendor cost
+                        </label>
+
+                        <input type="radio" class="btn-check sale-mode-input" autocomplete="off"
+                               name="sale[{{ $key }}][mode]" value="average" id="mode-average-{{ $key }}"
+                               {{ $kind['mode'] === 'average' ? 'checked' : '' }}
+                               @cannot('product-pricing.manage') disabled @endcannot>
+                        <label class="btn btn-outline-secondary" for="mode-average-{{ $key }}">
+                            <i class="bi bi-calculator me-1"></i>One price from the average
+                        </label>
+                    </div>
+                    @endif
                 </div>
 
                 @if(empty($kind['lines']))
-                    <p class="text-muted small mb-0">
+                    <p class="text-muted small mb-0 p-3">
                         Set a purchase price above first &mdash; a selling price is set against what the goods cost.
                     </p>
                 @else
-                <div class="table-responsive sale-fields">
-                    {{-- A line per vendor cost: the same product bought at 400 and at
-                         200 justifies two different selling prices, and seeing both is
-                         how the margin on each becomes legible. --}}
-                    <table class="table table-sm align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th style="width: 22%;">Based on purchase price</th>
-                                <th style="width: 18%;">Markup %</th>
-                                <th style="width: 20%;">Selling price</th>
-                                <th style="width: 15%;">Gross profit</th>
-                                <th style="width: 25%;">Charged on orders</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($kind['lines'] as $line)
-                            @php($basisKey = $line['basis_id'] ?? 'none')
-                            <tr class="sale-line" data-locked="{{ $line['is_locked'] ? '1' : '0' }}"
-                                data-cost="{{ $line['cost'] !== null ? $line['cost'] : '' }}">
-                                <td>
-                                    <div class="fw-semibold small">{{ $line['vendor_name'] }}</div>
-                                    <div class="small text-muted">
-                                        {{ $line['cost'] !== null ? '$' . number_format($line['cost'], 2) : 'no cost basis' }}
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="input-group input-group-sm">
-                                        <input type="number" step="0.01" min="0" class="form-control sale-markup"
-                                               name="sale[{{ $key }}][lines][{{ $basisKey }}][markup_percent]"
-                                               value="{{ $line['markup_percent'] }}"
-                                               @if($line['is_locked']) readonly @endif
-                                               @cannot('product-pricing.manage') disabled @endcannot>
-                                        <span class="input-group-text">%</span>
-                                    </div>
-                                    <div class="form-check mt-1">
-                                        <input type="hidden" name="sale[{{ $key }}][lines][{{ $basisKey }}][is_auto_derived]" value="0">
-                                        <input class="form-check-input sale-auto" type="checkbox"
-                                               id="auto-{{ $key }}-{{ $basisKey }}"
-                                               name="sale[{{ $key }}][lines][{{ $basisKey }}][is_auto_derived]" value="1"
-                                               {{ $line['is_auto_derived'] ? 'checked' : '' }}
-                                               @if($line['is_locked']) disabled @endif
-                                               @cannot('product-pricing.manage') disabled @endcannot>
-                                        <label class="form-check-label small" for="auto-{{ $key }}-{{ $basisKey }}">
-                                            Apply automatically
-                                        </label>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="input-group input-group-sm">
-                                        <span class="input-group-text">$</span>
-                                        <input type="number" step="0.01" min="0" class="form-control sale-price"
-                                               name="sale[{{ $key }}][lines][{{ $basisKey }}][unit_price]"
-                                               value="{{ $line['unit_price'] !== null ? number_format($line['unit_price'], 2, '.', '') : '' }}"
-                                               placeholder="Not priced"
-                                               @if($line['is_locked']) readonly @endif
-                                               @cannot('product-pricing.manage') disabled @endcannot>
-                                    </div>
-                                </td>
-                                <td class="sale-gp fw-semibold small">&mdash;</td>
-                                <td>
-                                    <div class="form-check">
-                                        <input class="form-check-input sale-charged" type="radio"
-                                               id="charged-{{ $key }}-{{ $basisKey }}"
-                                               name="sale[{{ $key }}][charged_basis]" value="{{ $basisKey }}"
-                                               {{ $line['is_charged'] ? 'checked' : '' }}
-                                               @cannot('product-pricing.manage') disabled @endcannot>
-                                        <label class="form-check-label small" for="charged-{{ $key }}-{{ $basisKey }}">
-                                            Charge this one
-                                        </label>
-                                    </div>
-                                    @if($line['is_locked'])
-                                        <span class="badge bg-secondary mt-1">
-                                            <i class="bi bi-lock-fill me-1"></i>In use
-                                        </span>
-                                        <div class="small text-muted">Charged on {{ $line['locked_by'] }}</div>
-                                        @can('product-pricing.manage')
-                                        <button type="button" class="btn btn-link btn-sm p-0 unlock-btn">Change price</button>
-                                        @endcan
-                                    @endif
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                <div class="sale-fields p-3">
+                    <div class="mode-pane pane-vendor table-responsive">
+                        {{-- A line per vendor cost: the same product bought at 400 and at
+                             200 justifies two different selling prices, and seeing both is
+                             how the margin on each becomes legible. --}}
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 22%;">Based on purchase price</th>
+                                    <th style="width: 18%;">Markup %</th>
+                                    <th style="width: 20%;">Selling price</th>
+                                    <th style="width: 15%;">Gross profit</th>
+                                    <th style="width: 25%;">Charged on orders</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($kind['lines'] as $line)
+                                @php($basisKey = $line['basis_id'] ?? 'none')
+                                <tr class="sale-line" data-locked="{{ $line['is_locked'] ? '1' : '0' }}"
+                                    data-cost="{{ $line['cost'] !== null ? $line['cost'] : '' }}">
+                                    <td>
+                                        <div class="fw-semibold small">{{ $line['vendor_name'] }}</div>
+                                        <div class="small text-muted">
+                                            {{ $line['cost'] !== null ? '$' . number_format($line['cost'], 2) : 'no cost basis' }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" step="0.01" min="0" class="form-control sale-markup"
+                                                   name="sale[{{ $key }}][lines][{{ $basisKey }}][markup_percent]"
+                                                   value="{{ $line['markup_percent'] }}"
+                                                   @if($line['is_locked']) readonly @endif
+                                                   @cannot('product-pricing.manage') disabled @endcannot>
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                        <div class="form-check mt-1">
+                                            <input type="hidden" name="sale[{{ $key }}][lines][{{ $basisKey }}][is_auto_derived]" value="0">
+                                            <input class="form-check-input sale-auto" type="checkbox"
+                                                   id="auto-{{ $key }}-{{ $basisKey }}"
+                                                   name="sale[{{ $key }}][lines][{{ $basisKey }}][is_auto_derived]" value="1"
+                                                   {{ $line['is_auto_derived'] ? 'checked' : '' }}
+                                                   @if($line['is_locked']) disabled @endif
+                                                   @cannot('product-pricing.manage') disabled @endcannot>
+                                            <label class="form-check-label small" for="auto-{{ $key }}-{{ $basisKey }}">
+                                                Apply automatically
+                                            </label>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">$</span>
+                                            <input type="number" step="0.01" min="0" class="form-control sale-price"
+                                                   name="sale[{{ $key }}][lines][{{ $basisKey }}][unit_price]"
+                                                   value="{{ $line['unit_price'] !== null ? number_format($line['unit_price'], 2, '.', '') : '' }}"
+                                                   placeholder="Not priced"
+                                                   @if($line['is_locked']) readonly @endif
+                                                   @cannot('product-pricing.manage') disabled @endcannot>
+                                        </div>
+                                    </td>
+                                    <td class="sale-gp fw-semibold small">&mdash;</td>
+                                    <td>
+                                        <div class="form-check">
+                                            <input class="form-check-input sale-charged" type="radio"
+                                                   id="charged-{{ $key }}-{{ $basisKey }}"
+                                                   name="sale[{{ $key }}][charged_basis]" value="{{ $basisKey }}"
+                                                   {{ $line['is_charged'] ? 'checked' : '' }}
+                                                   @cannot('product-pricing.manage') disabled @endcannot>
+                                            <label class="form-check-label small" for="charged-{{ $key }}-{{ $basisKey }}">
+                                                Charge this one
+                                            </label>
+                                        </div>
+                                        @if($line['is_locked'])
+                                            <span class="badge bg-secondary mt-1">
+                                                <i class="bi bi-lock-fill me-1"></i>In use
+                                            </span>
+                                            <div class="small text-muted">Charged on {{ $line['locked_by'] }}</div>
+                                            @can('product-pricing.manage')
+                                            <button type="button" class="btn btn-link btn-sm p-0 unlock-btn">Change price</button>
+                                            @endcan
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                        <p class="small text-muted mt-2 mb-0">
+                            Every vendor cost can carry its own selling price, and all of them stand at once. The one
+                            marked <strong>Charge this one</strong> is what an order actually pays &mdash; pooled stock
+                            gives a sold unit no vendor identity, so the choice is recorded rather than guessed at.
+                        </p>
+                    </div>
+
+                    {{-- One price, from the mean of what the vendors charge. It is
+                         anchored to no single quote because it is not derived from
+                         one, which is also why the margin below is labelled against
+                         the average rather than against a cost anything was
+                         actually bought at. --}}
+                    <div class="mode-pane pane-average d-none">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width: 25%;">Average purchase price</th>
+                                    <th style="width: 20%;">Markup %</th>
+                                    <th style="width: 20%;">Selling price</th>
+                                    <th style="width: 20%;">Margin over average</th>
+                                    <th>Charged on orders</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="average-line"
+                                    data-locked="{{ $kind['average']['is_locked'] ? '1' : '0' }}"
+                                    data-cost="{{ $averageCost !== null ? $averageCost : '' }}">
+                                    <td>
+                                        <div class="fw-semibold small">
+                                            ${{ $averageCost !== null ? number_format($averageCost, 2) : '0.00' }}
+                                        </div>
+                                        <div class="small text-muted">
+                                            Mean of {{ $costedVendors }} vendor {{ \Illuminate\Support\Str::plural('cost', $costedVendors) }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" step="0.01" min="0" class="form-control average-markup"
+                                                   name="sale[{{ $key }}][average][markup_percent]"
+                                                   value="{{ $kind['average']['markup_percent'] }}"
+                                                   @cannot('product-pricing.manage') disabled @endcannot>
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                    </td>
+                                    <td class="average-price fw-semibold">&mdash;</td>
+                                    <td class="average-gp fw-semibold">&mdash;</td>
+                                    <td class="small text-muted">
+                                        The only price here, so it is the one orders pay.
+                                        @if($kind['average']['is_locked'])
+                                            <div class="mt-1">
+                                                <span class="badge bg-secondary">
+                                                    <i class="bi bi-lock-fill me-1"></i>In use
+                                                </span>
+                                                <div class="small text-muted">Charged on {{ $kind['average']['locked_by'] }}</div>
+                                            </div>
+                                        @endif
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="small text-muted mt-2 mb-0">
+                            Saving this way retires the per-vendor selling prices for this location kind &mdash; one
+                            averaged price means one price. They stay on file at the figures they charged, and switching
+                            back sets them again.
+                        </p>
+                    </div>
                 </div>
                 @endif
             </div>
@@ -257,6 +366,16 @@
 @section('scripts')
 <script>
 (function () {
+    // Figures the script writes have to match the ones Blade prints beside
+    // them - a margin of $1148.40 next to a cost of $1,980.00 reads as a
+    // different kind of number.
+    function money(value) {
+        return '$' + value.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+    }
+
     // Keep each line's derived price and margin in step with what is on screen.
     // A convenience only - the server recomputes an auto-derived price from the
     // basis and the markup, so nothing here decides what is charged.
@@ -285,7 +404,7 @@
         const sell = parseFloat(price.value);
         if (cost !== null && !isNaN(sell)) {
             const margin = sell - cost;
-            gp.textContent = '$' + margin.toFixed(2);
+            gp.textContent = money(margin);
             gp.className = 'sale-gp fw-semibold small ' + (margin < 0 ? 'text-danger' : 'text-success');
         } else {
             gp.textContent = '—';
@@ -293,21 +412,88 @@
         }
     }
 
+    // The averaged line, which has no vendor basis: the figure it marks up is
+    // the mean of what the vendors charge, so the margin shown is against that
+    // mean rather than against any cost something was actually bought at.
+    function refreshAverage(kind, enabled) {
+        const line = kind.querySelector('.average-line');
+        if (!line) return;
+
+        const markup = line.querySelector('.average-markup');
+        const price  = line.querySelector('.average-price');
+        const gp     = line.querySelector('.average-gp');
+        const locked = line.dataset.locked === '1';
+        const cost   = line.dataset.cost === '' ? null : parseFloat(line.dataset.cost);
+
+        if (markup) markup.disabled = !enabled || locked;
+
+        if (cost === null || !markup) {
+            price.textContent = '—';
+            gp.textContent = '—';
+            return;
+        }
+
+        const pct = parseFloat(markup.value) || 0;
+        const sell = cost * (1 + pct / 100);
+        const margin = sell - cost;
+
+        price.textContent = money(sell);
+        gp.textContent = money(margin);
+        gp.className = 'average-gp fw-semibold ' + (margin < 0 ? 'text-danger' : 'text-success');
+    }
+
     function refreshKind(kind) {
         const enabled = kind.querySelector('.sale-enabled').checked;
         const fields = kind.querySelector('.sale-fields');
-        if (fields) fields.style.opacity = enabled ? '1' : '0.45';
+        if (fields) fields.style.opacity = enabled ? '1' : '0.6';
+
+        const picked = kind.querySelector('.sale-mode-input:checked');
+        const mode = picked ? picked.value : 'vendor';
+
+        kind.querySelectorAll('.pane-vendor').forEach(function (pane) {
+            pane.classList.toggle('d-none', mode !== 'vendor');
+        });
+        kind.querySelectorAll('.pane-average').forEach(function (pane) {
+            pane.classList.toggle('d-none', mode !== 'average');
+        });
 
         kind.querySelectorAll('.sale-line').forEach(function (line) {
             refreshLine(line, enabled);
         });
+        refreshAverage(kind, enabled);
     }
 
-    document.querySelectorAll('.sale-kind').forEach(function (kind) {
+    const kinds = Array.from(document.querySelectorAll('.sale-kind'));
+
+    kinds.forEach(function (kind) {
         kind.addEventListener('input', function () { refreshKind(kind); });
         kind.addEventListener('change', function () { refreshKind(kind); });
         refreshKind(kind);
     });
+
+    // Charging the same everywhere. Only the first block is shown and only it
+    // is read - the server writes what it says to every kind's list, so the
+    // hidden blocks are left as they are rather than kept in sync here.
+    const mirror = document.getElementById('mirror-kinds');
+
+    function refreshMirror() {
+        const on = mirror ? mirror.checked : false;
+
+        kinds.forEach(function (kind, index) {
+            const primary = index === 0;
+            kind.classList.toggle('d-none', on && !primary);
+
+            const own = kind.querySelector('.kind-label-own');
+            const all = kind.querySelector('.kind-label-all');
+            if (own) own.classList.toggle('d-none', on && primary);
+            if (all) all.classList.toggle('d-none', !(on && primary));
+        });
+    }
+
+    if (mirror) {
+        mirror.addEventListener('change', refreshMirror);
+        refreshMirror();
+    }
 
     // "Change price" on a locked row. Deliberately an explicit action rather
     // than an editable field: what is on screen is what was charged, and typing

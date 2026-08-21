@@ -108,14 +108,26 @@ class ProductPricingController extends Controller
      * either way, because it is what makes the gross profit shown mean
      * something - it does not decide what is charged, since pooled stock has no
      * vendor identity.
+     *
+     * Two shortcuts sit on top of that, for the common case where the detail is
+     * not wanted: a kind can be priced on one averaged figure instead of one
+     * price per vendor cost, and every kind can be made to charge the same
+     * thing. Both decide what gets written; neither changes how it is stored,
+     * so pricing kinds apart again later needs nothing unpicked.
      */
     public function updateSalePrices(Request $request, int $productId): RedirectResponse
     {
         $product = Product::findOrFail($productId);
 
         $data = $request->validate([
+            // One price for every fulfilment kind, rather than one each.
+            'mirror' => ['nullable', 'boolean'],
             'sale' => ['required', 'array'],
             'sale.*.enabled' => ['nullable', 'boolean'],
+            // 'vendor' prices against each vendor cost; 'average' prices once,
+            // against the mean of them.
+            'sale.*.mode' => ['nullable', 'string', 'in:vendor,average'],
+            'sale.*.average.markup_percent' => ['nullable', 'numeric', 'min:0'],
             // Which basis line is the one orders charge, for this kind.
             'sale.*.charged_basis' => ['nullable', 'string'],
             'sale.*.lines' => ['nullable', 'array'],
@@ -126,7 +138,18 @@ class ProductPricingController extends Controller
 
         try {
             DB::transaction(function () use ($product, $data, $request) {
-                foreach ($data['sale'] as $kind => $input) {
+                $sale = $data['sale'];
+
+                // Charging the same everywhere: the form renders one block, and
+                // whatever it says is written to every kind's list. The prices
+                // stay stored per kind - this is a way of filling them in, not
+                // a second place they live.
+                if ($data['mirror'] ?? false) {
+                    $shared = $sale[array_key_first($sale)];
+                    $sale = array_fill_keys(array_keys(ProductPricingService::FULFILMENT_KINDS), $shared);
+                }
+
+                foreach ($sale as $kind => $input) {
                     if (! isset(ProductPricingService::FULFILMENT_KINDS[$kind])) {
                         continue;
                     }
@@ -135,6 +158,14 @@ class ProductPricingController extends Controller
 
                     if (! ($input['enabled'] ?? false)) {
                         $this->lists->removePrice($list, $product);
+
+                        continue;
+                    }
+
+                    if (($input['mode'] ?? 'vendor') === 'average') {
+                        $this->saveAveragedPrice(
+                            $product, $list, $input['average'] ?? [], $request->user()?->id
+                        );
 
                         continue;
                     }
@@ -186,6 +217,13 @@ class ProductPricingController extends Controller
                     // an order pays. Without this a product could end up with
                     // prices on file and none of them chargeable.
                     if ($saved) {
+                        // Pricing per vendor again after pricing on an average
+                        // must retire the averaged figure, or both stand at
+                        // once and which one an order pays comes down to the
+                        // resolver's tie-breaks. Only that row is closed:
+                        // per-vendor rows the form did not carry a price for
+                        // are left alone, because a locked line posts nothing.
+                        $this->lists->removeAveragedPrice($list, $product);
                         $this->lists->ensureOneCharged($list, $product);
                     }
                 }
@@ -197,6 +235,50 @@ class ProductPricingController extends Controller
 
             return back()->with('error', 'Unable to save those selling prices. Please try again.');
         }
+    }
+
+    /**
+     * Price a fulfilment kind on one averaged figure rather than per vendor.
+     *
+     * Written as a single row anchored to no vendor quote, because it is not
+     * derived from one: it is what the product costs on average, marked up.
+     * Marked derived all the same, and that pairing - no basis, but derived -
+     * is what identifies it when the editor next opens.
+     *
+     * The average is recomputed here rather than trusted from the form, for the
+     * same reason a per-vendor derived price is: the browser's arithmetic is a
+     * convenience, not the record.
+     *
+     * @param  array{markup_percent?: string|null}  $input
+     */
+    private function saveAveragedPrice(Product $product, PriceList $list, array $input, ?int $userId): void
+    {
+        $average = $this->service->averageCost($product);
+
+        // No vendor has been priced yet, so there is nothing to average. The
+        // editor says as much rather than offering the option, and a posted
+        // form that says otherwise is not a reason to invent a price.
+        if ($average === null) {
+            return;
+        }
+
+        $markup = (float) ($input['markup_percent'] ?? 0);
+        $price = round($average * (1 + $markup / 100), 2);
+
+        if ($price <= 0) {
+            return;
+        }
+
+        $row = $this->lists->setPrice($list, $product, $price, 1, null, $userId, [
+            'markup_percent' => $markup,
+            'basis_price_list_item_id' => null,
+            'is_auto_derived' => true,
+            'is_charged' => true,
+        ]);
+
+        // One averaged price means one price. Any per-vendor rows set before
+        // the switch are closed, so exactly one figure stands for this kind.
+        $this->lists->keepOnly($list, $product, [$row->id]);
     }
 
     /**

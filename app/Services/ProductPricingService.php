@@ -132,6 +132,69 @@ class ProductPricingService
     }
 
     /**
+     * The mean of what this product's vendors currently charge for it.
+     *
+     * Deliberately the costs the editor shows - the vendors recorded as
+     * carrying the product, each at its standing quote - so the average can be
+     * checked by eye against the rows above it. Vendors who carry the product
+     * with no price agreed are left out rather than counted as zero, which
+     * would drag the mean down to a figure nobody quoted.
+     *
+     * Null when nothing has been priced yet: there is no average of no costs,
+     * and saying so beats returning a zero a selling price would be built on.
+     */
+    public function averageCost(Product $product): ?float
+    {
+        $purchase = $this->purchaseRowsFor([$product->id])->get($product->id) ?? collect();
+
+        $costs = $product->vendors()
+            ->pluck('vendors.id')
+            ->map(fn ($vendorId) => $purchase->get($vendorId))
+            ->filter()
+            ->map(fn ($row) => (float) $row->unit_price);
+
+        return $costs->isEmpty() ? null : round($costs->avg(), 2);
+    }
+
+    /**
+     * Is every fulfilment kind currently priced identically?
+     *
+     * What the "same price everywhere" switch reflects when the editor opens.
+     * Derived from the standing rows rather than stored as a setting on the
+     * product: the prices are the record, and a flag claiming they match could
+     * outlive the moment somebody priced one kind on its own.
+     *
+     * @param  Collection<string, Collection>  $sale  rows grouped by kind
+     */
+    private function kindsAreInStep(Collection $sale): bool
+    {
+        $fingerprints = [];
+
+        foreach (array_keys(self::FULFILMENT_KINDS) as $key) {
+            $rows = $sale->get($key) ?? collect();
+
+            // Nothing priced for a kind is not the same as matching - there is
+            // no shared price to describe.
+            if ($rows->isEmpty()) {
+                return false;
+            }
+
+            $fingerprints[] = $rows
+                ->map(fn ($row) => implode('|', [
+                    $row->basis_price_list_item_id ?? 'none',
+                    (float) $row->unit_price,
+                    (float) ($row->markup_percent ?? -1),
+                    (int) $row->is_auto_derived,
+                    (int) $row->is_charged,
+                ]))
+                ->sort()
+                ->implode(',');
+        }
+
+        return count(array_unique($fingerprints)) === 1;
+    }
+
+    /**
      * Everything the per-product editor needs.
      *
      * Purchase first, then sale: a selling price is set against a cost, and
@@ -141,6 +204,8 @@ class ProductPricingService
      *     product: Product,
      *     vendors: Collection,
      *     saleKinds: array<string, array<string, mixed>>,
+     *     averageCost: float|null,
+     *     mirrored: bool,
      *     stockCost: float|null
      * }
      */
@@ -166,6 +231,7 @@ class ProductPricingService
             });
 
         $defaultMarkup = (float) ($product->markup ?? config('pricing.default_markup', 25));
+        $averageCost = $this->averageCost($product);
 
         // One editable line per vendor cost, per fulfilment kind. A vendor with
         // an agreed cost but no selling price yet still gets a line, so the gap
@@ -174,6 +240,14 @@ class ProductPricingService
         foreach (self::FULFILMENT_KINDS as $key => $kind) {
             $rows = $sale->get($key) ?? collect();
             $byBasis = $rows->keyBy('basis_price_list_item_id');
+
+            // The averaged price is stored as a single row anchored to no
+            // vendor quote, because it is not derived from one. That absent
+            // basis together with is_auto_derived is what tells it apart from a
+            // price typed by hand before any vendor cost existed, which is also
+            // basis-less but was never derived from anything.
+            $unanchored = $byBasis->get(null);
+            $averageRow = $unanchored && $unanchored->is_auto_derived ? $unanchored : null;
 
             $lines = [];
             foreach ($vendors as $vendor) {
@@ -205,7 +279,7 @@ class ProductPricingService
 
             // A price set before any vendor cost existed has no basis to sit
             // under, so it keeps a line of its own rather than disappearing.
-            if ($unanchored = $byBasis->get(null)) {
+            if ($unanchored && ! $averageRow) {
                 array_unshift($lines, [
                     'basis_id' => null,
                     'vendor_name' => 'No vendor basis',
@@ -223,13 +297,38 @@ class ProductPricingService
                 ]);
             }
 
-            $saleKinds[$key] = $kind + ['lines' => $lines];
+            $saleKinds[$key] = $kind + [
+                'lines' => $lines,
+                // Whether anything is priced for this kind at all, which is
+                // what its on/off switch reflects. Taken from the standing rows
+                // rather than from the per-vendor lines, because an averaged
+                // price is a standing row that no per-vendor line carries.
+                'is_priced' => $rows->isNotEmpty(),
+                // Which of the two ways this kind is currently priced. Read
+                // back from the rows themselves rather than remembered, so the
+                // editor always opens describing what is actually in force.
+                'mode' => $averageRow ? 'average' : 'vendor',
+                'average' => [
+                    'cost' => $averageCost,
+                    'row' => $averageRow,
+                    'unit_price' => $averageRow ? (float) $averageRow->unit_price : null,
+                    'markup_percent' => $averageRow && $averageRow->markup_percent !== null
+                        ? (float) $averageRow->markup_percent
+                        : $defaultMarkup,
+                    'is_locked' => $averageRow ? $averageRow->isInUse() : false,
+                    'locked_by' => $averageRow?->usageSummary(),
+                ],
+            ];
         }
 
         return [
             'product' => $product,
             'vendors' => $vendors,
             'saleKinds' => $saleKinds,
+            'averageCost' => $averageCost,
+            // Whether every kind is priced alike right now, which is what the
+            // "same price everywhere" switch opens set to.
+            'mirrored' => $this->kindsAreInStep($sale),
             'stockCost' => app(\App\Services\Pricing\ProductCostService::class)->costAt($product),
         ];
     }
