@@ -84,12 +84,21 @@ class OrderController extends Controller
         $products = \App\Models\Product::query()
             ->where('available_stocks', '>', 0)
             ->orderBy('name')
-            ->get()
-            ->map(function ($product) {
-                $product->current_stock = $product->available_stocks;
+            ->get();
 
-                return $product;
-            });
+        // Whether each one has a price at all. Resolved without a context on
+        // purpose: the customer, channel and quantity are not known until the
+        // form is filled in, and a product with no price and no cost behind it
+        // has none under any of them. Marked rather than filtered out, so the
+        // reason it cannot be ordered is visible on the form.
+        $prices = app(\App\Services\Pricing\PriceResolver::class)->forSaleMany($products->all());
+
+        $products = $products->map(function ($product) use ($prices) {
+            $product->current_stock = $product->available_stocks;
+            $product->is_priced = ($prices[$product->id] ?? null) !== null;
+
+            return $product;
+        });
 
         return view('orders.create', [
             'customers' => \App\Models\Customer::orderBy('name')->get(),

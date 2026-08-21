@@ -188,12 +188,17 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!catalogue.length) return;
 
         const i = index++;
-        const options = catalogue.map(p =>
-            `<option value="${p.id}" data-cost="${p.unit_cost ?? ''}"
-                     ${line && String(line.product_id) === String(p.id) ? 'selected' : ''}>
-                ${p.name} (${p.sku})
-             </option>`
-        ).join('');
+        const options = catalogue.map(p => {
+            const selected = line && String(line.product_id) === String(p.id);
+            // Nothing to order against until somebody sets what it costs. An
+            // already-saved line keeps its product enabled, so reopening a
+            // draft never quietly swaps what was ordered.
+            const unpriced = p.unit_cost === null || p.unit_cost === undefined || p.unit_cost === '';
+            return `<option value="${p.id}" data-cost="${p.unit_cost ?? ''}"
+                     ${selected ? 'selected' : ''} ${unpriced && !selected ? 'disabled' : ''}>
+                ${p.name} (${p.sku})${unpriced ? ' — no price set' : ''}
+             </option>`;
+        }).join('');
 
         const row = document.createElement('tr');
         row.innerHTML = `

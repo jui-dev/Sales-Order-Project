@@ -41,7 +41,8 @@ class StoreOrderRequest extends FormRequest
     }
 
     /**
-     * A posted price must be the one the system would have quoted.
+     * A posted price must be the one the system would have quoted, and the
+     * product must have a price at all.
      *
      * The unit price field is readonly in the browser and nowhere else - the
      * form posts whatever it is given, and nothing used to check it. Anyone
@@ -51,6 +52,11 @@ class StoreOrderRequest extends FormRequest
      * same resolution the form asked for, repeated somewhere the customer
      * cannot reach. Deliberate discounts are a real need, so they are allowed -
      * but as an explicit permission rather than as an unchecked field.
+     *
+     * That permission buys a different price, not a price out of nothing. A
+     * product nobody has priced is refused for everyone, override or not:
+     * there is no agreed figure to depart from, so a posted one would be the
+     * only price the sale ever had.
      */
     public function after(): array
     {
@@ -62,9 +68,9 @@ class StoreOrderRequest extends FormRequest
 
                 $user = $this->user();
 
-                if ($user && method_exists($user, 'hasPermission') && $user->hasPermission('orders.override-price')) {
-                    return;
-                }
+                $mayOverride = $user
+                    && method_exists($user, 'hasPermission')
+                    && $user->hasPermission('orders.override-price');
 
                 $resolver = app(PriceResolver::class);
                 $customer = Customer::find($this->input('customer_id'));
@@ -101,6 +107,10 @@ class StoreOrderRequest extends FormRequest
                         );
 
                         continue;
+                    }
+
+                    if ($mayOverride) {
+                        continue; // Priced product, permitted departure.
                     }
 
                     $posted = (float) ($line['unit_price'] ?? 0);

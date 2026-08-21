@@ -114,11 +114,17 @@
                                     <option value="">Select Product</option>
                                     {{-- No price in the markup: what this costs depends on the
                                          customer, the channel and the quantity, which are not
-                                         known until the form is filled in. Fetched per line. --}}
+                                         known until the form is filled in. Fetched per line.
+
+                                         Whether there is a price at all does not depend on any
+                                         of that, so an unpriced product is disabled here. Listed
+                                         rather than hidden, so it is clear the product exists and
+                                         what is missing from it. --}}
                                     @foreach($products as $product)
                                         <option value="{{ $product->id }}"
-                                                data-stock="{{ $product->current_stock }}">
-                                            {{ $product->name }} ({{ $product->current_stock }} in stock)
+                                                data-stock="{{ $product->current_stock }}"
+                                                @unless($product->is_priced) disabled @endunless>
+                                            {{ $product->name }} ({{ $product->current_stock }} in stock)@unless($product->is_priced) &mdash; no price set @endunless
                                         </option>
                                     @endforeach
                                 </select>
