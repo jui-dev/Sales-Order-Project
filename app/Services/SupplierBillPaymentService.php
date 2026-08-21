@@ -22,18 +22,6 @@ class SupplierBillPaymentService
     }
 
     /**
-     * Get payment with all related data
-     */
-    public function getPaymentWithDetails(int $id): SupplierBillPayment
-    {
-        return SupplierBillPayment::with([
-            'vendor', 
-            'supplierBill', 
-            'paymentJournal.lines.account'
-        ])->findOrFail($id);
-    }
-
-    /**
      * Get payment statistics
      */
     public function getPaymentStatistics(): array

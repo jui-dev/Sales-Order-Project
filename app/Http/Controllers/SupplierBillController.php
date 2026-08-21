@@ -10,9 +10,7 @@ use Illuminate\View\View;
 
 class SupplierBillController extends Controller
 {
-    public function __construct(private readonly SupplierBillService $supplierBillService)
-    {
-    }
+    public function __construct(private readonly SupplierBillService $supplierBillService) {}
 
     public function index(Request $request): View
     {
@@ -21,12 +19,14 @@ class SupplierBillController extends Controller
         ];
 
         $bills = $this->supplierBillService->getFilteredSupplierBills($filters, 20);
+
         return view('supplier-bills.index', compact('bills'));
     }
 
     public function show(SupplierBill $supplierBill): View
     {
         $supplierBill = $this->supplierBillService->getSupplierBillWithDetails($supplierBill->id);
+
         return view('supplier-bills.show', compact('supplierBill'));
     }
 
@@ -37,6 +37,7 @@ class SupplierBillController extends Controller
     {
         try {
             $this->supplierBillService->postSupplierBill($supplierBill);
+
             return redirect()->route('supplier-bills.payment-info', $supplierBill)
                 ->with('success', 'Supplier Bill has been posted successfully. Purchase journal entry created with Draft status. You can now review payment information.');
         } catch (\Exception $e) {
@@ -51,7 +52,8 @@ class SupplierBillController extends Controller
     {
         try {
             $this->supplierBillService->paySupplierBill($supplierBill);
-            return redirect()->route('supplier-bills.show', $supplierBill)
+
+            return redirect()->route('supplier-bills.payment-info', $supplierBill)
                 ->with('success', 'Supplier Bill marked as paid successfully. Payment journal entry created with Draft status.');
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
@@ -64,6 +66,7 @@ class SupplierBillController extends Controller
     public function paymentInfo(SupplierBill $supplierBill): View
     {
         $supplierBill = $this->supplierBillService->getSupplierBillWithDetails($supplierBill->id);
+
         return view('supplier-bills.payment-info', compact('supplierBill'));
     }
-} 
+}

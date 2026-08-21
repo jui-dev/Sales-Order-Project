@@ -1033,8 +1033,9 @@ Route::delete('/supplier-bills/{supplierBill}', [\App\Http\Controllers\SupplierB
 /**
  * Supplier Bill Payments Routes
  */
+// A payment has no detail page of its own - the bill's payment-info page is
+// where one is read, so the list links straight there.
 Route::get('/supplier-bill-payments', [\App\Http\Controllers\SupplierBillPaymentController::class, 'index'])->name('supplier-bill-payments.index');
-Route::get('/supplier-bill-payments/{supplierBillPayment}', [\App\Http\Controllers\SupplierBillPaymentController::class, 'show'])->name('supplier-bill-payments.show');
 
 /**
  * User Management Routes

@@ -58,7 +58,7 @@ final class EffectClassifier
         Grn::class => ['noun' => 'Goods receipt note', 'route' => 'grns.show', 'status' => 'status'],
         SupplierBill::class => ['noun' => 'Supplier bill', 'route' => 'supplier-bills.show', 'status' => 'status'],
         // Settlement lives on payment_status, not status - see SupplierBillService::paySupplierBill().
-        SupplierBillPayment::class => ['noun' => 'Supplier bill payment', 'route' => 'supplier-bill-payments.show', 'status' => 'payment_status'],
+        SupplierBillPayment::class => ['noun' => 'Supplier bill payment', 'route' => 'supplier-bills.payment-info', 'status' => 'payment_status'],
 
         PickingList::class => ['noun' => 'Picking list', 'route' => 'picking-lists.show', 'status' => 'status'],
         StockTransfer::class => ['noun' => 'Stock transfer', 'route' => 'stock-transfers.warehouse-to-retailer.show', 'status' => 'status'],
@@ -249,10 +249,14 @@ final class EffectClassifier
             return null;
         }
 
+        // A payment has no page of its own - it is read on the bill's
+        // payment-info page - so that link is keyed on the bill, not the payment.
+        $key = $model instanceof SupplierBillPayment ? $model->supplier_bill_id : $model->getKey();
+
         // A detail route can be missing or take parameters this record cannot
         // supply; a broken link is not worth a 500 on an unrelated page.
         try {
-            return route($route, $model->getKey());
+            return route($route, $key);
         } catch (\Throwable) {
             return null;
         }

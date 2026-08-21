@@ -65,7 +65,7 @@
                         @forelse($payments as $payment)
                             <tr>
                                 <td>
-                                    <a href="{{ route('supplier-bill-payments.show', $payment) }}" class="text-decoration-none">
+                                    <a href="{{ route('supplier-bills.payment-info', $payment->supplier_bill_id) }}" class="text-decoration-none">
                                         <strong>{{ $payment->formatted_id }}</strong>
                                     </a>
                                 </td>
@@ -85,7 +85,7 @@
                                 <td>{{ $payment->created_at->format('M d, Y H:i') }}</td>
                                 <td class="text-center">
                                     <div class="btn-group" role="group">
-                                        <a href="{{ route('supplier-bill-payments.show', $payment) }}" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Details">
+                                        <a href="{{ route('supplier-bills.payment-info', $payment->supplier_bill_id) }}" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         @if($payment->supplierBill && $payment->supplierBill->grn && $payment->supplierBill->grn->supply)
@@ -93,9 +93,6 @@
                                                 <i class="bi bi-truck"></i>
                                             </a>
                                         @endif
-                                        <a href="{{ route('supplier-bills.payment-info', $payment->supplierBill) }}" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="Payment Info">
-                                            <i class="bi bi-credit-card"></i>
-                                        </a>
                                     </div>
                                 </td>
                             </tr>

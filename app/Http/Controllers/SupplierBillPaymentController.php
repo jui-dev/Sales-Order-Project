@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SupplierBillPayment;
 use App\Services\SupplierBillPaymentService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -24,11 +23,5 @@ class SupplierBillPaymentController extends Controller
         $filterOptions = $this->supplierBillPaymentService->getFilterOptions();
 
         return view('supplier-bill-payments.index', compact('payments', 'statistics', 'filterOptions'));
-    }
-
-    public function show(SupplierBillPayment $supplierBillPayment): View
-    {
-        $supplierBillPayment = $this->supplierBillPaymentService->getPaymentWithDetails($supplierBillPayment->id);
-        return view('supplier-bill-payments.show', compact('supplierBillPayment'));
     }
 }
