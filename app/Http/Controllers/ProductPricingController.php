@@ -7,6 +7,7 @@ use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\Vendor;
 use App\Services\Pricing\PriceListService;
+use App\Services\Pricing\SimplePricingService;
 use App\Services\ProductPricingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,15 +30,40 @@ class ProductPricingController extends Controller
     public function __construct(
         private readonly ProductPricingService $service,
         private readonly PriceListService $lists,
+        private readonly SimplePricingService $simple,
     ) {
+    }
+
+    /**
+     * Is the vendor dimension currently hidden?
+     *
+     * Simple mode shows one cost and one price per product instead of one per
+     * vendor. It changes what the screens offer, not what is stored - see
+     * SimplePricingService - so the full editor below stays reachable and
+     * correct with the flag off.
+     */
+    private function isSimple(): bool
+    {
+        return (bool) config('pricing.simple_mode', false);
     }
 
     public function index(Request $request): View
     {
+        $products = $this->service->productsWithPricing(
+            $request->string('search')->toString() ?: null
+        );
+
+        if ($this->isSimple()) {
+            return view('product-pricing.simple-index', [
+                'products' => $products,
+                'snapshots' => $this->simple->snapshotMany($products->pluck('id')->all()),
+                'markup' => $this->simple->markup(),
+                'unpricedCount' => $this->service->unpricedProducts()->count(),
+            ]);
+        }
+
         return view('product-pricing.index', [
-            'products' => $this->service->productsWithPricing(
-                $request->string('search')->toString() ?: null
-            ),
+            'products' => $products,
             'fulfilmentKinds' => ProductPricingService::FULFILMENT_KINDS,
             'unpricedCount' => $this->service->unpricedProducts()->count(),
         ]);
@@ -48,9 +74,54 @@ class ProductPricingController extends Controller
     {
         $product = Product::findOrFail($productId);
 
+        if ($this->isSimple()) {
+            return view('product-pricing.simple-edit', [
+                'product' => $product,
+                'snapshot' => $this->simple->snapshotFor($product),
+                'vendors' => $product->vendors()->orderBy('name')->get(['vendors.id', 'vendors.name']),
+            ]);
+        }
+
         return view('product-pricing.edit', $this->service->editorData($product) + [
             'assignableVendors' => $this->service->assignableVendors($product),
         ]);
+    }
+
+    /**
+     * Set the one cost a product carries, and the one price it follows.
+     *
+     * Simple mode's only writer. The two below still own the full model and are
+     * untouched by this - which is what makes turning the mode off a matter of
+     * changing a flag rather than migrating anything.
+     *
+     * Clearing the box means no price agreed, so it unprices the product rather
+     * than writing a zero a purchase order would accept as free.
+     */
+    public function update(Request $request, int $productId): RedirectResponse
+    {
+        $product = Product::findOrFail($productId);
+
+        $data = $request->validate([
+            'unit_cost' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $cost = $data['unit_cost'] ?? null;
+
+        try {
+            if ($cost === null || $cost === '' || (float) $cost <= 0) {
+                $this->simple->clear($product);
+
+                return back()->with('success', 'Price cleared. This product has no agreed price.');
+            }
+
+            $this->simple->apply($product, (float) $cost, $request->user()?->id);
+
+            return back()->with('success', 'Price saved.');
+        } catch (\Throwable $e) {
+            \Log::error('Failed to save the price for product '.$productId.': '.$e->getMessage());
+
+            return back()->with('error', 'Unable to save that price. Please try again.');
+        }
     }
 
     /**

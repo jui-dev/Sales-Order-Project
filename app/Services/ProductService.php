@@ -117,9 +117,22 @@ class ProductService
         }
 
         $existing = $product->vendors()->pluck('vendors.id')->all();
+        $added = array_diff($vendorIds, $existing);
 
         $product->vendors()->detach(array_diff($existing, $vendorIds));
-        $product->vendors()->attach(array_diff($vendorIds, $existing));
+        $product->vendors()->attach($added);
+
+        // Simple mode prices a product once, whoever supplies it. A vendor
+        // attached after the price was set has nothing on their own list, so a
+        // purchase order to them would open with an empty cost - quote them at
+        // what the product already costs instead.
+        if ($added && config('pricing.simple_mode', false)) {
+            $simple = app(\App\Services\Pricing\SimplePricingService::class);
+
+            foreach (\App\Models\Vendor::whereIn('id', $added)->get() as $vendor) {
+                $simple->backfillVendor($product->refresh(), $vendor);
+            }
+        }
     }
 
     public function delete(int $id): void

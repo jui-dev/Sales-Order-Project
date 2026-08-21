@@ -78,10 +78,17 @@
         </div>
         <div class="form-section-body">
             <p class="text-muted">
-                Who can supply this product. What each of them charges is set under
-                <a href="{{ route('product-pricing.edit', $product->id) }}">Product Pricing</a> &mdash;
-                the same product can cost different amounts from different vendors, and keeping that
-                in one place is what stops two figures disagreeing.
+                Who can supply this product.
+                @if(config('pricing.simple_mode', false))
+                    What it costs is set under
+                    <a href="{{ route('product-pricing.edit', $product->id) }}">Product Pricing</a> &mdash;
+                    one price, whichever of them you buy from.
+                @else
+                    What each of them charges is set under
+                    <a href="{{ route('product-pricing.edit', $product->id) }}">Product Pricing</a> &mdash;
+                    the same product can cost different amounts from different vendors, and keeping that
+                    in one place is what stops two figures disagreeing.
+                @endif
             </p>
             @forelse ($vendors as $vendor)
                 @if ($loop->first)<div class="row g-2">@endif

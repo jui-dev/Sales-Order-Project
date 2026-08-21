@@ -610,9 +610,16 @@
     </div>
     <div class="card-body">
         <p class="text-muted small">
-            Who you can buy this from. What each of them charges is set under
-            <a href="{{ route('product-pricing.edit', $product->id) }}">Product Pricing</a>,
-            so cost is decided in one place.
+            Who you can buy this from.
+            @if(config('pricing.simple_mode', false))
+                What it costs is set under
+                <a href="{{ route('product-pricing.edit', $product->id) }}">Product Pricing</a> &mdash;
+                one price, whichever of them you buy from.
+            @else
+                What each of them charges is set under
+                <a href="{{ route('product-pricing.edit', $product->id) }}">Product Pricing</a>,
+                so cost is decided in one place.
+            @endif
         </p>
 
         @forelse($product->vendors as $vendor)

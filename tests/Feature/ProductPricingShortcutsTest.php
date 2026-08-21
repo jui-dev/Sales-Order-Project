@@ -38,6 +38,10 @@ class ProductPricingShortcutsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // These cover the full per-vendor model, which simple mode hides
+        // rather than removes. Pinned on so the model stays exercised while the
+        // simplified screens are what the user actually sees.
+        config(['pricing.simple_mode' => false]);
         $this->lists = app(PriceListService::class);
         $this->pricing = app(ProductPricingService::class);
     }

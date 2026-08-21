@@ -24,6 +24,16 @@ class ProductPricingLifecycleTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // These describe the full model, where receiving goods re-derives what
+        // a product costs and sells for. Simple mode deliberately stops that -
+        // the price the user typed stands - and SimplePricingTest covers it.
+        config(['pricing.simple_mode' => false]);
+    }
+
     private function supplyFor(Product $product, float $unitCost, int $quantity = 10): Supply
     {
         $supply = Supply::factory()->create([

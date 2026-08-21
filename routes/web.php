@@ -68,6 +68,12 @@ Route::middleware('permission:product-pricing.view,product-pricing.manage')
             ->whereNumber('product')->name('history');
 
         Route::middleware('permission:product-pricing.manage')->group(function () {
+            // Simple mode's single writer: one cost, from which one selling
+            // price follows. The two below own the full per-vendor model and
+            // stay registered either way.
+            Route::put('/products/{product}', [ProductPricingController::class, 'update'])
+                ->whereNumber('product')->name('update');
+
             Route::put('/products/{product}/purchase', [ProductPricingController::class, 'updatePurchasePrices'])
                 ->whereNumber('product')->name('purchase.update');
             Route::put('/products/{product}/sale', [ProductPricingController::class, 'updateSalePrices'])

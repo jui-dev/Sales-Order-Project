@@ -240,6 +240,11 @@ class PurchaseOrderTest extends TestCase
 
     public function test_ordering_and_receiving_only_prices_the_product_at_the_grn(): void
     {
+        // What this pins - that ordering never reprices, only receiving does -
+        // needs receiving to reprice at all, which is the full model. Simple
+        // mode goes further and lets neither move a price; see SimplePricingTest.
+        config(['pricing.simple_mode' => false]);
+
         $order = $this->sentOrder(5);
 
         $this->recordSupply($order, 5);

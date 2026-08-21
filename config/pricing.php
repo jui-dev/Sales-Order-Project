@@ -17,6 +17,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Simple Pricing Mode
+    |--------------------------------------------------------------------------
+    |
+    | The full pricing model is per-vendor and per-fulfilment-kind: one product
+    | can cost a different amount from each vendor, and carry a selling price
+    | derived from each of those costs, for each kind of location it ships
+    | from. That is the model the price lists actually store, and it stays.
+    |
+    | Simple mode hides it. One product has ONE purchase price whoever supplies
+    | it, marked up by default_markup above, giving one selling price and one
+    | gross profit. Nothing is removed - the same rows are written underneath,
+    | all of them saying the same number - so turning this off brings the full
+    | editor back with every price intact.
+    |
+    | It also stops a goods receipt from repricing anything: what a delivery
+    | cost is still recorded in the costing ledger, but the price the user
+    | typed is the price that stands until they change it.
+    |
+    */
+
+    'simple_mode' => env('PRICING_SIMPLE_MODE', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Auto Update Selling Price
     |--------------------------------------------------------------------------
     |

@@ -132,7 +132,13 @@
             <span class="product-card__step">3</span>
             <div>
                 <h2 class="product-card__title">Vendors</h2>
-                <p class="product-card__subtitle">Who can supply this product. What each of them charges is set under Catalog &rsaquo; Product Pricing.</p>
+                <p class="product-card__subtitle">Who can supply this product.
+                    @if(config('pricing.simple_mode', false))
+                        What it costs is set under Catalog &rsaquo; Product Pricing &mdash; one price, whichever of them you buy from.
+                    @else
+                        What each of them charges is set under Catalog &rsaquo; Product Pricing.
+                    @endif
+                </p>
             </div>
         </div>
         <div class="card-body">

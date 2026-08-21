@@ -106,6 +106,19 @@ class ProductController extends Controller
                 'product_id' => $product->id,
             ]);
 
+            // Simple mode prices a product once, whoever supplies it, so a
+            // vendor added after the fact is quoted at what it already costs.
+            // Without this their list would be empty and a purchase order to
+            // them would open with no cost on the line.
+            if (config('pricing.simple_mode', false)) {
+                app(\App\Services\Pricing\SimplePricingService::class)->backfillVendor(
+                    $product,
+                    \App\Models\Vendor::findOrFail($data['vendor_id']),
+                );
+
+                return back()->with('success', 'Vendor added. They are quoted at this product\'s price.');
+            }
+
             return back()->with('success', 'Vendor added. Set what they charge under Product Pricing.');
         } catch (\Exception $e) {
             return back()->with('error', 'Unable to add that vendor. Please try again.');

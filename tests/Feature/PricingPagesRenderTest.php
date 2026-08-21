@@ -54,6 +54,10 @@ class PricingPagesRenderTest extends TestCase
 
     public function test_the_product_pricing_pages_render(): void
     {
+        // The full per-vendor screens, which simple mode hides rather than
+        // removes. Turning the flag off is all it takes to get them back.
+        config(['pricing.simple_mode' => false]);
+
         $product = Product::factory()->create(['name' => 'Widget']);
 
         $this->get(route('product-pricing.index'))
@@ -64,5 +68,25 @@ class PricingPagesRenderTest extends TestCase
         $this->get(route('product-pricing.edit', $product->id))
             ->assertOk()
             ->assertSee('Widget');
+    }
+
+    public function test_the_simple_pricing_pages_render(): void
+    {
+        config(['pricing.simple_mode' => true]);
+
+        $product = Product::factory()->create(['name' => 'Widget']);
+
+        $this->get(route('product-pricing.index'))
+            ->assertOk()
+            ->assertSee('Purchase price')
+            ->assertSee('Selling price')
+            ->assertSee('Gross profit');
+
+        $this->get(route('product-pricing.edit', $product->id))
+            ->assertOk()
+            ->assertSee('Widget')
+            ->assertSee('Purchase price')
+            // One markup for the whole catalogue, shown rather than editable.
+            ->assertSee('Fixed for every product');
     }
 }

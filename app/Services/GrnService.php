@@ -176,6 +176,16 @@ class GrnService
             $item->supply?->grn,
         );
 
+        // Simple mode stops here. What the delivery cost is still a fact, and
+        // the ledger above has recorded it - but the price is whatever the user
+        // typed under Product Pricing, and it stays that until they change it.
+        // Everything below moves a price, so none of it runs: quoting only the
+        // receiving vendor would break the one-cost-for-every-vendor rule, and
+        // re-deriving the selling price would move a figure nobody touched.
+        if (config('pricing.simple_mode', false)) {
+            return;
+        }
+
         // 2. What this vendor charged, on their own list.
         if ($vendor = $item->supply?->vendor) {
             $this->priceLists->setPrice(

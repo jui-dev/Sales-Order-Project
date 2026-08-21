@@ -122,6 +122,11 @@ class UsedPriceIsLockedTest extends TestCase
 
     public function test_the_editor_shows_a_used_sale_price_as_locked(): void
     {
+        // The lock badge lives on the full per-vendor editor, which simple mode
+        // replaces with a single box. The locking rule itself is mode-agnostic
+        // and the rest of this class covers it either way.
+        config(['pricing.simple_mode' => false]);
+
         [$product] = $this->productWithVendor();
         $row = $this->lists->setPrice($this->pricing->saleListFor('warehouse'), $product, 500.00);
         $this->sellAt($product, $row, 500.00);

@@ -27,6 +27,16 @@ class ReceiptPricingTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Receiving moves prices only under the full model. Simple mode stops
+        // it deliberately - the price the user typed stands until they change
+        // it - and SimplePricingTest covers that side.
+        config(['pricing.simple_mode' => false]);
+    }
+
     private function receive(Product $product, int $quantity, float $unitCost, ?Vendor $vendor = null): Supply
     {
         $supply = Supply::factory()->create([

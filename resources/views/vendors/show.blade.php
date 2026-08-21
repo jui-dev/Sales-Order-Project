@@ -56,6 +56,9 @@
             <a href="{{ route('product-pricing.index') }}">Catalog &rsaquo; Product Pricing</a>,
             so cost is decided in one place. A purchase order addressed to this vendor prices its
             lines from that figure.
+            @if(config('pricing.simple_mode', false))
+                It is the product's one price &mdash; every vendor who carries it is quoted the same.
+            @endif
         </p>
 
         {{-- Add a product to the list --}}
