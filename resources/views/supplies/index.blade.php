@@ -1,19 +1,25 @@
 @extends('layouts.app')
 @section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Supplies</h1>
+        {{-- "Supplies" alone reads as stock on hand; the bracket says what a
+             row here actually is - goods coming in from a vendor. --}}
+        <h1 class="mb-0">Supplies <span class="h5 fw-normal text-muted align-middle">(Vendor Shipment)</span></h1>
+        {{-- A supply is always recorded against an order, so the way in is the
+             list of orders awaiting a delivery - there is no order-less form. --}}
         <div class="d-flex flex-wrap gap-2">
+            @can('purchase-orders.manage')
+                <a href="{{ route('purchase-orders.create') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-plus-circle me-1"></i> Create Purchase Order
+                </a>
+            @endcan
             @can('purchase-orders.view')
-                <a href="{{ route('supplies.purchase-orders') }}" class="btn btn-outline-primary">
+                <a href="{{ route('supplies.purchase-orders') }}" class="btn btn-success">
                     <i class="bi bi-clipboard-check me-1"></i> Requested Purchase Orders
                     @if(($awaitingOrdersCount ?? 0) > 0)
-                        <span class="badge bg-primary ms-1">{{ $awaitingOrdersCount }}</span>
+                        <span class="badge bg-light text-dark ms-1">{{ $awaitingOrdersCount }}</span>
                     @endif
                 </a>
             @endcan
-            <a href="{{ route('supplies.create') }}" class="btn btn-success">
-                <i class="bi bi-plus-circle me-1"></i> Record New Supply
-            </a>
         </div>
     </div>
 @endsection

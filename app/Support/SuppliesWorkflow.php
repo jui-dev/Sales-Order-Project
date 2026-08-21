@@ -15,9 +15,9 @@ use App\Models\SupplierBill;
  * Every detail page in the chain renders the same five stages, so the state
  * rules live here rather than being re-derived in each Blade template.
  *
- * The first stage is optional in practice: a supply can still be recorded
- * without an order behind it (a walk-in delivery, or one entered before
- * purchase orders existed), in which case that stage reads "Not ordered".
+ * Every new supply is recorded against a sent order, so the first stage is
+ * always answered. Supplies entered before that rule - or before purchase
+ * orders existed at all - have no order behind them and read "Not ordered".
  *
  * Returns a list of stages shaped for <x-workflow-rail>:
  *   ['name' => string, 'state' => done|current|todo, 'meta' => string, 'url' => ?string]

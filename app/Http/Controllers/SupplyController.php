@@ -107,37 +107,41 @@ class SupplyController extends Controller
     }
 
     /**
-     * The supply form, optionally prefilled from the purchase order behind it.
+     * The supply form, always prefilled from the purchase order behind it.
      *
      * `?purchase_order=` carries the order over from its detail page, so the
      * vendor, the destination warehouse and every outstanding line arrive
-     * already answered.
+     * already answered. There is no order-less form: goods are recorded
+     * against what was ordered, so without an order there is nothing to fill.
      */
     public function create(Request $request): View|RedirectResponse
     {
-        $purchaseOrder = null;
-        $prefillLines = [];
+        // Reading an order is what the form is made of, so a reader without
+        // that permission is sent back rather than to a screen they cannot see.
+        if (! $this->canSeeOrders($request)) {
+            return redirect()->route('supplies.index')
+                ->with('error', 'Recording a supply needs access to purchase orders.');
+        }
+
+        if (! $request->filled('purchase_order')) {
+            return redirect()->route('supplies.purchase-orders')
+                ->with('error', 'Pick the purchase order these goods arrived for.');
+        }
 
         try {
-            if ($request->filled('purchase_order') && $this->canSeeOrders($request)) {
-                $purchaseOrder = $this->purchaseOrders->get((int) $request->input('purchase_order'));
+            $purchaseOrder = $this->purchaseOrders->get((int) $request->input('purchase_order'));
 
-                if (! $purchaseOrder->isReceivable()) {
-                    return redirect()->route('purchase-orders.show', $purchaseOrder->id)
-                        ->with('error', 'Only a sent purchase order can have a supply recorded against it.');
-                }
-
-                $prefillLines = $this->prefillLines($purchaseOrder);
+            if (! $purchaseOrder->isReceivable()) {
+                return redirect()->route('purchase-orders.show', $purchaseOrder->id)
+                    ->with('error', 'Only a sent purchase order can have a supply recorded against it.');
             }
 
-            $vendors = \App\Models\Vendor::orderBy('name')->get();
-            $warehouses = \App\Models\Warehouse::orderBy('name')->get();
+            $prefillLines = $this->prefillLines($purchaseOrder);
+
             $products = \App\Models\Product::with('category')->orderBy('name')->get();
             $categories = \App\Models\ProductCategory::getMainCategories();
 
             return view('supplies.create', compact(
-                'vendors',
-                'warehouses',
                 'products',
                 'categories',
                 'purchaseOrder',
@@ -149,19 +153,10 @@ class SupplyController extends Controller
         } catch (\Exception $e) {
             \Log::error('Error loading supply creation form: '.$e->getMessage());
 
-            // Flashed for this request only. View::with() would bind an $error
-            // view variable, but the layout reads the message off the session,
-            // so the toast never rendered.
-            session()->now('error', 'Unable to load form data. Please try again later.');
-
-            return view('supplies.create', [
-                'vendors' => collect(),
-                'warehouses' => collect(),
-                'products' => collect(),
-                'categories' => collect(),
-                'purchaseOrder' => null,
-                'prefillLines' => [],
-            ]);
+            // The form cannot stand up without its order, so this goes back to
+            // the order list rather than rendering an empty shell.
+            return redirect()->route('supplies.purchase-orders')
+                ->with('error', 'Unable to load form data. Please try again later.');
         }
     }
 
@@ -188,23 +183,17 @@ class SupplyController extends Controller
         $data = $request->validated();
 
         try {
-            // A delivery against an order goes through the order's own service:
-            // it pins the vendor and warehouse to the order and recounts what
-            // has been received, so the order can close itself.
-            if (! empty($data['purchase_order_id'])) {
-                $supply = $this->purchaseOrders->recordSupply(
-                    (int) $data['purchase_order_id'],
-                    $data,
-                    $this->service
-                );
+            // Every delivery goes through the order's own service: it pins the
+            // vendor and warehouse to the order and recounts what has been
+            // received, so the order can close itself.
+            $supply = $this->purchaseOrders->recordSupply(
+                (int) $data['purchase_order_id'],
+                $data,
+                $this->service
+            );
 
-                return redirect()->route('supplies.show', $supply->id)
-                    ->with('success', 'Supply recorded against the purchase order.');
-            }
-
-            $this->service->createWithItems($data);
-
-            return redirect()->route('supplies.index')->with('success', 'Supply created successfully.');
+            return redirect()->route('supplies.show', $supply->id)
+                ->with('success', 'Supply recorded against the purchase order.');
         } catch (\Exception $e) {
             return back()->withInput()->with('error', 'Unable to create supply. Please try again.');
         }

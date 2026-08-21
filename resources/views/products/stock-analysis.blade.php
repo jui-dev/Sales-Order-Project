@@ -246,9 +246,12 @@
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Supply History</h5>
-        <a href="{{ route('supplies.create') }}" class="btn btn-success btn-sm">
-            <i class="bi bi-plus-circle me-1"></i>Create New Supply
-        </a>
+        @can('purchase-orders.manage')
+            {{-- Stock arrives by ordering it; there is no order-less supply form. --}}
+            <a href="{{ route('purchase-orders.create') }}" class="btn btn-success btn-sm">
+                <i class="bi bi-plus-circle me-1"></i>Create Purchase Order
+            </a>
+        @endcan
     </div>
     <div class="card-body">
         @if($stockData['supplies']->count() > 0)

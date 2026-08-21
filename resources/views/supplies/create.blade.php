@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('page-header')
 <div class="mb-4">
-    <h1>{{ ($purchaseOrder ?? null) ? 'Record Supply for '.$purchaseOrder->code : 'Record New Supply' }}</h1>
+    <h1>Record Supply for {{ $purchaseOrder->code }}</h1>
 </div>
 @endsection
 
@@ -9,17 +9,15 @@
 
 <div class="supply-form">
 
-    @if($purchaseOrder ?? null)
-        <div class="supply-notice">
-            <i class="bi bi-clipboard-check"></i>
-            <div>
-                This delivery is against
-                <a href="{{ route('purchase-orders.show', $purchaseOrder->id) }}">{{ $purchaseOrder->code }}</a>.
-                The vendor, the receiving warehouse and the items below come from the order — change the quantities
-                to match what actually turned up, and remove any line that did not arrive.
-            </div>
+    <div class="supply-notice">
+        <i class="bi bi-clipboard-check"></i>
+        <div>
+            This delivery is against
+            <a href="{{ route('purchase-orders.show', $purchaseOrder->id) }}">{{ $purchaseOrder->code }}</a>.
+            The vendor, the receiving warehouse and the items below come from the order — change the quantities
+            to match what actually turned up, and remove any line that did not arrive.
         </div>
-    @endif
+    </div>
 
     <div class="supply-notice">
         <i class="bi bi-info-circle"></i>
@@ -31,9 +29,7 @@
 
     <form action="{{ route('supplies.store') }}" method="POST">
         @csrf
-        @if($purchaseOrder ?? null)
-            <input type="hidden" name="purchase_order_id" value="{{ $purchaseOrder->id }}">
-        @endif
+        <input type="hidden" name="purchase_order_id" value="{{ $purchaseOrder->id }}">
 
         {{-- Section 1: Supply details --}}
         <div class="card supply-card mb-4">
@@ -49,22 +45,11 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label for="vendor_id" class="form-label">Vendor <span class="text-danger">*</span></label>
-                        @if($purchaseOrder ?? null)
-                            {{-- Pinned to the order: a delivery cannot arrive from a different vendor. --}}
-                            <select id="vendor_id" class="form-select" disabled>
-                                <option value="{{ $purchaseOrder->vendor_id }}">{{ $purchaseOrder->vendor->name ?? 'Unknown vendor' }}</option>
-                            </select>
-                            <input type="hidden" name="vendor_id" value="{{ $purchaseOrder->vendor_id }}">
-                        @else
-                            <select name="vendor_id" id="vendor_id" class="form-select @error('vendor_id') is-invalid @enderror" required>
-                                <option value="">Select Vendor</option>
-                                @foreach($vendors as $vendor)
-                                    <option value="{{ $vendor->id }}" {{ old('vendor_id') == $vendor->id ? 'selected' : '' }}>
-                                        {{ $vendor->name }} (ID: {{ $vendor->id }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        @endif
+                        {{-- Pinned to the order: a delivery cannot arrive from a different vendor. --}}
+                        <select id="vendor_id" class="form-select" disabled>
+                            <option value="{{ $purchaseOrder->vendor_id }}">{{ $purchaseOrder->vendor->name ?? 'Unknown vendor' }}</option>
+                        </select>
+                        <input type="hidden" name="vendor_id" value="{{ $purchaseOrder->vendor_id }}">
                         @error('vendor_id')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
@@ -72,22 +57,11 @@
 
                     <div class="col-md-6">
                         <label for="warehouse_id" class="form-label">Receiving Warehouse <span class="text-danger">*</span></label>
-                        @if($purchaseOrder ?? null)
-                            {{-- Pinned to the order: the goods land where they were ordered to. --}}
-                            <select id="warehouse_id" class="form-select" disabled>
-                                <option value="{{ $purchaseOrder->warehouse_id }}">{{ $purchaseOrder->warehouse->name ?? 'Unknown warehouse' }}</option>
-                            </select>
-                            <input type="hidden" name="warehouse_id" value="{{ $purchaseOrder->warehouse_id }}">
-                        @else
-                            <select name="warehouse_id" id="warehouse_id" class="form-select @error('warehouse_id') is-invalid @enderror" required>
-                                <option value="">Select Warehouse</option>
-                                @foreach($warehouses as $warehouse)
-                                    <option value="{{ $warehouse->id }}" {{ old('warehouse_id') == $warehouse->id ? 'selected' : '' }}>
-                                        {{ $warehouse->name }} (ID: {{ $warehouse->id }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        @endif
+                        {{-- Pinned to the order: the goods land where they were ordered to. --}}
+                        <select id="warehouse_id" class="form-select" disabled>
+                            <option value="{{ $purchaseOrder->warehouse_id }}">{{ $purchaseOrder->warehouse->name ?? 'Unknown warehouse' }}</option>
+                        </select>
+                        <input type="hidden" name="warehouse_id" value="{{ $purchaseOrder->warehouse_id }}">
                         @error('warehouse_id')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror

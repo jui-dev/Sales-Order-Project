@@ -92,7 +92,7 @@ class AppServiceProvider extends ServiceProvider
         // missing backend data does not trigger "Undefined variable" errors
         // in this UI-only prototype. This keeps the templates functional until
         // real controllers and database queries are implemented.
-        View::share([
+        $placeholders = [
             // Collections
             'warehouses'        => collect(),
             'vendors'           => collect(),
@@ -184,14 +184,19 @@ class AppServiceProvider extends ServiceProvider
                 'active_pickings'    => 0,
             ],
             'recentMovements' => collect(),
-        ]);
+        ];
 
-        // Global composer: replace any null variable passed to views with an empty collection
-        \Illuminate\Support\Facades\View::composer('*', function ($view) {
-            $data = $view->getData();
-            foreach ($data as $key => $value) {
-                if ($value === null) {
-                    $view->with($key, collect());
+        View::share($placeholders);
+
+        // Back-fill only the placeholders above. A controller that passes null
+        // means it - "there is no purchase order behind this supply" - and
+        // converting every null handed views a Collection they then treated as
+        // an object. An empty Collection is truthy, so guards written as
+        // @if($thing) took the wrong branch and read properties off it.
+        \Illuminate\Support\Facades\View::composer('*', function ($view) use ($placeholders) {
+            foreach ($view->getData() as $key => $value) {
+                if ($value === null && array_key_exists($key, $placeholders)) {
+                    $view->with($key, $placeholders[$key]);
                 }
             }
         });

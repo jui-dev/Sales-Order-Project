@@ -210,7 +210,11 @@ class PurchaseOrderTest extends TestCase
         $this->assertSame(0, Supply::count());
     }
 
-    public function test_a_supply_with_no_order_behind_it_is_unaffected(): void
+    /**
+     * Goods are recorded against what was ordered, so a supply with no order
+     * behind it is not a shortcut - it is a missing answer.
+     */
+    public function test_a_supply_cannot_be_recorded_without_an_order_behind_it(): void
     {
         $this->post(route('supplies.store'), [
             'vendor_id' => $this->vendor->id,
@@ -219,11 +223,15 @@ class PurchaseOrderTest extends TestCase
             'products' => [
                 ['product_id' => $this->product->id, 'quantity' => 3, 'unit_cost' => 47.50],
             ],
-        ])->assertRedirect(route('supplies.index'));
+        ])->assertSessionHasErrors('purchase_order_id');
 
-        $supply = Supply::firstOrFail();
-        $this->assertNull($supply->purchase_order_id);
-        $this->assertSame(3, $supply->items->first()->quantity);
+        $this->assertSame(0, Supply::count());
+    }
+
+    public function test_the_supply_form_sends_you_to_pick_an_order_when_none_is_named(): void
+    {
+        $this->get(route('supplies.create'))
+            ->assertRedirect(route('supplies.purchase-orders'));
     }
 
     public function test_ordering_and_receiving_only_prices_the_product_at_the_grn(): void

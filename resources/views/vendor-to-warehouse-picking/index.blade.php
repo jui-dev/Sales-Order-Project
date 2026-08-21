@@ -427,9 +427,12 @@
                 @endif
                 
                 <div class="d-flex justify-content-center gap-2 mt-4">
-                    <a href="{{ route('supplies.create') }}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle me-1"></i> Create New Supply
-                    </a>
+                    @can('purchase-orders.manage')
+                        {{-- Stock arrives by ordering it; there is no order-less supply form. --}}
+                        <a href="{{ route('purchase-orders.create') }}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle me-1"></i> Create Purchase Order
+                        </a>
+                    @endcan
                     @if($totalVendors == 0)
                         <a href="{{ route('vendors.create') }}" class="btn btn-outline-secondary">
                             <i class="bi bi-building me-1"></i> Add Vendor
@@ -464,9 +467,11 @@
                                     <br><small class="text-muted">{{ $vendor->contact_person }}</small>
                                 @endif
                             </div>
-                            <a href="{{ route('supplies.create') }}?vendor_id={{ $vendor->id }}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-plus"></i>
-                            </a>
+                            @can('purchase-orders.manage')
+                                <a href="{{ route('purchase-orders.create') }}" class="btn btn-sm btn-outline-primary" title="Create a purchase order">
+                                    <i class="bi bi-plus"></i>
+                                </a>
+                            @endcan
                         </div>
                     @endforeach
                     @if($vendors->count() > 5)
