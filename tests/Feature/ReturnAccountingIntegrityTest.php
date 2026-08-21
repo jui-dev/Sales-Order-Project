@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Grn;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
+use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\DebitNote;
 use App\Models\JournalEntry;
@@ -21,6 +22,9 @@ use App\Models\Supply;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Warehouse;
+use App\Services\AccountingService;
+use App\Services\CreditNoteService;
+use App\Services\DebitNoteService;
 use App\Services\ReturnJournalHandler;
 use App\Services\ReturnService;
 use App\Support\InventoryLocationAccount;
@@ -99,6 +103,74 @@ class ReturnAccountingIntegrityTest extends TestCase
         ]);
 
         return app(\App\Services\SupplierBillService::class)->postSupplierBill($bill);
+    }
+
+    /**
+     * Net movement per account code across *posted* entries only. A draft or
+     * approved entry has not reached the books, so it must not show up here.
+     */
+    private function postedBalances(): array
+    {
+        return app(AccountingService::class)->trialBalance()
+            ->map(fn ($row) => round($row['debit'] - $row['credit'], 2))
+            ->all();
+    }
+
+    /**
+     * An approved vendor return and the debit note it raised, against a bill
+     * that carries a real purchase journal.
+     *
+     * @return array{0: SupplierBill, 1: DebitNote}
+     */
+    private function vendorReturnNote(float $unitCost = 25.00, int $quantity = 4): array
+    {
+        $bill = $this->postedBill($unitCost);
+
+        $return = app(ReturnService::class)->createVendorReturn([
+            'supplier_bill_id' => $bill->id,
+            'vendor_id' => $bill->vendor_id,
+            'product_id' => $this->product->id,
+            'quantity' => $quantity,
+            'return_reason' => 'defective_product',
+            'return_date' => now(),
+        ]);
+        app(ReturnService::class)->approveReturn($return);
+
+        $note = DebitNote::where('return_transaction_id', $return->id)->firstOrFail();
+
+        return [$bill->fresh(), $note];
+    }
+
+    /**
+     * An approved customer return and the credit note it raised. The invoice
+     * gets its sales journal from InvoiceObserver when it is created.
+     */
+    private function customerReturnNote(int $quantity = 4): CreditNote
+    {
+        $customer = Customer::factory()->create();
+        $invoice = Invoice::factory()->create([
+            'customer_id' => $customer->id,
+            'payment_status' => 'paid',
+        ]);
+        InvoiceItem::factory()->create([
+            'invoice_id' => $invoice->id,
+            'product_id' => $this->product->id,
+            'quantity' => 10,
+            'unit_price' => 125.00,
+        ]);
+
+        $return = app(ReturnService::class)->createCustomerReturn([
+            'invoice_id' => $invoice->id,
+            'product_id' => $this->product->id,
+            'quantity' => $quantity,
+            'return_reason' => 'defective_product',
+            'return_location_type' => 'warehouse',
+            'return_location_id' => $this->warehouse->id,
+            'return_date' => now(),
+        ]);
+        app(ReturnService::class)->approveReturn($return);
+
+        return CreditNote::where('return_transaction_id', $return->id)->firstOrFail();
     }
 
     private function retailerReturn(int $quantity = 5, int $stockAtRetailer = 20): StockTransaction
@@ -317,5 +389,98 @@ class ReturnAccountingIntegrityTest extends TestCase
         // Out and back at the same price nets to nothing. Before the return
         // posted an entry, the outbound leg sat here on its own forever.
         $this->assertEquals(0.0, round($net, 2));
+    }
+
+    /** @test */
+    public function posting_a_debit_note_raises_a_draft_entry_that_reverses_the_purchase_journal()
+    {
+        [$bill, $note] = $this->vendorReturnNote();
+
+        $this->assertEquals('issued', $note->status);
+        $this->assertNotNull($bill->purchase_journal_id, 'The bill must carry the journal the note reverses');
+
+        $before = $this->postedBalances();
+
+        app(DebitNoteService::class)->postDebitNote($note);
+        $note->refresh();
+
+        $this->assertEquals('posted', $note->status);
+
+        $entry = $note->journalEntry;
+        $this->assertNotNull($entry, 'Posting the note should raise its journal entry');
+        $this->assertEquals('draft', $entry->status);
+        $this->assertTrue($entry->isBalanced());
+
+        // It is a reversal, and it names what it reverses.
+        $this->assertTrue((bool) $entry->is_reverse);
+        $this->assertEquals($bill->purchase_journal_id, $entry->reverses_journal_id);
+        $this->assertEquals($note->id, $entry->linked_debit_note_id);
+
+        // Draft is the whole point of the two-step flow: nothing on the books yet.
+        $this->assertSame($before, $this->postedBalances());
+    }
+
+    /** @test */
+    public function a_vendor_return_entry_is_approved_and_posted_from_the_journal_entries_screen()
+    {
+        [, $note] = $this->vendorReturnNote();
+
+        app(DebitNoteService::class)->postDebitNote($note);
+        $entry = $note->fresh()->journalEntry;
+
+        $before = $this->postedBalances();
+
+        // The note page no longer carries these actions; this is the route a
+        // user now takes, alongside every other entry in the ledger.
+        $this->patch(route('journal-entries.approve', $entry))->assertRedirect();
+
+        $this->assertEquals('approved', $entry->fresh()->status);
+        // Approval is review only.
+        $this->assertSame($before, $this->postedBalances());
+
+        $this->patch(route('journal-entries.post', $entry))->assertRedirect();
+
+        $entry->refresh();
+        $this->assertEquals('posted', $entry->status);
+        $this->assertNotNull($entry->posted_at);
+
+        $after = $this->postedBalances();
+
+        // 4 x 25 credited by the vendor, so what we owe them falls.
+        $this->assertEquals(100.00, round($after['2000'] - ($before['2000'] ?? 0), 2));
+        // 4 x 40 leaves inventory at what it is carried for.
+        $this->assertEquals(-160.00, round($after['1200'] - ($before['1200'] ?? 0), 2));
+    }
+
+    /** @test */
+    public function a_customer_return_entry_is_approved_and_posted_from_the_journal_entries_screen()
+    {
+        $note = $this->customerReturnNote();
+
+        app(CreditNoteService::class)->postCreditNote($note);
+        $entry = $note->fresh()->journalEntry;
+        $this->assertEquals('draft', $entry->status);
+
+        $before = $this->postedBalances();
+
+        $this->patch(route('journal-entries.approve', $entry))->assertRedirect();
+        $this->assertEquals('approved', $entry->fresh()->status);
+        $this->assertSame($before, $this->postedBalances());
+
+        $this->patch(route('journal-entries.post', $entry))->assertRedirect();
+
+        $entry->refresh();
+        $this->assertEquals('posted', $entry->status);
+        $this->assertNotNull($entry->posted_at);
+
+        $after = $this->postedBalances();
+
+        // 4 x 125 refunded: receivables fall, and the same figure lands in
+        // sales returns rather than being taken back out of revenue.
+        $this->assertEquals(-500.00, round($after['1100'] - ($before['1100'] ?? 0), 2));
+        $this->assertEquals(500.00, round($after['5200'] - ($before['5200'] ?? 0), 2));
+        // 4 x 40 of stock comes back, and the COGS relieved on the sale with it.
+        $this->assertEquals(160.00, round($after['1200'] - ($before['1200'] ?? 0), 2));
+        $this->assertEquals(-160.00, round($after['5000'] - ($before['5000'] ?? 0), 2));
     }
 }

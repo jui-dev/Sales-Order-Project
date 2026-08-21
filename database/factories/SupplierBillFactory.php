@@ -29,6 +29,16 @@ class SupplierBillFactory extends Factory
 
     /**
      * A posted bill — what is owed to the vendor is confirmed.
+     *
+     * This sets the status directly and so skips
+     * SupplierBillService::postSupplierBill(), which is the only thing that
+     * raises the bill's purchase journal and fills purchase_journal_id. The
+     * bill therefore looks posted but has no journal behind it.
+     *
+     * Anything that reverses that journal — a vendor return, a debit note —
+     * must build the bill as draft and post it through the service instead, or
+     * it fails with "Original purchase journal not found". See
+     * ReturnAccountingIntegrityTest::postedBill() for the pattern.
      */
     public function posted(): static
     {
