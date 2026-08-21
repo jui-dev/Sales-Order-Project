@@ -52,28 +52,19 @@
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#postNoteModal">
                     <i class="bi bi-check-circle me-1"></i> Post Credit Note
                 </button>
-            @elseif($awaitingApproval)
-                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#approveJournalModal">
-                    <i class="bi bi-check2-square me-1"></i> Approve Journal Entry
-                </button>
-            @elseif($awaitingLedger)
-                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#postJournalModal">
-                    <i class="bi bi-arrow-up-circle me-1"></i> Post Journal Entry
-                </button>
+            @endif
+            {{-- The entry is approved and posted in Journal Entries, alongside every
+                 other entry, so this page only points at it. --}}
+            @if($hasJournal)
+                <a href="{{ route('journal-entries.show', $journal) }}" class="btn btn-outline-primary">
+                    <i class="bi bi-journal-text me-1"></i> View Journal Entry
+                </a>
             @endif
             @unless($isCancelled)
                 <a href="{{ route('credit-notes.download', $creditNote) }}" class="btn btn-outline-primary">
                     <i class="bi bi-download me-1"></i> Download PDF
                 </a>
             @endunless
-            @if(! $isCancelled && ! $journalPosted)
-                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelNoteModal">
-                    <i class="bi bi-x-circle me-1"></i> Cancel
-                </button>
-            @endif
-            <a href="{{ route('credit-notes.index') }}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left me-1"></i> Back to List
-            </a>
         </div>
     </div>
 @endsection
@@ -186,7 +177,7 @@
                     have not moved yet. Posting it is what gives this credit note its financial effect.
                 @elseif($hasJournal)
                     A <strong>draft</strong> journal entry exists. It has to be approved and then posted
-                    before the accounts move; neither has happened yet.
+                    in Journal Entries before the accounts move; neither has happened yet.
                 @else
                     This credit note is issued but has no journal entry, so it has no effect on the
                     accounts yet. Posting it creates a draft reversal against
@@ -401,127 +392,6 @@
                             @csrf
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-circle me-1"></i> Post Credit Note
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    {{-- Draft journal entry -> approved --}}
-    @if($awaitingApproval)
-        <div class="modal fade" id="approveJournalModal" tabindex="-1" aria-labelledby="approveJournalModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="approveJournalModalLabel">Approve Journal Entry</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="d-flex align-items-center gap-2 mb-3">
-                            <span class="badge bg-secondary">Draft</span>
-                            <i class="bi bi-arrow-right text-muted"></i>
-                            <span class="badge bg-info">Approved</span>
-                            <i class="bi bi-arrow-right text-muted"></i>
-                            <span class="badge bg-light text-muted">Posted</span>
-                        </div>
-                        <p class="mb-3">
-                            This marks {{ $journal->formatted_id ?? 'the draft entry' }} as reviewed and
-                            correct. <strong>The accounts do not move yet.</strong> The reversal of
-                            ${{ number_format($creditNote->total_amount, 2) }} reaches the trial balance
-                            only when the entry is posted, which is a separate step.
-                        </p>
-                        <div class="detail-panel mb-0">
-                            <span class="text-muted small">
-                                An approved entry can still be corrected by posting a further entry, but it
-                                can no longer be edited.
-                            </span>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <form action="{{ route('credit-notes.approve-journal-entry', $creditNote) }}" method="POST">
-                            @csrf
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check2-square me-1"></i> Approve Journal Entry
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    {{-- Approved journal entry -> posted --}}
-    @if($awaitingLedger)
-        <div class="modal fade" id="postJournalModal" tabindex="-1" aria-labelledby="postJournalModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="postJournalModalLabel">Post Journal Entry</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="d-flex align-items-center gap-2 mb-3">
-                            <span class="badge bg-info">Approved</span>
-                            <i class="bi bi-arrow-right text-muted"></i>
-                            <span class="badge bg-success">Posted</span>
-                        </div>
-                        <p class="mb-3">
-                            This posts {{ $journal->formatted_id ?? 'the approved entry' }} to the ledger.
-                            From that point the reversal of
-                            <strong>${{ number_format($creditNote->total_amount, 2) }}</strong> shows in the
-                            trial balance and the income statement.
-                        </p>
-                        <div class="detail-panel mb-0">
-                            <span class="text-muted small">
-                                Posting is not reversible from this page. A posted entry is corrected with
-                                a further journal entry, not by editing this one.
-                            </span>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <form action="{{ route('credit-notes.post-journal-entry', $creditNote) }}" method="POST">
-                            @csrf
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-arrow-up-circle me-1"></i> Post Journal Entry
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    @if(! $isCancelled && ! $journalPosted)
-        <div class="modal fade" id="cancelNoteModal" tabindex="-1" aria-labelledby="cancelNoteModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="cancelNoteModalLabel">Cancel Credit Note</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="mb-3">
-                            Cancel credit note <strong>{{ $creditNote->formatted_id }}</strong> for
-                            ${{ number_format($creditNote->total_amount, 2) }}?
-                        </p>
-                        <div class="detail-panel mb-0">
-                            <span class="d-block mb-1">
-                                Nothing is owed back to {{ $customer->name ?? 'the customer' }} once this is
-                                cancelled. The return it came from is not affected.
-                            </span>
-                            <span class="text-muted small">This cannot be undone.</span>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Keep It</button>
-                        <form action="{{ route('credit-notes.cancel', $creditNote) }}" method="POST">
-                            @csrf
-                            <button type="submit" class="btn btn-danger">
-                                <i class="bi bi-x-circle me-1"></i> Cancel Credit Note
                             </button>
                         </form>
                     </div>

@@ -149,9 +149,6 @@
                     <i class="bi bi-receipt me-1"></i> View {{ $isCustomer ? 'Credit Note' : 'Debit Note' }}
                 </a>
             @endif
-            <a href="{{ route('returns.index') }}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left me-1"></i> Back to Returns
-            </a>
         </div>
     </div>
 @endsection
@@ -532,14 +529,6 @@
         </div>
     </div>
 
-    @if($isPending)
-        <div class="d-flex justify-content-end d-print-none">
-            <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal">
-                <i class="bi bi-trash me-1"></i> Delete this return
-            </button>
-        </div>
-    @endif
-
     {{-- Approve: the one action that moves stock --}}
     @if($awaitingApproval)
         <div class="modal fade" id="approveReturnModal" tabindex="-1" aria-labelledby="approveReturnModalLabel" aria-hidden="true">
@@ -640,40 +629,6 @@
         </div>
     @endif
 
-    @if($isPending)
-        <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="deleteModalLabel">Delete Return</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <p class="mb-3">
-                            Delete return <strong>{{ $return->formatted_id }}</strong> permanently?
-                        </p>
-                        <div class="detail-panel mb-0">
-                            <span class="d-block mb-1">
-                                No stock has moved for this return, so there is nothing to reverse — the
-                                record is simply removed.
-                            </span>
-                            <span class="text-muted small">This cannot be undone.</span>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <form action="{{ route('returns.destroy', $return) }}" method="POST">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-danger">
-                                <i class="bi bi-trash me-1"></i> Delete Return
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endif
 @endsection
 
 @push('styles')

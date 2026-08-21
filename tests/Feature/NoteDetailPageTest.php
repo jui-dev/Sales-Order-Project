@@ -17,7 +17,10 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Warehouse;
 use App\Services\CreditNoteService;
+use App\Services\DebitNoteService;
+use App\Services\JournalEntryService;
 use App\Services\ReturnService;
+use App\Services\SupplierBillService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -96,10 +99,15 @@ class NoteDetailPageTest extends TestCase
             'warehouse_id' => $this->warehouse->id,
         ]);
         $grn = Grn::factory()->create(['supply_id' => $supply->id, 'status' => 'posted']);
+
+        // Left as draft so it can be posted through the service below, which is
+        // what gives it the purchase journal a debit note has to reverse. A bill
+        // created straight as 'posted' has no journal behind it.
         $bill = SupplierBill::factory()->create([
             'vendor_id' => $vendor->id,
             'grn_id' => $grn->id,
-            'status' => 'posted',
+            'status' => 'draft',
+            'total_amount' => 2000.00,
         ]);
         SupplierBillItem::create([
             'supplier_bill_id' => $bill->id,
@@ -108,6 +116,8 @@ class NoteDetailPageTest extends TestCase
             'unit_cost' => 100.00,
             'subtotal' => 2000.00,
         ]);
+
+        app(SupplierBillService::class)->postSupplierBill($bill);
 
         // Stock has to be on hand for the return to be approvable. A customer
         // return built in the same test may already have created this row.
@@ -159,15 +169,17 @@ class NoteDetailPageTest extends TestCase
         $response = $this->get(route('credit-notes.show', $note->fresh()));
 
         $response->assertOk();
-        // A draft entry exists but must be reported as having no effect yet, and
-        // approval - not posting - is the next step available on it.
+        // A draft entry exists but must be reported as having no effect yet. The
+        // note reports the entry and links to it; approving it belongs to the
+        // journal entries screen, so neither action is offered here.
         $response->assertSee('neither has happened yet');
-        $response->assertSee('Approve Journal Entry');
+        $response->assertSee(route('journal-entries.show', $note->fresh()->journalEntry), false);
+        $response->assertDontSee('Approve Journal Entry');
         $response->assertDontSee('Post Journal Entry');
     }
 
     /** @test */
-    public function it_offers_posting_only_once_the_credit_note_journal_is_approved()
+    public function it_points_an_approved_credit_note_journal_at_the_journal_entries_screen()
     {
         $note = $this->creditNote();
 
@@ -178,10 +190,39 @@ class NoteDetailPageTest extends TestCase
         $response = $this->get(route('credit-notes.show', $note->fresh()));
 
         $response->assertOk();
-        // Approved is still off the ledger; posting is what books it.
+        // Approved is still off the ledger, and posting it is done from the
+        // journal entries screen rather than from the note.
         $response->assertSee('but not posted');
-        $response->assertSee('Post Journal Entry');
+        $response->assertSee(route('journal-entries.show', $note->fresh()->journalEntry), false);
+        $response->assertDontSee('Post Journal Entry');
         $response->assertDontSee('Approve Journal Entry');
+    }
+
+    /**
+     * @test
+     * @testWith ["draft"]
+     *           ["approved"]
+     */
+    public function it_points_a_debit_note_journal_at_the_journal_entries_screen(string $journalStatus)
+    {
+        $note = $this->debitNote();
+
+        app(DebitNoteService::class)->postDebitNote($note);
+        $entry = $note->fresh()->journalEntry;
+        $this->assertSame('draft', $entry->status);
+
+        if ($journalStatus === 'approved') {
+            app(JournalEntryService::class)->approveEntry($entry);
+        }
+
+        $response = $this->get(route('debit-notes.show', $note->fresh()));
+
+        $response->assertOk();
+        // Vendor returns follow the same rule as customer ones: the note reports
+        // its entry and links to it, but never approves or posts it.
+        $response->assertSee(route('journal-entries.show', $entry), false);
+        $response->assertDontSee('Approve Journal Entry');
+        $response->assertDontSee('Post Journal Entry');
     }
 
     /** @test */

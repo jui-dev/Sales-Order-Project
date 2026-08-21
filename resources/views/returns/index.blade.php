@@ -234,15 +234,9 @@
                                         </a>
                                         
                                         <!-- Status Change Buttons -->
-                                        @if($return->status === 'pending')
-                                            <form action="{{ route('returns.approve', $return) }}" method="POST" style="display: inline;">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1" 
-                                                        data-bs-toggle="tooltip" title="Approve Return">
-                                                    <i class="bi bi-check-circle"></i>
-                                                </button>
-                                            </form>
-                                        @elseif($return->status === 'approved')
+                                        {{-- Approval is taken on the return's own page, where the stock
+                                             movement it triggers is spelled out. --}}
+                                        @if($return->status === 'approved')
                                             <form action="{{ route('returns.complete', $return) }}" method="POST" style="display: inline;">
                                                 @csrf
                                                 <button type="submit" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1" 
