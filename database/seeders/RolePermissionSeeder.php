@@ -27,9 +27,16 @@ class RolePermissionSeeder extends Seeder
         'Dashboard' => [
             'dashboard.view' => 'View dashboard',
         ],
-        'Master Data' => [
+        'Catalog' => [
             'products.view' => 'View products',
             'products.manage' => 'Manage products',
+            // Split from products.manage: describing a product and deciding
+            // what it sells for are different authorities, and pricing is the
+            // one that moves money.
+            'product-pricing.view' => 'View price lists',
+            'product-pricing.manage' => 'Manage price lists',
+        ],
+        'Master Data' => [
             'vendors.view' => 'View vendors',
             'vendors.manage' => 'Manage vendors',
             'customers.view' => 'View customers',

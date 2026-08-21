@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductPricingController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\VendorController;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -53,6 +54,30 @@ Route::prefix('dashboard')->name('dashboard.')->middleware('permission:dashboard
 });
 
 // Products Routes (Controller ➜ Service ➜ Model)
+// Catalog > Product Pricing. Registered before the products resource so that
+// neither shadows the other, and gated the way the Users module is - products
+// itself has only ever been gated by the sidebar's @can.
+Route::middleware('permission:product-pricing.view,product-pricing.manage')
+    ->prefix('product-pricing')->name('product-pricing.')->group(function () {
+        Route::get('/', [ProductPricingController::class, 'index'])->name('index');
+
+        Route::get('/products/{product}/history', [ProductPricingController::class, 'history'])
+            ->whereNumber('product')->name('history');
+
+        Route::get('/{id}', [ProductPricingController::class, 'show'])
+            ->whereNumber('id')->name('show');
+
+        Route::middleware('permission:product-pricing.manage')->group(function () {
+            Route::post('/', [ProductPricingController::class, 'store'])->name('store');
+            Route::post('/{id}/prices', [ProductPricingController::class, 'addPrice'])
+                ->whereNumber('id')->name('prices.add');
+            Route::put('/{id}/prices', [ProductPricingController::class, 'updateRows'])
+                ->whereNumber('id')->name('prices.update');
+            Route::delete('/{id}/prices/{product}', [ProductPricingController::class, 'removePrice'])
+                ->whereNumber('id')->whereNumber('product')->name('prices.remove');
+        });
+    });
+
 Route::get('products/ajax/subcategories', [ProductController::class, 'getSubcategories'])->name('products.get-subcategories');
 Route::resource('products', ProductController::class);
 Route::get('products/{id}/transaction-history', [ProductController::class, 'transactionHistory'])->name('products.transaction-history');

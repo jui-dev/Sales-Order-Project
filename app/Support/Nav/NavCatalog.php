@@ -37,13 +37,30 @@ final class NavCatalog
 {
     /** @var array<string, array{label: string, parent: string|null, landing: array<int, string>, query?: array<string, string>, permission: string}> */
     private const ITEMS = [
-        // --- Master data ---------------------------------------------------
-        'products' => [
-            'label' => 'Products',
+        // --- Catalog -------------------------------------------------------
+        // What we sell and what it costs. Products and their prices are
+        // separate screens because they are separate decisions: a product is
+        // described once, while its prices vary by buyer and change over time.
+        'catalog' => [
+            'label' => 'Catalog',
             'parent' => null,
+            'landing' => [],
+            'permission' => 'products.view',
+        ],
+        'catalog.products' => [
+            'label' => 'Products',
+            'parent' => 'catalog',
             'landing' => ['products.index'],
             'permission' => 'products.view',
         ],
+        'catalog.product-pricing' => [
+            'label' => 'Product Pricing',
+            'parent' => 'catalog',
+            'landing' => ['product-pricing.index'],
+            'permission' => 'product-pricing.view',
+        ],
+
+        // --- Master data ---------------------------------------------------
         'vendors' => [
             'label' => 'Vendors',
             'parent' => null,

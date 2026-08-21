@@ -227,6 +227,7 @@
                     $returnType = $onReturns ? request()->query('type') : false;
                     $returnActive = fn ($type) => $onReturns && $returnType === $type ? ' active' : '';
 
+                    $catalogOpen = request()->routeIs('products.*', 'product-pricing.*');
                     $procurementOpen = request()->routeIs('purchase-orders.*', 'supplies.*', 'grns.*', 'supplier-bills.*', 'supplier-bill-payments.*');
                     $pickingOpen = request()->routeIs('stock-transfers.*', 'warehouse-to-customer-picking.*', 'retailer-to-customer-picking.*', 'picking-lists.*');
                     $returnsOpen = request()->routeIs('returns.*', 'credit-notes.*', 'debit-notes.*');
@@ -245,12 +246,25 @@
                     </li>
                     @endcan
 
-                    <!-- Master Data -->
+                    <!-- Catalog -->
                     @can('products.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3{{ $navActive('products.*') }}" href="{{ route('products.index') }}"><i class="bi bi-box me-2"></i>Products<x-nav-badge for="products" /></a>
+                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#catalogMenu" role="button" aria-expanded="{{ $catalogOpen ? 'true' : 'false' }}" aria-controls="catalogMenu">
+                            <span><i class="bi bi-journals me-2"></i>Catalog<x-nav-badge for="catalog" /></span>
+                            <i class="bi bi-chevron-down small"></i>
+                        </a>
+                        <div class="collapse{{ $catalogOpen ? ' show' : '' }}" id="catalogMenu" data-bs-parent="#sidebarAccordion">
+                            <ul class="navbar-nav ps-3">
+                                <li><a class="nav-link px-3{{ $navActive('products.*') }}" href="{{ route('products.index') }}"><i class="bi bi-box me-2"></i>Products<x-nav-badge for="catalog.products" /></a></li>
+                                @can('product-pricing.view')
+                                <li><a class="nav-link px-3{{ $navActive('product-pricing.*') }}" href="{{ route('product-pricing.index') }}"><i class="bi bi-tags me-2"></i>Product Pricing<x-nav-badge for="catalog.product-pricing" /></a></li>
+                                @endcan
+                            </ul>
+                        </div>
                     </li>
                     @endcan
+
+                    <!-- Master Data -->
                     @can('vendors.view')
                     <li class="nav-item">
                         <a class="nav-link px-3{{ $navActive('vendors.*') }}" href="{{ route('vendors.index') }}"><i class="bi bi-building me-2"></i>Vendors<x-nav-badge for="vendors" /></a>
