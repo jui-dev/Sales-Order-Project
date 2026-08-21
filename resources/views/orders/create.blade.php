@@ -63,6 +63,25 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
+
+                    {{-- Only shown where channels are actually in use. Selecting one can
+                         change every price on the form, so it sits with the customer. --}}
+                    @if($salesChannels->isNotEmpty())
+                    <div class="col-md-6">
+                        <label for="sales_channel_id" class="form-label">Sales Channel</label>
+                        <select name="sales_channel_id" id="sales_channel_id" class="form-select @error('sales_channel_id') is-invalid @enderror">
+                            <option value="">Default</option>
+                            @foreach($salesChannels as $channel)
+                                <option value="{{ $channel->id }}" {{ old('sales_channel_id') == $channel->id ? 'selected' : '' }}>
+                                    {{ $channel->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('sales_channel_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    @endif
                 </div>
                 </div>
             </div>
@@ -93,11 +112,13 @@
                                 <label class="form-label">Product <span class="text-danger">*</span></label>
                                 <select name="products[0][product_id]" class="form-select product-select" required>
                                     <option value="">Select Product</option>
+                                    {{-- No price in the markup: what this costs depends on the
+                                         customer, the channel and the quantity, which are not
+                                         known until the form is filled in. Fetched per line. --}}
                                     @foreach($products as $product)
                                         <option value="{{ $product->id }}"
-                                                data-price="{{ $product->selling_price }}"
                                                 data-stock="{{ $product->current_stock }}">
-                                            {{ $product->name }} ({{ $product->current_stock }} in stock) - ${{ number_format($product->selling_price, 2) }}
+                                            {{ $product->name }} ({{ $product->current_stock }} in stock)
                                         </option>
                                     @endforeach
                                 </select>
@@ -123,6 +144,9 @@
                                     <span class="input-group-text">$</span>
                                     <input type="text" name="products[0][unit_price]" class="form-control item-unit-price" placeholder="0.00" readonly>
                                 </div>
+                                {{-- Where the figure came from: an agreed list price, or one
+                                     derived from cost because nobody has set one. --}}
+                                <div class="price-source-note form-text mt-1"></div>
                             </div>
                             <div class="col-lg-5 col-md-4">
                                 <label class="form-label">Subtotal</label>
@@ -728,28 +752,86 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Ask the server what this line costs.
+    //
+    // The price depends on who is buying, through which channel, and how many
+    // they want, so it cannot be baked into the option list. Resolved server
+    // side by the same rules that validate the submission, which is what keeps
+    // the figure shown and the figure charged from drifting apart.
+    async function fetchUnitPrice(productId, quantity) {
+        const params = new URLSearchParams({ product_id: productId, quantity: quantity || 1 });
+
+        const customerId = document.querySelector('[name="customer_id"]')?.value;
+        if (customerId) params.append('customer_id', customerId);
+
+        const channelId = document.querySelector('[name="sales_channel_id"]')?.value;
+        if (channelId) params.append('sales_channel_id', channelId);
+
+        const response = await fetch(`{{ route('orders.price-quote') }}?${params}`, {
+            headers: { 'Accept': 'application/json' },
+        });
+
+        if (!response.ok) throw new Error('Could not fetch price');
+
+        return response.json();
+    }
+
     // Update subtotal for an item
-    function updateSubtotal(item) {
+    async function updateSubtotal(item) {
         const select = item.querySelector('.product-select');
         const quantityInput = item.querySelector('.item-quantity');
         const unitPriceInput = item.querySelector('.item-unit-price');
         const subtotalInput = item.querySelector('.item-subtotal');
-        
-        if (select.selectedIndex > 0) {
-            const option = select.options[select.selectedIndex];
-            const price = parseFloat(option.dataset.price);
-            const quantity = parseInt(quantityInput.value) || 0;
-            
-            unitPriceInput.value = price.toFixed(2);
-            subtotalInput.value = (price * quantity).toFixed(2);
-            
-            clearTimeout(calculateTimeout);
-            calculateTimeout = setTimeout(updateTotal, 100);
-        } else {
+        const priceNote = item.querySelector('.price-source-note');
+
+        if (select.selectedIndex <= 0) {
             unitPriceInput.value = '';
             subtotalInput.value = '';
+            if (priceNote) priceNote.textContent = '';
+            return;
         }
+
+        const quantity = parseInt(quantityInput.value) || 0;
+
+        try {
+            const quote = await fetchUnitPrice(select.value, quantity);
+
+            if (!quote.priced) {
+                unitPriceInput.value = '';
+                subtotalInput.value = '';
+                if (priceNote) priceNote.textContent = quote.message || 'No price agreed yet.';
+                return;
+            }
+
+            unitPriceInput.value = quote.unit_price.toFixed(2);
+            subtotalInput.value = (quote.unit_price * quantity).toFixed(2);
+
+            if (priceNote) {
+                // Say where the number came from. A derived price is a stopgap
+                // for a product nobody has priced, not an agreed rate.
+                priceNote.textContent = quote.derived
+                    ? 'Derived from cost - no agreed price yet'
+                    : (quote.price_list_name ? `From ${quote.price_list_name}` : '');
+            }
+        } catch (e) {
+            unitPriceInput.value = '';
+            subtotalInput.value = '';
+            if (priceNote) priceNote.textContent = 'Could not fetch the price. Try again.';
+        }
+
+        clearTimeout(calculateTimeout);
+        calculateTimeout = setTimeout(updateTotal, 100);
     }
+
+    // Changing the customer or the channel can change every price on the form.
+    ['customer_id', 'sales_channel_id'].forEach(function (field) {
+        const input = document.querySelector(`[name="${field}"]`);
+        if (!input) return;
+
+        input.addEventListener('change', function () {
+            document.querySelectorAll('.order-item').forEach(updateSubtotal);
+        });
+    });
     
     // Update total order amount
     function updateTotal() {

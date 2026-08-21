@@ -70,6 +70,10 @@ class RolePermissionSeeder extends Seeder
         'Sales' => [
             'orders.view' => 'View orders',
             'orders.manage' => 'Manage orders',
+            // Split out from orders.manage: taking orders and deciding what
+            // they sell for are different authorities, and the price posted by
+            // the form is otherwise checked against the price list.
+            'orders.override-price' => 'Sell at a price other than the list price',
             'invoices.view' => 'View invoices',
             'invoices.manage' => 'Manage invoices',
             'payments.view' => 'View invoice payments',

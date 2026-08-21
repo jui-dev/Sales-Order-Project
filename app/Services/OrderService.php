@@ -125,11 +125,31 @@ class OrderService
                         default => null,
                     };
 
+                    $productModel = \App\Models\Product::find($product['product_id']);
+
                     // Capture what the goods cost us right now. Without this the
                     // line would be re-costed against products.purchase_price at
                     // render time, so any later goods receipt would rewrite the
                     // profit on an order that was already closed.
-                    $unitCost = (float) (\App\Models\Product::find($product['product_id'])?->purchase_price ?? 0);
+                    $unitCost = $productModel
+                        ? app(\App\Services\Pricing\ProductCostService::class)
+                            ->costAtOrLegacy($productModel)
+                        : 0.0;
+
+                    // And which price row produced the figure charged, so
+                    // "why was it that price?" stays answerable afterwards.
+                    $priceListItemId = null;
+                    if ($productModel) {
+                        $resolved = app(\App\Services\Pricing\PriceResolver::class)->forSale(
+                            $productModel,
+                            new \App\Services\Pricing\PriceContext(
+                                customer: $order->customer,
+                                salesChannel: $order->salesChannel,
+                                quantity: (int) $product['quantity'],
+                            )
+                        );
+                        $priceListItemId = $resolved?->priceListItemId;
+                    }
 
                     $order->items()->create([
                         'product_id' => $product['product_id'],
@@ -138,6 +158,7 @@ class OrderService
                         'quantity' => $product['quantity'],
                         'unit_price' => $product['unit_price'],
                         'unit_cost' => $unitCost,
+                        'price_list_item_id' => $priceListItemId,
                         'subtotal' => $product['quantity'] * $product['unit_price'],
                     ]);
                 }

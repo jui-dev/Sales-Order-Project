@@ -88,42 +88,19 @@ Route::delete('vendors/{vendor}/products/{vendorProduct}', [VendorController::cl
 // Orders UI Routes
 Route::get('/orders', [\App\Http\Controllers\OrderController::class, 'index'])->name('orders.index');
 
-Route::get('/orders/create', function () {
-    // Fetch customers list for the dropdown
-    $customers = \App\Models\Customer::all();
+Route::get('/orders/create', [\App\Http\Controllers\OrderController::class, 'create'])->name('orders.create');
 
-    // Only include products that currently have stock available (>0).
-    // The system maintains an `available_stocks` column on the products table
-    // so we can rely on that figure to keep the query lightweight.
-    $products = \App\Models\Product::query()
-        ->where('available_stocks', '>', 0)
-        ->get()
-        ->map(function ($product) {
-            // Alias to a common attribute expected by the Blade.
-            $product->current_stock = $product->available_stocks;
-            return $product;
-        });
-
-    // Warehouses & retailers may still be needed by the Blade for client-side checks
-    $warehouses = \App\Models\Warehouse::all();
-    $retailers  = \App\Models\Retailer::all();
-
-    return view('orders.create', compact('customers', 'products', 'warehouses', 'retailers'));
-})->name('orders.create');
+// What a given customer pays for a given product, resolved live. The order form
+// cannot inline a price any more: it depends on the buyer, the channel and the
+// quantity, none of which are known when the page is rendered.
+// Registered before /orders/{id} so the literal segment is not read as an id.
+Route::get('/orders/price-quote', [\App\Http\Controllers\OrderController::class, 'priceQuote'])
+    ->name('orders.price-quote');
 
 Route::get('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'show'])->whereNumber('id')->name('orders.show');
 
-Route::get('/orders/{id}/edit', function ($id) {
-    $order = \App\Models\Order::with(['orderItems.product', 'customer'])->findOrFail($id);
-
-    // Dropdown data
-    $customers  = \App\Models\Customer::orderBy('name')->get();
-    $products   = \App\Models\Product::orderBy('name')->get();
-    $warehouses = \App\Models\Warehouse::all();
-    $retailers  = \App\Models\Retailer::all();
-
-    return view('orders.edit', compact('order', 'customers', 'products', 'warehouses', 'retailers'));
-})->whereNumber('id')->name('orders.edit');
+Route::get('/orders/{id}/edit', [\App\Http\Controllers\OrderController::class, 'edit'])
+    ->whereNumber('id')->name('orders.edit');
 
 // Additional orders routes for update, destroy, update-status
 Route::put('/orders/{id}', [\App\Http\Controllers\OrderController::class, 'update'])->whereNumber('id')->name('orders.update');

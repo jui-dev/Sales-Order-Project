@@ -18,6 +18,7 @@ class OrderItem extends Model
         'quantity',
         'unit_price',
         'unit_cost',
+        'price_list_item_id',
         'subtotal',
     ];
 

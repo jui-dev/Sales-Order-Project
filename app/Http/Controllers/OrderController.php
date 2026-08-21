@@ -69,10 +69,78 @@ class OrderController extends Controller
         }
     }
 
+    /**
+     * The order form.
+     *
+     * Products no longer carry their price into the markup. What a customer
+     * pays depends on who they are, which channel they are buying through and
+     * how many they want - none of which is known until the form is filled in -
+     * so the price is fetched from priceQuote() as those choices are made.
+     */
     public function create(): View
     {
-        // This method is not used because route is defined via closure in web.php
-        abort(404);
+        // Only what can actually be sold. available_stocks is maintained by
+        // ProductStockObserver.
+        $products = \App\Models\Product::query()
+            ->where('available_stocks', '>', 0)
+            ->orderBy('name')
+            ->get()
+            ->map(function ($product) {
+                $product->current_stock = $product->available_stocks;
+
+                return $product;
+            });
+
+        return view('orders.create', [
+            'customers' => \App\Models\Customer::orderBy('name')->get(),
+            'products' => $products,
+            'warehouses' => \App\Models\Warehouse::all(),
+            'retailers' => \App\Models\Retailer::all(),
+            'salesChannels' => \App\Models\SalesChannel::where('is_active', true)->orderBy('name')->get(),
+        ]);
+    }
+
+    /**
+     * What this customer pays for this product, right now.
+     *
+     * The order form asks as the buyer, product and quantity are chosen. The
+     * answer carries its own provenance so the form can say where the figure
+     * came from, and so store() can check the posted price against the same
+     * resolution rather than trusting the browser.
+     */
+    public function priceQuote(Request $request, \App\Services\Pricing\PriceResolver $resolver): JsonResponse
+    {
+        $data = $request->validate([
+            'product_id' => ['required', 'exists:products,id'],
+            'customer_id' => ['nullable', 'exists:customers,id'],
+            'sales_channel_id' => ['nullable', 'exists:sales_channels,id'],
+            'quantity' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $product = \App\Models\Product::findOrFail($data['product_id']);
+
+        $price = $resolver->forSale($product, new \App\Services\Pricing\PriceContext(
+            customer: isset($data['customer_id']) ? \App\Models\Customer::find($data['customer_id']) : null,
+            salesChannel: isset($data['sales_channel_id'])
+                ? \App\Models\SalesChannel::find($data['sales_channel_id'])
+                : null,
+            quantity: (int) ($data['quantity'] ?? 1),
+        ));
+
+        if (! $price) {
+            return response()->json([
+                'priced' => false,
+                'message' => 'No price has been agreed for this product yet.',
+            ]);
+        }
+
+        return response()->json([
+            'priced' => true,
+            'unit_price' => round($price->unitPrice, 2),
+            'price_list_item_id' => $price->priceListItemId,
+            'price_list_name' => $price->priceListName,
+            'derived' => $price->isDerived(),
+        ]);
     }
 
     public function store(StoreOrderRequest $request): RedirectResponse
@@ -174,8 +242,16 @@ class OrderController extends Controller
     public function edit(int $id): View|RedirectResponse
     {
         try {
-            $order = $this->service->get($id);
-            return view('orders.edit', compact('order'));
+            $order = Order::with(['orderItems.product', 'customer'])->findOrFail($id);
+
+            return view('orders.edit', [
+                'order' => $order,
+                'customers' => \App\Models\Customer::orderBy('name')->get(),
+                'products' => \App\Models\Product::orderBy('name')->get(),
+                'warehouses' => \App\Models\Warehouse::all(),
+                'retailers' => \App\Models\Retailer::all(),
+                'salesChannels' => \App\Models\SalesChannel::where('is_active', true)->orderBy('name')->get(),
+            ]);
         } catch (DataNotFoundException $e) {
             return redirect()->route('orders.index')
                 ->with('error', $e->getMessage());
