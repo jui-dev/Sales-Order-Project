@@ -83,12 +83,6 @@
                         <i class="bi bi-receipt me-1"></i> View Invoice
                     </a>
                 @endif
-                {{-- Goods have to have gone out before any of them can come back --}}
-                @if($isCompleted)
-                    <a href="{{ route('returns.create', ['order_id' => $order->id]) }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-return-left me-1"></i> Create Return
-                    </a>
-                @endif
             @endif
         </div>
     </div>

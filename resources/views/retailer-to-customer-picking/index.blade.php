@@ -202,23 +202,6 @@
                                            title="View Details">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        @if($pickingList->status !== 'completed')
-                                        {{-- Same action the warehouse index and the shared detail page use,
-                                             so completing from either side behaves identically. --}}
-                                        <form action="{{ route('customer-picking.update-status', $pickingList) }}"
-                                              method="POST"
-                                              class="d-inline">
-                                            @csrf
-                                            @method('PATCH')
-                                            <input type="hidden" name="status" value="completed">
-                                            <button type="submit" 
-                                                    class="btn btn-sm btn-success"
-                                                    title="Complete Picking"
-                                                    onclick="return confirm('Are you sure you want to mark this picking list as completed?')">
-                                                <i class="bi bi-check-lg"></i>
-                                            </button>
-                                        </form>
-                                        @endif
                                     </div>
                                 </td>
                             </tr>

@@ -53,11 +53,6 @@
                class="btn btn-{{ $canRecord ? 'outline-secondary' : 'primary' }}">
                 <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
             </a>
-            @if($order)
-                <a href="{{ route('orders.show', $order->id) }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-cart me-1"></i> View Order
-                </a>
-            @endif
         </div>
     </div>
 @endsection

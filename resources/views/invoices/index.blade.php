@@ -68,23 +68,6 @@
                                     <i class="bi bi-cart"></i>
                                 </a>
                             @endif
-                            @if($invoice->payment_status === 'unpaid')
-                                <div class="dropdown d-inline">
-                                    <button class="btn btn-sm btn-success dropdown-toggle d-inline-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-toggle="tooltip" title="Record Payment">
-                                        <i class="bi bi-credit-card"></i>
-                                    </button>
-                                    <ul class="dropdown-menu">
-                                        <li>
-                                            <form action="{{ route('invoices.pay', $invoice) }}" method="POST">
-                                                @csrf
-                                                <input type="hidden" name="amount" value="{{ $invoice->total }}">
-                                                <input type="hidden" name="method" value="cash">
-                                                <button type="submit" class="dropdown-item">Mark as Paid</button>
-                                            </form>
-                                        </li>
-                                    </ul>
-                                </div>
-                            @endif
                             <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1"
                                 data-bs-toggle="tooltip" title="Delete Invoice"
                                 onclick="if(confirm('Are you sure you want to delete this invoice?')) { 

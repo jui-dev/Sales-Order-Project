@@ -161,14 +161,6 @@
                                 <td data-label="Actions">
                                     <div class="btn-group" role="group">
                                         <a href="{{ route('customer-picking.show', $pickingList) }}" class="btn btn-sm btn-info">View</a>
-                                        @if($pickingList->status !== 'completed')
-                                        <form action="{{ route('customer-picking.update-status', $pickingList) }}" method="POST" class="d-inline">
-                                            @csrf
-                                            @method('PATCH')
-                                            <input type="hidden" name="status" value="completed">
-                                            <button type="submit" class="btn btn-sm btn-success">Mark Completed</button>
-                                        </form>
-                                        @endif
                                     </div>
                                 </td>
                             </tr>
