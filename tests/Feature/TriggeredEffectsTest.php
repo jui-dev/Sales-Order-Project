@@ -188,7 +188,12 @@ class TriggeredEffectsTest extends TestCase
             ->assertDontSee('<x-nav-badge', false);
     }
 
-    public function test_the_banner_carries_the_success_message_instead_of_a_toast(): void
+    /**
+     * The effects notice is a button on the page header, not a banner across
+     * the page. It carries the detail; the flashed message stays a toast,
+     * because nothing else on screen says the action worked.
+     */
+    public function test_the_effects_are_a_header_button_and_the_message_a_toast(): void
     {
         $supply = $this->supply();
 
@@ -197,18 +202,19 @@ class TriggeredEffectsTest extends TestCase
 
         $page = $this->followRedirects($response);
 
-        // The message the controller flashed appears once, in the banner...
-        $page->assertSee('Supply marked as completed. Receive the goods below.')
-            ->assertSee('This also triggered:');
+        // The message the controller flashed still arrives as a toast...
+        $page->assertSee('toast align-items-center text-white bg-success', false)
+            ->assertSee('Supply marked as completed. Receive the goods below.');
 
-        // ...and not a second time as a toast stacked on top of it.
-        $page->assertDontSee('toast align-items-center text-white bg-success', false);
+        // ...and the effects sit behind the button, in a modal.
+        $page->assertSee('id="triggeredEffectsBtn"', false)
+            ->assertSee('id="triggeredEffectsModal"', false)
+            ->assertSee('This also triggered');
     }
 
     /**
-     * A delete creates and updates nothing, so it raises no banner. Without a
-     * banner to carry the message the toast is the only feedback there is, and
-     * suppressing it everywhere would make deletes silent.
+     * A delete creates and updates nothing, so it raises no effects and no
+     * button. The toast is the only feedback there is either way.
      */
     public function test_an_action_with_no_effects_keeps_its_toast(): void
     {

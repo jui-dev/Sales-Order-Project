@@ -433,16 +433,15 @@
 
     <div class="container-fluid main-content">
         @php
-            // One action, one notice. When the triggered-effects banner is
-            // showing it already carries the success message as its headline,
-            // so a toast on top of it is the same words twice. Actions that
-            // raise no effects - deletes, mostly - have no banner and keep it.
-            $effectsBanner = is_array($triggeredEffects ?? null) && ! empty($triggeredEffects['rows']);
+            // The effects notice is behind a button now, so its headline is not
+            // on screen until the reader opens it. The success toast therefore
+            // always shows: it is the only thing saying the action worked.
+            $hasEffects = is_array($triggeredEffects ?? null) && ! empty($triggeredEffects['rows']);
         @endphp
 
         <!-- Toast notifications -->
         <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
-            @if(session('success') && ! $effectsBanner)
+            @if(session('success'))
                 <div class="toast align-items-center text-white bg-success border-0" role="alert" data-bs-delay="3000">
                     <div class="d-flex">
                         <div class="toast-body">
@@ -476,14 +475,18 @@
             </div>
         @endif
 
+        {{-- Page title/actions render above the panel, on the page background --}}
+        <div id="pageHeader">
+            @yield('page-header')
+        </div>
+
         {{-- What the action that brought the reader here set off elsewhere. The
-             sidebar badges say where to look; this says what landed there. --}}
-        @if($effectsBanner)
+             sidebar badges say where to look; this says what landed there. The
+             script at the foot of this file lifts the button into the header
+             above, alongside whatever actions the page offers. --}}
+        @if($hasEffects)
             <x-triggered-effects :panel="$triggeredEffects" />
         @endif
-
-        {{-- Page title/actions render above the panel, on the page background --}}
-        @yield('page-header')
 
         <div class="page-panel">
             @yield('content')
@@ -671,6 +674,47 @@
             try {
                 // Sidebar active state and menu expansion are rendered server-side in the
                 // blade above, matched on route names rather than guessed from the URL.
+
+                // The "This Also Triggered" notice is a header action rather
+                // than a banner: park its button on the same line as whatever
+                // actions the page already offers. Pages lay their headers out
+                // differently, so the page's own buttons are the landmark - the
+                // notice goes in front of the first one it finds.
+                (function () {
+                    const launcher = document.getElementById('triggeredEffectsLauncher');
+                    const header   = document.getElementById('pageHeader');
+                    const button   = document.getElementById('triggeredEffectsBtn');
+                    if (!launcher || !header || !button) return;
+
+                    const pageButtons = header.querySelectorAll('.btn');
+                    if (pageButtons.length) {
+                        // The group holding the page's actions, found via the
+                        // last button because that is the primary action and so
+                        // is always inside the action row rather than the title.
+                        let group = pageButtons[pageButtons.length - 1].parentElement;
+                        // A lone button wrapped in its own form is not the row;
+                        // the row is what holds that form.
+                        if (group.tagName === 'FORM') group = group.parentElement;
+                        const first = Array.from(pageButtons).find(function (btn) {
+                            return group.contains(btn);
+                        }) || pageButtons[pageButtons.length - 1];
+
+                        // A button may sit inside a form; insert before the
+                        // child of the group that actually contains it.
+                        let anchor = first;
+                        while (anchor.parentElement && anchor.parentElement !== group) {
+                            anchor = anchor.parentElement;
+                        }
+                        group.insertBefore(button, anchor);
+                    } else {
+                        // No page actions to sit beside: hang the button off the
+                        // header's own row so it still reads as a header action.
+                        const row = header.firstElementChild;
+                        (row || header).appendChild(button);
+                    }
+
+                    launcher.remove();
+                })();
 
                 // Automatically show bootstrap toasts if present
                 const toastElList = [].slice.call(document.querySelectorAll('.toast'));
