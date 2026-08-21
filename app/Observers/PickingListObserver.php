@@ -27,13 +27,54 @@ class PickingListObserver
         }
     }
 
+    /**
+     * The cost each product was captured at on the order this list fulfils.
+     *
+     * Keyed by product_id. Empty for lists that are not fulfilling an order -
+     * a stock transfer has no sale behind it to take a cost basis from.
+     *
+     * @return array<int, float>
+     */
+    private function orderLineCosts(PickingList $list): array
+    {
+        if ($list->reference_type !== Order::class) {
+            return [];
+        }
+
+        return \App\Models\OrderItem::where('order_id', $list->reference_id)
+            ->whereNotNull('unit_cost')
+            ->pluck('unit_cost', 'product_id')
+            ->map(fn ($cost) => (float) $cost)
+            ->all();
+    }
+
+    /**
+     * Cost basis for one picked line.
+     *
+     * Prefers the cost the order captured, so that posting a goods receipt
+     * cannot change the COGS of an order placed before it. Falls back to the
+     * product's current cost only where nothing was captured - transfers, and
+     * lines predating the unit_cost column.
+     *
+     * @param  array<int, float>  $orderCosts
+     */
+    private function unitCostFor($item, array $orderCosts): float
+    {
+        return $orderCosts[$item->product_id]
+            ?? (float) ($item->product->purchase_price ?? 0);
+    }
+
     private function finaliseStockMovements(PickingList $list): void
     {
         DB::transaction(function () use ($list) {
             // Cost of what actually leaves, accumulated as the lines are walked and
-            // posted to the ledger once below. Products are needed for their
-            // purchase price, which is the cost basis used across the ledger.
+            // posted to the ledger once below.
             $list->loadMissing('items.product');
+
+            // When the list is fulfilling an order, the cost basis is the one that
+            // order captured when it was placed - not whatever the product costs
+            // today. Loaded once here rather than per line.
+            $orderCosts = $this->orderLineCosts($list);
             $costOfGoods = 0;
 
             foreach ($list->items as $item) {
@@ -82,7 +123,7 @@ class PickingListObserver
 
                 // Value what is going at the picked quantity, never the requested
                 // one - a short pick must not charge cost that stayed on the shelf.
-                $costOfGoods += $qty * ($item->product->purchase_price ?? 0);
+                $costOfGoods += $qty * $this->unitCostFor($item, $orderCosts);
 
                 // Determine correct transaction type (transfer vs order)
                 $txnType = $list->reference_type === \App\Models\StockTransfer::class

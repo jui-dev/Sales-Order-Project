@@ -17,11 +17,14 @@ class OrderItem extends Model
         'location_type',
         'quantity',
         'unit_price',
+        'unit_cost',
         'subtotal',
     ];
 
+    /**
+     * unit_cost is a real column now, so only profit needs appending.
+     */
     protected $appends = [
-        'unit_cost',
         'profit',
     ];
 
@@ -43,15 +46,18 @@ class OrderItem extends Model
     /* ------------------------------------------------------------------
      | Dynamic Attributes
      |------------------------------------------------------------------*/
+
+    /**
+     * What this line cost us when it was sold.
+     *
+     * Deliberately does NOT fall back to the product's current purchase_price.
+     * That fallback is what let a later goods receipt rewrite the profit on
+     * orders that were closed months earlier. A line with no captured cost
+     * reads as 0 and is treated as "unknown", not as "today's cost".
+     */
     public function getUnitCostAttribute(): float
     {
-        // If the column exists in the attributes array, return it; otherwise
-        // fall back to the product's purchase price at the time of rendering.
-        if (array_key_exists('unit_cost', $this->attributes)) {
-            return (float) $this->attributes['unit_cost'];
-        }
-
-        return (float) ($this->product->purchase_price ?? 0);
+        return (float) ($this->attributes['unit_cost'] ?? 0);
     }
 
     public function getProfitAttribute(): float

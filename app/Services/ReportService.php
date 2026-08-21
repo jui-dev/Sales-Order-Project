@@ -488,8 +488,11 @@ class ReportService
         // Guard against missing location records
         $locationName = $locationModel?->name ?? 'Unknown';
 
+        // Cost comes off the line as captured at the time of sale. Reading the
+        // product's current purchase_price here meant every posted goods receipt
+        // retroactively rewrote the profit on every order already reported on.
         $revenue = (float) $item->unit_price * (int) $item->quantity;
-        $cost = (float) ($product->purchase_price ?? 0) * (int) $item->quantity;
+        $cost = (float) $item->unit_cost * (int) $item->quantity;
         $profit = $revenue - $cost;
 
         return [

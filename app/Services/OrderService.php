@@ -125,12 +125,19 @@ class OrderService
                         default => null,
                     };
 
+                    // Capture what the goods cost us right now. Without this the
+                    // line would be re-costed against products.purchase_price at
+                    // render time, so any later goods receipt would rewrite the
+                    // profit on an order that was already closed.
+                    $unitCost = (float) (\App\Models\Product::find($product['product_id'])?->purchase_price ?? 0);
+
                     $order->items()->create([
                         'product_id' => $product['product_id'],
                         'location_id' => $product['fulfillment_location_id'],
                         'location_type' => $locationType,
                         'quantity' => $product['quantity'],
                         'unit_price' => $product['unit_price'],
+                        'unit_cost' => $unitCost,
                         'subtotal' => $product['quantity'] * $product['unit_price'],
                     ]);
                 }

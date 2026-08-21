@@ -25,9 +25,6 @@ class OrderObserver
          --------------------------------------------------------------*/
 
         if ($order->status === 'confirmed') {
-            // Calculate gross profit for each product in the order
-            $this->calculateGrossProfitForOrder($order);
-
             // ----------------------------------------------------------
             // Picking list only for retailer fulfilment
             // ----------------------------------------------------------
@@ -92,39 +89,15 @@ class OrderObserver
         }
     }
 
-    /**
-     * Calculate gross profit for each product in the order when order is confirmed.
-     * Formula: Gross Profit = Revenue (Sales) - Cost of Goods Sold (COGS)
+    /*
+     * Confirming an order used to write products.gross_profit from the last
+     * order line's margin. That made two owners of one column - ProductObserver
+     * defines it as selling_price - purchase_price - so the figure shown on the
+     * products page contradicted the two prices printed beside it whenever a
+     * line was sold at anything other than list price.
+     *
+     * The catalogue figure now belongs solely to ProductObserver. Per-order
+     * profit is a property of the order, and comes off the line's own captured
+     * unit_price and unit_cost (see OrderItem::getProfitAttribute).
      */
-    private function calculateGrossProfitForOrder(Order $order): void
-    {
-        // Load order items with products to get purchase prices
-        $order->load('orderItems.product');
-
-        foreach ($order->orderItems as $item) {
-            $product = $item->product;
-            
-            if (!$product) {
-                continue; // Skip if product not found
-            }
-
-            // Calculate Revenue (Sales) for this item
-            $revenue = $item->unit_price * $item->quantity;
-            
-            // Calculate Cost of Goods Sold (COGS) for this item
-            $unitCost = $product->purchase_price ?? 0;
-            $cogs = $unitCost * $item->quantity;
-            
-            // Calculate Gross Profit for this item
-            $grossProfit = $revenue - $cogs;
-            
-            // Update the product's gross_profit field
-            // Note: This will be the gross profit per unit, not total
-            if ($item->quantity > 0) {
-                $grossProfitPerUnit = $grossProfit / $item->quantity;
-                $product->gross_profit = round($grossProfitPerUnit, 2);
-                $product->saveQuietly(); // Use saveQuietly to avoid triggering observers
-            }
-        }
-    }
 } 
