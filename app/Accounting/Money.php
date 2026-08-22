@@ -19,8 +19,20 @@ use Stringable;
  */
 final class Money implements JsonSerializable, Stringable
 {
-    /** Minor units per major unit, at the ledger's scale of 2. */
-    private const FACTOR = 100;
+    /**
+     * Minor units per major unit, derived from the configured scale.
+     *
+     * This was a hardcoded 100 while scaleDigits() read config('accounting.
+     * scale'), so the two disagreed the moment anybody used the setting:
+     * parse() padded the fraction to the configured width and then multiplied
+     * the whole part by 100 regardless, and toDecimal() padded to the
+     * configured width while dividing by 100. At any scale but 2 every amount
+     * in the system came out wrong, quietly.
+     */
+    private static function factor(): int
+    {
+        return 10 ** self::scaleDigits();
+    }
 
     private function __construct(
         public readonly int $minor,
@@ -52,7 +64,7 @@ final class Money implements JsonSerializable, Stringable
     public static function of(int|float|string $amount): self
     {
         if (is_int($amount)) {
-            return new self($amount * self::FACTOR);
+            return new self($amount * self::factor());
         }
 
         if (is_float($amount)) {
@@ -100,7 +112,7 @@ final class Money implements JsonSerializable, Stringable
 
         $fraction = str_pad(substr($fraction, 0, $digits), $digits, '0');
 
-        $minor = (int) $m['whole'] * self::FACTOR + (int) $fraction;
+        $minor = (int) $m['whole'] * self::factor() + (int) $fraction;
 
         if ($roundUp) {
             $minor++;
@@ -182,16 +194,17 @@ final class Money implements JsonSerializable, Stringable
     public function toDecimal(): string
     {
         $digits = self::scaleDigits();
+        $factor = self::factor();
         $sign = $this->minor < 0 ? '-' : '';
         $minor = abs($this->minor);
 
-        return $sign . intdiv($minor, self::FACTOR) . '.' . str_pad((string) ($minor % self::FACTOR), $digits, '0', STR_PAD_LEFT);
+        return $sign . intdiv($minor, $factor) . '.' . str_pad((string) ($minor % $factor), $digits, '0', STR_PAD_LEFT);
     }
 
     /** Only for display and for handing to code that still wants a float. */
     public function toFloat(): float
     {
-        return $this->minor / self::FACTOR;
+        return $this->minor / self::factor();
     }
 
     public function __toString(): string

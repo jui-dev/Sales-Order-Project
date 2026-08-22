@@ -56,7 +56,15 @@ class SupplierBillPostingRule implements PostingRule
 
         $net = Money::of((string) $bill->total_amount);
 
-        if ($net->isZero()) {
+        // Recoverable input tax, once supplier bills carry a tax figure. The
+        // column does not exist yet, so this is inert rather than speculative
+        // structure: the moment a tax amount lands on the bill it books to the
+        // asset it belongs in instead of inflating the cost of the goods.
+        $tax = Money::of((string) ($bill->tax_amount ?? 0));
+
+        // Nothing owed either way. Testing the net alone meant a bill that was
+        // all tax and no goods posted nothing at all.
+        if ($net->isZero() && $tax->isZero()) {
             return $draft;
         }
 
@@ -66,12 +74,6 @@ class SupplierBillPostingRule implements PostingRule
             [],
             'Clearing goods received - Supplier Bill ' . $reference,
         );
-
-        // Recoverable input tax, once supplier bills carry a tax figure. The
-        // column does not exist yet, so this is inert rather than speculative
-        // structure: the moment a tax amount lands on the bill it books to the
-        // asset it belongs in instead of inflating the cost of the goods.
-        $tax = Money::of((string) ($bill->tax_amount ?? 0));
 
         if (! $tax->isZero()) {
             $draft->debit(
