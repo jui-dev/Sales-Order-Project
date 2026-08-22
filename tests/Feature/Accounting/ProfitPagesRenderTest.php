@@ -34,7 +34,7 @@ class ProfitPagesRenderTest extends TestCase
     public function both_profit_pages_render_a_sale_net_of_its_return(): void
     {
         $this->seed(ChartOfAccountsSeeder::class);
-        $this->actingAs(User::factory()->create());
+        $this->actingAs($this->adminUser());
 
         $warehouse = Warehouse::factory()->create(['name' => 'Main Warehouse']);
         $customer = Customer::factory()->create();

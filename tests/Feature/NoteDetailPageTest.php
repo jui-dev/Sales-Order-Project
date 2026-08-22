@@ -44,7 +44,7 @@ class NoteDetailPageTest extends TestCase
     {
         parent::setUp();
 
-        $this->user = User::factory()->create();
+        $this->user = $this->adminUser();
         $this->actingAs($this->user);
 
         $this->product = Product::factory()->create([

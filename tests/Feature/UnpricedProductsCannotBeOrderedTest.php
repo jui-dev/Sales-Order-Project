@@ -93,8 +93,13 @@ class UnpricedProductsCannotBeOrderedTest extends TestCase
     private function actAsOverrider(): User
     {
         $role = Role::firstOrCreate(['name' => 'sales-lead'], ['label' => 'Sales Lead']);
+        // Overriding a price is authority on top of being allowed to place the
+        // order at all, which is what orders.manage is for - so a sales lead
+        // holds both. The route only started asking for the second one when
+        // every route began checking a permission.
         $role->permissions()->sync(
-            \App\Models\Permission::where('name', 'orders.override-price')->pluck('id')->all()
+            \App\Models\Permission::whereIn('name', ['orders.manage', 'orders.override-price'])
+                ->pluck('id')->all()
         );
 
         $user = User::factory()->create();

@@ -19,7 +19,7 @@ class AccountingHealthPageTest extends TestCase
         parent::setUp();
 
         $this->seed(ChartOfAccountsSeeder::class);
-        $this->actingAs(User::factory()->create());
+        $this->actingAs($this->adminUser());
     }
 
     public function test_it_reports_a_clean_ledger(): void

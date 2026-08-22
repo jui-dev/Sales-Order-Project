@@ -217,66 +217,6 @@ Route::prefix('returns/ajax')->group(function () {
     Route::post('validate-quantity', [\App\Http\Controllers\ReturnController::class, 'validateReturnQuantity']);
 });
 
-// Debug route for testing
-Route::get('debug/invoice/{invoice}', function(\App\Models\Invoice $invoice) {
-    try {
-        $invoice->load(['items.product']);
-        return response()->json([
-            'invoice_id' => $invoice->id,
-            'items_count' => $invoice->items->count(),
-            'items' => $invoice->items->map(function($item) {
-                return [
-                    'id' => $item->id,
-                    'product_id' => $item->product_id,
-                    'product_name' => $item->product ? $item->product->name : 'Unknown',
-                    'quantity' => $item->quantity,
-                ];
-            })
-        ]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-});
-
-// Test route for fulfillment location
-Route::get('debug/fulfillment-location/{invoice}', function(\App\Models\Invoice $invoice) {
-    try {
-        $invoice->load(['order.fulfillmentLocation']);
-
-        if (!$invoice->order) {
-            return response()->json(['error' => 'No order found for this invoice'], 404);
-        }
-
-        $order = $invoice->order;
-        $fulfillmentLocationId = $order->fulfillment_location_id;
-        $fulfillmentLocationType = $order->fulfillment_location_type;
-
-        // Try to load the fulfillment location manually
-        if ($fulfillmentLocationType === 'App\\Models\\Warehouse') {
-            $fulfillmentLocation = \App\Models\Warehouse::find($fulfillmentLocationId);
-        } elseif ($fulfillmentLocationType === 'App\\Models\\Retailer') {
-            $fulfillmentLocation = \App\Models\Retailer::find($fulfillmentLocationId);
-        } else {
-            $fulfillmentLocation = null;
-        }
-
-        return response()->json([
-            'invoice_id' => $invoice->id,
-            'order_id' => $order->id,
-            'fulfillment_location_id' => $fulfillmentLocationId,
-            'fulfillment_location_type' => $fulfillmentLocationType,
-            'fulfillment_location' => $fulfillmentLocation ? [
-                'id' => $fulfillmentLocation->id,
-                'name' => $fulfillmentLocation->name,
-                'type' => get_class($fulfillmentLocation),
-                'type_name' => class_basename($fulfillmentLocation)
-            ] : null
-        ]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-});
-
 // Returns Routes (Unified Stock Transactions) - Specific routes must come before resource route
 Route::get('returns/create-with-data', [\App\Http\Controllers\ReturnController::class, 'createWithData'])->name('returns.create-with-data');
 Route::resource('returns', \App\Http\Controllers\ReturnController::class);

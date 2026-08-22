@@ -23,6 +23,28 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
+     * A fresh user that clears every permission gate.
+     *
+     * setUp() already signs in as an admin, but a test that wants a user
+     * object of its own used to reach for User::factory() and sign that in
+     * instead - which was harmless only while the routes were ungated. Now
+     * that every route checks a permission, a test about rendering a page
+     * needs a user who is allowed to see it, not a user with no roles at all.
+     */
+    protected function adminUser(): User
+    {
+        if (! Role::query()->where('name', Role::ADMIN)->exists()) {
+            $this->seed(RolePermissionSeeder::class);
+        }
+
+        $user = User::factory()->create();
+        $user->roles()->sync([Role::query()->where('name', Role::ADMIN)->value('id')]);
+        $user->forgetCachedPermissions();
+
+        return $user;
+    }
+
+    /**
      * Seed the chart of accounts once the schema is in place.
      *
      * AccountingService resolves ledger accounts by code and throws

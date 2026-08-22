@@ -18,7 +18,12 @@ return Application::configure(basePath: dirname(__DIR__))
             // Login lives outside the auth group, but still needs session + CSRF.
             Route::middleware('web')->group(base_path('routes/auth.php'));
 
-            Route::middleware(['web', 'auth'])->group(base_path('routes/web.php'));
+            // EnforceRoutePermissions runs after auth on every route, applying
+            // the App\Support\RoutePermissions table. Gating route by route
+            // only ever guarded the routes somebody remembered, and most of
+            // this application had been forgotten.
+            Route::middleware(['web', 'auth', \App\Http\Middleware\EnforceRoutePermissions::class])
+                ->group(base_path('routes/web.php'));
 
             // The api routes are called by fetch() from Blade pages, so they need
             // the session cookie to authenticate - otherwise they would be an
@@ -37,6 +42,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 // need CSRF protection they did not previously require.
                 \App\Http\Middleware\VerifyCsrfToken::class,
                 'auth',
+                // The API mirrors the web modules, so it is gated by the same
+                // table - otherwise it is a way around every gate on them.
+                \App\Http\Middleware\EnforceRoutePermissions::class,
             ])
                 ->prefix('api')
                 ->group(base_path('routes/api.php'));
@@ -59,6 +67,15 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\TrackTriggeredEffects::class,
         ]);
         
+        // The permission check has to happen before route-model binding, or a
+        // user with no rights to a record learns whether it exists: binding
+        // 404s on a missing id before the gate ever runs, so the same request
+        // answers 404 or 403 depending on what is in the database.
+        $middleware->prependToPriorityList(
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\EnforceRoutePermissions::class,
+        );
+
         // Replace the default VerifyCsrfToken middleware with our custom one
         $middleware->replace(
             \Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class,
