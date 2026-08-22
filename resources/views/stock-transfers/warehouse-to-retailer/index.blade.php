@@ -1,7 +1,10 @@
 @extends('layouts.app')
 @section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-building-arrow-right me-2"></i>Warehouse to Retailer Picking</h1>
+        <div>
+            <h1 class="mb-1">Warehouse to Retailer Transfer</h1>
+            <p class="text-muted mb-0">Internal transfer &mdash; stock moving from a warehouse to a retail location.</p>
+        </div>
         <div>
             <a href="{{ route('stock-transfers.warehouse-to-retailer.create') }}" class="btn btn-primary">
                 <i class="bi bi-plus-circle me-1"></i> Create Stock Transfer
@@ -33,7 +36,7 @@
 <div class="alert alert-info d-flex align-items-center" role="alert">
     <i class="bi bi-info-circle me-2"></i>
     <div>
-        <strong>Warehouse to Retailer Picking:</strong> This section manages stock transfers from warehouses to retail locations. Manual transfers are completed immediately upon creation, while automatic transfers are generated from retailer orders and processed automatically.
+        <strong>How transfers complete:</strong> Manual transfers are completed immediately upon creation, while automatic transfers are generated from retailer orders and processed automatically.
     </div>
 </div>
 

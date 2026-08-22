@@ -1,9 +1,12 @@
 @extends('layouts.app')
 @section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
-        {{-- "Supplies" alone reads as stock on hand; the bracket says what a
-             row here actually is - goods coming in from a vendor. --}}
-        <h1 class="mb-0">Supplies <span class="h5 fw-normal text-muted align-middle">(Vendor Shipment)</span></h1>
+        <div>
+            {{-- "Supplies" alone reads as stock on hand; the bracket says what a
+                 row here actually is - goods coming in from a vendor. --}}
+            <h1 class="mb-1">Supplies <span class="h5 fw-normal text-muted align-middle">(Vendor Shipment)</span></h1>
+            <p class="text-muted mb-0">Inbound movement &mdash; goods arriving from a vendor.</p>
+        </div>
         {{-- A supply is always recorded against an order, so the way in is the
              list of orders awaiting a delivery - there is no order-less form. --}}
         <div class="d-flex flex-wrap gap-2">

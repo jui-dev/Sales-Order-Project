@@ -1,7 +1,12 @@
 @extends('layouts.app')
 @section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-arrow-return-left me-2"></i>{{ $pageTitle ?? 'Return Management' }}</h1>
+        <div>
+            <h1 class="mb-1">{{ $pageTitle ?? 'Return Management' }}</h1>
+            @if($pageSubtitle ?? false)
+                <p class="text-muted mb-0">{{ $pageSubtitle }}</p>
+            @endif
+        </div>
         <div>
             <a href="{{ route('returns.create') }}" class="btn btn-primary">
                 <i class="bi bi-plus-circle me-1"></i> Create Return
@@ -17,7 +22,7 @@
 
     <div class="alert alert-info mb-4">
         <i class="bi bi-info-circle"></i>
-        <strong>Return Management:</strong> All returns are managed through stock transactions. Customer returns generate credit notes, vendor returns generate debit notes, and retailer returns move stock back to warehouses.
+        <strong>How returns are recorded:</strong> All returns are managed through stock transactions. Customer returns generate credit notes, vendor returns generate debit notes, and retailer returns move stock back to warehouses.
     </div>
 
     <!-- Statistics Cards -->

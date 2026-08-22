@@ -1,7 +1,10 @@
 @extends('layouts.app')
 @section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-house-arrow-right me-2"></i>Warehouse to Customer Picking</h1>
+        <div>
+            <h1 class="mb-1">Warehouse to Customer Picking</h1>
+            <p class="text-muted mb-0">Outbound movement &mdash; stock leaving a warehouse for a customer.</p>
+        </div>
         <div>
             <a href="{{ route('orders.index') }}" class="btn btn-outline-primary me-2">
                 <i class="bi bi-cart me-1"></i> View Orders
@@ -34,7 +37,7 @@
 <div class="alert alert-info d-flex align-items-center" role="alert">
     <i class="bi bi-info-circle me-2"></i>
     <div>
-        <strong>Warehouse to Customer Picking:</strong> This section shows all picking records created when customers place orders with warehouse fulfillment. Orders are automatically processed when completed.
+        <strong>How picking records are created:</strong> A record appears here when a customer places an order with warehouse fulfillment, and is processed automatically when the order is completed.
     </div>
 </div>
 

@@ -355,6 +355,25 @@ class UnifiedReturnManagementTest extends TestCase
     }
 
     /** @test */
+    public function it_gets_page_subtitle()
+    {
+        $returnService = app(ReturnService::class);
+
+        $subtitle = $returnService->getPageSubtitle();
+        $this->assertEquals('Goods coming back — inbound from customers and retailers, outbound to vendors.', $subtitle);
+
+        $customerSubtitle = $returnService->getPageSubtitle('customer_return');
+        $this->assertEquals('Inbound movement — goods coming back from a customer.', $customerSubtitle);
+
+        // A vendor return is the one that leaves again, so it must not say inbound.
+        $vendorSubtitle = $returnService->getPageSubtitle('vendor_return');
+        $this->assertEquals('Outbound movement — goods going back to the vendor.', $vendorSubtitle);
+
+        $retailerSubtitle = $returnService->getPageSubtitle('retailer_return');
+        $this->assertEquals('Inbound movement — stock coming back from a retailer to a warehouse.', $retailerSubtitle);
+    }
+
+    /** @test */
     public function stock_transaction_model_has_return_methods()
     {
         // Create a customer return

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-clock-history me-2"></i>Transaction History: {{ $product->name ?? 'Unknown Product' }}</h1>
+    <h1>Transaction History: {{ $product->name ?? 'Unknown Product' }}</h1>
     <div>
         <a href="{{ route('products.stock-analysis', $product) }}" class="btn btn-outline-info">
             <i class="bi bi-graph-up me-1"></i> Stock Analysis

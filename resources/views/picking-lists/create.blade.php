@@ -49,7 +49,7 @@
 
 @section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1><i class="bi bi-arrow-left-right me-2"></i>Create Stock Transfer to Retailer</h1>
+    <h1>Create Stock Transfer to Retailer</h1>
     <a href="{{ route('picking-lists.index') }}" class="btn btn-secondary">
         <i class="bi bi-arrow-left me-1"></i> Back to Picking Lists
     </a>

@@ -46,8 +46,9 @@ class ReturnController extends Controller
         $filterOptions = $this->returnService->getFilterOptions();
         $sortOptions = $this->returnService->getSortOptions();
         $pageTitle = $this->returnService->getPageTitle($request->get('type'));
+        $pageSubtitle = $this->returnService->getPageSubtitle($request->get('type'));
 
-        return view('returns.index', compact('returns', 'statistics', 'filterOptions', 'sortOptions', 'pageTitle'));
+        return view('returns.index', compact('returns', 'statistics', 'filterOptions', 'sortOptions', 'pageTitle', 'pageSubtitle'));
     }
 
     /**

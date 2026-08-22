@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('page-header')
 <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-list-ul me-2"></i>All Picking Lists</h1>
+        <h1>All Picking Lists</h1>
     </div>
 @endsection
 

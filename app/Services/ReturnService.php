@@ -899,6 +899,26 @@ class ReturnService
     }
 
     /**
+     * Get page subtitle based on return type
+     *
+     * Says which way the stock is actually moving. A vendor return is the one
+     * that goes back out, so it cannot share a subtitle with the others.
+     */
+    public function getPageSubtitle(?string $type = null): string
+    {
+        if (!$type) {
+            return 'Goods coming back — inbound from customers and retailers, outbound to vendors.';
+        }
+
+        return match($type) {
+            'customer_return' => 'Inbound movement — goods coming back from a customer.',
+            'vendor_return' => 'Outbound movement — goods going back to the vendor.',
+            'retailer_return' => 'Inbound movement — stock coming back from a retailer to a warehouse.',
+            default => 'Goods coming back — inbound from customers and retailers, outbound to vendors.',
+        };
+    }
+
+    /**
      * Helper method to get location by type and ID
      */
     private function getLocation(string $locationType, int $locationId)

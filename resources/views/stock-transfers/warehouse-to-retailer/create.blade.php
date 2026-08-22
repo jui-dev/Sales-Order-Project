@@ -329,7 +329,7 @@
 
 @section('page-header')
 <div class="mb-4">
-    <h1><i class="bi bi-arrow-left-right me-2"></i>Create Stock Transfer to Retailer</h1>
+    <h1>Create Stock Transfer to Retailer</h1>
 </div>
 @endsection
 
