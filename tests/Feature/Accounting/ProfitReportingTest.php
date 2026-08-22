@@ -18,6 +18,7 @@ use App\Services\ReportService;
 use App\Services\ReturnService;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -46,6 +47,14 @@ class ProfitReportingTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // The one test in this suite whose window is relative to the clock:
+        // rangeStart() and rangeEnd() are evaluated when the report is asked
+        // for, while the entries were dated when they were written. Pinning the
+        // clock is what makes the exact figures below a property of the posting
+        // rules rather than of when the suite happened to run. Mid-month on
+        // purpose, so nothing here sits on a period boundary.
+        Carbon::setTestNow(Carbon::parse('2026-06-15 10:00:00'));
 
         $this->seed(ChartOfAccountsSeeder::class);
         $this->actingAs(User::factory()->create());
@@ -326,6 +335,13 @@ class ProfitReportingTest extends TestCase
             'start_date' => $this->rangeStart(),
             'end_date'   => $this->rangeEnd(),
         ]);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     private function rangeStart(): string
