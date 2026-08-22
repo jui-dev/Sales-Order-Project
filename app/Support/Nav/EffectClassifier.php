@@ -154,7 +154,11 @@ final class EffectClassifier
             Account::class => ['accounting.chart-of-accounts'],
             AuditLog::class => ['accounting.audit-logs'],
 
-            Product::class => ['products'],
+            // 'catalog.products', not 'products': the sidebar row is keyed by
+            // the former, and NavCatalog::path() returns an unknown key
+            // unchanged rather than complaining - so the badge went to a row
+            // nothing reads and Products never lit up.
+            Product::class => ['catalog.products'],
             Vendor::class => ['vendors'],
             Customer::class => ['customers'],
             User::class => ['admin.users'],
@@ -214,7 +218,7 @@ final class EffectClassifier
         //
         // `code` rather than `formatted_id`: where a model also has a
         // formatted_id column, the stored value shadows the trait's accessor,
-        // and it is not always the final one. AccountingService::post() seeds a
+        // and it is not always the final one. PostingEngine::write() seeds a
         // journal entry with a placeholder uuid and rewrites it with a quiet
         // save afterwards - quiet enough that this listener still holds the
         // uuid. `code` is derived from the key, so it is right either way.

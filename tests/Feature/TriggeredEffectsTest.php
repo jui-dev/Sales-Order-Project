@@ -224,10 +224,21 @@ class TriggeredEffectsTest extends TestCase
 
     public function test_the_reference_page_lists_what_actions_trigger(): void
     {
-        $this->actingAs(User::find(1))
+        $response = $this->actingAs(User::find(1))
             ->get(route('reference.action-effects'))
             ->assertOk()
             ->assertSee('Mark supply completed')
             ->assertSee('Post a goods receipt note');
+
+        // Receiving goods reaches the ledger, and the page has to say so - it
+        // described the old behaviour, where nothing was booked until somebody
+        // posted the supplier bill.
+        $response->assertSee('Goods Received Not Invoiced');
+
+        // Every destination renders as a breadcrumb. A bare key here means it
+        // is not in NavCatalog, and a badge sent to it is never read.
+        $response->assertSee('Catalog &gt; Products', false);
+        $response->assertDontSee('badge-subtle">
+                                                products', false);
     }
 }

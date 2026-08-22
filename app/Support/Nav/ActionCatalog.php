@@ -79,10 +79,11 @@ final class ActionCatalog
                 ['key' => 'procurement.grns', 'what' => 'The GRN moves to Posted.'],
                 ['key' => 'stock.stock-management', 'what' => 'One inbound stock movement per supplied line, which is what actually puts the goods in the warehouse, plus a Vendor to Warehouse stock transfer recording the delivery as a whole.'],
                 ['key' => 'procurement.supplier-bills', 'what' => 'A draft supplier bill is created automatically from the supply lines.'],
-                ['key' => 'products', 'what' => 'Each received line writes its cost to the product, and the selling price is recalculated from that cost plus the product markup.'],
-                ['key' => 'accounting.audit-logs', 'what' => 'The bill creation is written to the audit trail.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'A posted journal is raised: Inventory debit against the receiving warehouse, Goods Received Not Invoiced credit. The goods are on the books from the moment they arrive.'],
+                ['key' => 'catalog.products', 'what' => 'Each received line records what it cost in the costing ledger, which moves the weighted average cost the stock is carried at. No price changes.'],
+                ['key' => 'accounting.audit-logs', 'what' => 'The receipt and the bill creation are written to the audit trail.'],
             ],
-            'note' => 'This is the step where stock becomes real and sellable, and the only step that changes a price.',
+            'note' => 'This is the step where stock becomes real and sellable, and where its value reaches the ledger. It changes no price: under simple pricing, Catalog > Product Pricing is the only place a price moves.',
         ],
         'supplier-bills.post' => [
             'label' => 'Post a supplier bill',
@@ -90,10 +91,11 @@ final class ActionCatalog
             'where' => 'Post on the supplier bill page',
             'effects' => [
                 ['key' => 'procurement.supplier-bills', 'what' => 'The bill moves to Posted.'],
-                ['key' => 'accounting.journal-entries', 'what' => 'A draft purchase journal is raised: Inventory debit, Accounts Payable credit.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'A posted purchase journal is raised: Goods Received Not Invoiced debit, Accounts Payable credit against the vendor.'],
                 ['key' => 'procurement.supplier-bill-payments', 'what' => 'An unpaid payment record is opened against the bill.'],
                 ['key' => 'accounting.audit-logs', 'what' => 'The posting is written to the audit trail.'],
             ],
+            'note' => 'Inventory is not touched here. The goods went into stock when they physically arrived; this only moves what is owed for them from the clearing account to the vendor.',
         ],
         'supplier-bills.pay' => [
             'label' => 'Pay a supplier bill',
@@ -101,10 +103,10 @@ final class ActionCatalog
             'where' => 'Mark as Paid on the supplier bill page',
             'effects' => [
                 ['key' => 'procurement.supplier-bill-payments', 'what' => 'The payment record moves to Paid.'],
-                ['key' => 'accounting.journal-entries', 'what' => 'A draft payment journal is raised: Accounts Payable debit, Cash credit.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'A posted payment journal is raised: Accounts Payable debit against the vendor, Cash credit.'],
                 ['key' => 'accounting.audit-logs', 'what' => 'The settlement is written to the audit trail.'],
             ],
-            'note' => 'Both journals are raised as drafts; they still need approving and posting under Accounting.',
+            'note' => 'Both journals reach the ledger immediately. Nothing waits for approval: the bill they come from has already been confirmed by the person who confirmed it.',
         ],
 
         // --- Sales -------------------------------------------------------------
@@ -123,8 +125,8 @@ final class ActionCatalog
             'effects' => [
                 ['key' => 'sales.orders', 'what' => 'The order moves to the chosen status.'],
                 ['key' => 'picking.retailer-to-customers', 'what' => 'On Confirmed, a retailer-fulfilled order raises a picking list and reserves the stock.'],
-                ['key' => 'products', 'what' => 'On Confirmed, gross profit per product is recalculated from the order lines.'],
                 ['key' => 'sales.invoices', 'what' => 'On Completed, an invoice is generated from the order.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'That invoice raises a posted sales journal: Accounts Receivable debit against the customer, Sales Revenue credit at the net amount, and any tax credited to Sales Tax Payable.'],
             ],
             'note' => 'Which of these fire depends on the status chosen and on where the order is fulfilled from.',
         ],
@@ -157,6 +159,7 @@ final class ActionCatalog
             'effects' => [
                 ['key' => 'picking.warehouse-to-retailers', 'what' => 'The picking list and its transfer are marked completed.'],
                 ['key' => 'stock.stock-management', 'what' => 'Stock leaves the warehouse and arrives at the retailer, and the reservation is released.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'A posted journal moves the inventory value between the two locations. Nothing is bought or sold, so no revenue or cost account is touched.'],
             ],
         ],
         'stock-transfers.warehouse-to-retailer.quick-complete' => [
@@ -166,6 +169,7 @@ final class ActionCatalog
             'effects' => [
                 ['key' => 'picking.warehouse-to-retailers', 'what' => 'Every line is picked at the requested quantity and the transfer completes.'],
                 ['key' => 'stock.stock-management', 'what' => 'Stock leaves the warehouse and arrives at the retailer.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'A posted journal moves the inventory value between the two locations.'],
             ],
         ],
         'stock-transfers.warehouse-to-retailer.cancel' => [
@@ -183,7 +187,10 @@ final class ActionCatalog
             'effects' => [
                 ['key' => 'picking.retailer-to-customers', 'what' => 'The picking list is marked completed.'],
                 ['key' => 'stock.stock-management', 'what' => 'Picked stock leaves the retailer.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'A posted journal charges the cost of what shipped: Cost of Goods Sold debit, Inventory credit at the location the goods left.'],
+                ['key' => 'sales.invoices', 'what' => 'The order it fulfils is completed, which generates its invoice and the sales journal with it.'],
             ],
+            'note' => 'The cost is taken at the weighted average in force on the day the goods shipped, which is the same basis inventory is carried at - so the inventory account stays reconcilable to the stock behind it.',
         ],
         'customer-picking.update-status' => [
             'label' => 'Change a customer picking list status',
@@ -192,7 +199,10 @@ final class ActionCatalog
             'effects' => [
                 ['key' => 'picking.all', 'what' => 'The picking list moves to the chosen status.'],
                 ['key' => 'stock.stock-management', 'what' => 'On completion, the picked stock is deducted from the source location.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'On completion of a list fulfilling an order, Cost of Goods Sold is debited and Inventory credited at the location the goods left.'],
+                ['key' => 'sales.invoices', 'what' => 'On completion, the order it fulfils is completed too, which generates its invoice and the sales journal with it.'],
             ],
+            'note' => 'Only a list fulfilling a sale charges cost. A transfer keeps the value inside the business and moves it between locations instead.',
         ],
 
         // --- Returns --------------------------------------------------------------
@@ -214,9 +224,9 @@ final class ActionCatalog
                 ['key' => 'stock.stock-management', 'what' => 'The returned stock is booked back in or out, depending on the return type.'],
                 ['key' => 'returns.credit-notes', 'what' => 'A customer return generates a credit note, and you are sent to it.'],
                 ['key' => 'returns.debit-notes', 'what' => 'A vendor return generates a debit note, and you are sent to it.'],
-                ['key' => 'accounting.journal-entries', 'what' => 'The matching journal is raised for the return.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'A retailer return posts its journal here, moving the inventory value back to the warehouse it came from.'],
             ],
-            'note' => 'Which note is produced follows the return type; retailer returns produce neither.',
+            'note' => 'Which note is produced follows the return type; retailer returns produce neither. For customer and vendor returns nothing reaches the ledger yet - their journal follows when the note itself is posted.',
         ],
         'returns.reject' => [
             'label' => 'Reject a return',
@@ -241,7 +251,7 @@ final class ActionCatalog
             'where' => 'Post on the credit note page',
             'effects' => [
                 ['key' => 'returns.credit-notes', 'what' => 'The credit note moves to Posted.'],
-                ['key' => 'accounting.journal-entries', 'what' => 'Its journal entry is raised.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'A posted reversal is raised: Sales Returns and any tax debited, Accounts Receivable credited against the customer, and the goods put back into inventory at cost against Cost of Goods Sold.'],
             ],
         ],
         'debit-notes.post' => [
@@ -250,7 +260,7 @@ final class ActionCatalog
             'where' => 'Post on the debit note page',
             'effects' => [
                 ['key' => 'returns.debit-notes', 'what' => 'The debit note moves to Posted.'],
-                ['key' => 'accounting.journal-entries', 'what' => 'Its journal entry is raised.'],
+                ['key' => 'accounting.journal-entries', 'what' => 'A posted reversal is raised: Accounts Payable debited against the vendor, inventory credited at cost, and any difference between the two booked to Purchase Returns.'],
             ],
         ],
 
@@ -271,6 +281,7 @@ final class ActionCatalog
                 ['key' => 'accounting.journal-entries', 'what' => 'The entry moves to Approved and becomes eligible for posting.'],
                 ['key' => 'accounting.audit-logs', 'what' => 'The approval is written to the audit trail.'],
             ],
+            'note' => 'Only entries somebody typed take this path. An entry the system raised from a document is posted when that document is confirmed, and refuses to be approved a second time.',
         ],
         'journal-entries.post' => [
             'label' => 'Post a journal entry',
@@ -280,6 +291,7 @@ final class ActionCatalog
                 ['key' => 'accounting.journal-entries', 'what' => 'The entry moves to Posted and reaches the ledger and the reports.'],
                 ['key' => 'accounting.audit-logs', 'what' => 'The posting is written to the audit trail.'],
             ],
+            'note' => 'Posting is one way: a posted entry can never be edited or deleted, only corrected by a further entry against it.',
         ],
         'accounting.chart-of-accounts.store' => [
             'label' => 'Add an account',
