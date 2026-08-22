@@ -128,9 +128,6 @@
                                 <i class="bi bi-cart display-1 d-block mb-3"></i>
                                 <h5>No Orders Found</h5>
                                 <p class="mb-0">No orders have been created yet.</p>
-                                <a href="{{ route('orders.create') }}" class="btn btn-primary mt-3">
-                                    <i class="bi bi-plus-circle me-1"></i>Create First Order
-                                </a>
                             </div>
                         </td>
                     </tr>
