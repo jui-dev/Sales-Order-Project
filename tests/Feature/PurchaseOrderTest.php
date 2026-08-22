@@ -464,4 +464,60 @@ class PurchaseOrderTest extends TestCase
         $this->get(route('purchase-orders.create'))->assertOk();
         $this->get(route('purchase-orders.edit', $order))->assertOk();
     }
+    public function test_the_listing_can_be_searched_by_vendor(): void
+    {
+        $mine = $this->createOrder();
+
+        $other = Vendor::factory()->create(['name' => 'Northwind Traders']);
+        $theirs = PurchaseOrder::create([
+            'vendor_id' => $other->id,
+            'warehouse_id' => $this->warehouse->id,
+            'status' => PurchaseOrder::STATUS_DRAFT,
+        ]);
+
+        $this->get(route('purchase-orders.index', ['search' => 'Northwind']))
+            ->assertOk()
+            ->assertSee($theirs->code)
+            ->assertDontSee($mine->code);
+    }
+
+    public function test_the_listing_can_be_searched_by_the_order_code(): void
+    {
+        $order = $this->createOrder();
+
+        $this->get(route('purchase-orders.index', ['search' => $order->code]))
+            ->assertOk()
+            ->assertSee($order->code);
+    }
+
+    public function test_the_listing_filters_by_status_and_warehouse(): void
+    {
+        $draft = $this->createOrder();
+        $sent = $this->sentOrder();
+
+        $this->get(route('purchase-orders.index', ['status' => PurchaseOrder::STATUS_SENT]))
+            ->assertOk()
+            ->assertSee($sent->code)
+            ->assertDontSee($draft->code);
+
+        $elsewhere = Warehouse::factory()->create();
+
+        // Nothing was ordered into the other warehouse, so the listing is empty.
+        $this->get(route('purchase-orders.index', ['warehouse_id' => $elsewhere->id]))
+            ->assertOk()
+            ->assertDontSee($draft->code)
+            ->assertDontSee($sent->code);
+    }
+
+    public function test_an_unknown_sort_field_does_not_break_the_listing(): void
+    {
+        $order = $this->createOrder();
+
+        // The sort comes off the query string, so it is only ever a column
+        // this page offers - anything else falls back rather than erroring.
+        $this->get(route('purchase-orders.index', ['sort' => 'vendor_id; drop table', 'direction' => 'asc']))
+            ->assertOk()
+            ->assertSee($order->code);
+    }
+
 }

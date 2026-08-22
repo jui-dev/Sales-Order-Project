@@ -24,78 +24,98 @@
 @endsection
 
 @section('content')
-<div class="card mb-4">
-    <div class="card-body">
-        <form method="GET" class="row g-2 align-items-end">
-            <div class="col-md-4">
-                <label for="status" class="form-label">Status</label>
-                <select name="status" id="status" class="form-select">
-                    <option value="">All statuses</option>
-                    @foreach ($statuses as $value => $label)
-                        <option value="{{ $value }}" @selected(($filters['status'] ?? '') === $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label for="vendor_id" class="form-label">Vendor</label>
-                <select name="vendor_id" id="vendor_id" class="form-select">
-                    <option value="">All vendors</option>
-                    @foreach ($vendors as $vendor)
-                        <option value="{{ $vendor->id }}" @selected(($filters['vendor_id'] ?? '') == $vendor->id)>{{ $vendor->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-md-4 d-flex gap-2">
-                <button type="submit" class="btn btn-outline-primary">Filter</button>
-                <a href="{{ route('purchase-orders.index') }}" class="btn btn-outline-secondary">Reset</a>
-            </div>
-        </form>
-    </div>
-</div>
+<div class="container-fluid">
 
-<div class="card">
-    <div class="card-body">
-        <table class="table table-striped align-middle">
-            <thead>
-                <tr>
-                    <th>Order</th>
-                    <th>Vendor</th>
-                    <th>Deliver To</th>
-                    <th>Status</th>
-                    <th>Items</th>
-                    <th class="text-end">Total</th>
-                    <th>Expected</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($orders as $order)
-                    <tr>
-                        <td><strong>{{ $order->code }}</strong></td>
-                        <td>{{ $order->vendor->name ?? '—' }}</td>
-                        <td>{{ $order->warehouse->name ?? '—' }}</td>
-                        <td>
-                            <span class="badge bg-{{ $badge[$order->status] ?? 'secondary' }}">
-                                {{ $statuses[$order->status] ?? ucfirst($order->status) }}
-                            </span>
-                        </td>
-                        <td>{{ $order->items->count() }}</td>
-                        <td class="text-end">${{ number_format($order->total_cost, 2) }}</td>
-                        <td>{{ $order->expected_date?->format('M d, Y') ?? '—' }}</td>
-                        <td class="text-end">
-                            <a href="{{ route('purchase-orders.show', $order) }}" class="btn btn-sm btn-info">View</a>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="8" class="text-center text-muted py-4">
-                            No purchase orders yet.
-                            <a href="{{ route('purchase-orders.create') }}">Create the first one</a>.
-                        </td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
+    <!-- Unified Search Component -->
+    <x-unified-search
+        :searchPlaceholder="'Search orders by code, vendor, warehouse, or product...'"
+        :filterOptions="$filterOptions"
+        :sortOptions="$sortOptions"
+        :defaultSort="'id'"
+        :defaultDirection="'desc'"
+    />
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Vendor</th>
+                            <th>Deliver To</th>
+                            <th>Status</th>
+                            <th>Items</th>
+                            <th class="text-end">Total</th>
+                            <th>Expected</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($orders as $order)
+                            <tr>
+                                <td><strong>{{ $order->code }}</strong></td>
+                                <td>{{ $order->vendor->name ?? '—' }}</td>
+                                <td>{{ $order->warehouse->name ?? '—' }}</td>
+                                <td>
+                                    <span class="badge bg-{{ $badge[$order->status] ?? 'secondary' }}">
+                                        {{ $statuses[$order->status] ?? ucfirst($order->status) }}
+                                    </span>
+                                </td>
+                                <td>{{ $order->items->count() }}</td>
+                                <td class="text-end">${{ number_format($order->total_cost, 2) }}</td>
+                                <td>{{ $order->expected_date?->format('M d, Y') ?? '—' }}</td>
+                                <td>
+                                    {{-- One way in. Everything an order can have done to it -
+                                         approve, send, cancel, record a supply - lives on its
+                                         own page, so this column only opens it. --}}
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <a href="{{ route('purchase-orders.show', $order) }}"
+                                           class="btn btn-sm btn-info d-inline-flex align-items-center gap-1"
+                                           data-bs-toggle="tooltip" title="View Order">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="text-muted">
+                                        <i class="bi bi-inbox display-1 d-block mb-3"></i>
+                                        <h5>No Purchase Orders Found</h5>
+                                        <p class="mb-0">No purchase orders match your current search criteria.</p>
+                                        @if(request()->hasAny(['search', 'status', 'vendor_id', 'warehouse_id', 'date_from', 'date_to']))
+                                            <a href="{{ route('purchase-orders.index') }}" class="btn btn-outline-primary mt-2">
+                                                <i class="bi bi-arrow-clockwise me-1"></i>Clear Filters
+                                            </a>
+                                        @else
+                                            <a href="{{ route('purchase-orders.create') }}" class="btn btn-outline-primary mt-2">
+                                                <i class="bi bi-plus-lg me-1"></i>Create the first one
+                                            </a>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <x-pagination :paginator="$orders" />
+        </div>
     </div>
 </div>
+@endsection
+
+@section('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Bootstrap tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
 @endsection

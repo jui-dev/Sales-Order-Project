@@ -20,13 +20,15 @@ class PurchaseOrderController extends Controller
 
     public function index(Request $request): View
     {
-        $orders = $this->service->list($request->only(['status', 'vendor_id']));
+        $filters = $request->only([
+            'search', 'status', 'vendor_id', 'warehouse_id', 'date_from', 'date_to', 'sort', 'direction',
+        ]);
 
         return view('purchase-orders.index', [
-            'orders' => $orders,
-            'vendors' => Vendor::orderBy('name')->get(['id', 'name']),
+            'orders' => $this->service->getFilteredPurchaseOrders($filters, 20),
+            'filterOptions' => $this->service->getFilterOptions(),
+            'sortOptions' => $this->service->getSortOptions(),
             'statuses' => PurchaseOrder::statuses(),
-            'filters' => $request->only(['status', 'vendor_id']),
         ]);
     }
 

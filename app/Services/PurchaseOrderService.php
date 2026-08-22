@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Exceptions\DataNotFoundException;
 use App\Models\PurchaseOrder;
 use App\Models\Supply;
+use App\Models\Vendor;
 use App\Models\VendorProduct;
+use App\Models\Warehouse;
 use App\Traits\HasErrorHandling;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
@@ -22,24 +24,119 @@ class PurchaseOrderService
 {
     use HasErrorHandling;
 
-    public function list(array $filters = []): Collection
+    /**
+     * The listing, filtered, searched, sorted and paginated the same way every
+     * other index in the app is - through the unified search component.
+     *
+     * @return \Illuminate\Pagination\LengthAwarePaginator<int, PurchaseOrder>
+     */
+    public function getFilteredPurchaseOrders(array $filters = [], int $perPage = 20)
     {
-        return $this->handleServiceOperation(
-            function () use ($filters) {
-                return PurchaseOrder::with(['vendor', 'warehouse', 'items'])
-                    ->when(
-                        ! empty($filters['status']),
-                        fn ($query) => $query->where('status', $filters['status'])
-                    )
-                    ->when(
-                        ! empty($filters['vendor_id']),
-                        fn ($query) => $query->where('vendor_id', $filters['vendor_id'])
-                    )
-                    ->latest()
-                    ->get();
+        return $this->getPaginatedOrEmpty(
+            function () use ($filters, $perPage) {
+                $query = PurchaseOrder::with(['vendor', 'warehouse', 'items']);
+
+                if (! empty($filters['search'])) {
+                    $search = $filters['search'];
+                    // "PO-0007" is the id dressed up by HasFormattedId, so match
+                    // on the digits rather than making anyone type the raw number.
+                    $id = ltrim((string) preg_replace('/\D/', '', $search), '0');
+
+                    $query->where(function ($q) use ($search, $id) {
+                        $q->when($id !== '', fn ($sub) => $sub->orWhere('purchase_orders.id', $id))
+                            ->orWhereHas('vendor', fn ($vendor) => $vendor->where('name', 'like', "%{$search}%"))
+                            ->orWhereHas('warehouse', fn ($warehouse) => $warehouse->where('name', 'like', "%{$search}%"))
+                            ->orWhereHas('items.product', function ($product) use ($search) {
+                                $product->where('name', 'like', "%{$search}%")
+                                    ->orWhere('sku', 'like', "%{$search}%");
+                            });
+                    });
+                }
+
+                if (! empty($filters['status'])) {
+                    $query->where('status', $filters['status']);
+                }
+
+                if (! empty($filters['vendor_id'])) {
+                    $query->where('vendor_id', $filters['vendor_id']);
+                }
+
+                if (! empty($filters['warehouse_id'])) {
+                    $query->where('warehouse_id', $filters['warehouse_id']);
+                }
+
+                if (! empty($filters['date_from'])) {
+                    $query->whereDate('created_at', '>=', $filters['date_from']);
+                }
+                if (! empty($filters['date_to'])) {
+                    $query->whereDate('created_at', '<=', $filters['date_to']);
+                }
+
+                // Sorting comes off the query string, so the field is only ever
+                // one this page offers - an unknown column would otherwise take
+                // the whole listing down with a SQL error.
+                $sortField = $filters['sort'] ?? 'id';
+                if (! array_key_exists($sortField, $this->getSortOptions())) {
+                    $sortField = 'id';
+                }
+                $sortDirection = strtolower((string) ($filters['direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+
+                return $query->orderBy("purchase_orders.{$sortField}", $sortDirection)->paginate($perPage);
             },
-            'purchase orders'
+            PurchaseOrder::class,
+            $perPage,
+            $filters
         );
+    }
+
+    /**
+     * What the filter modal offers. Vendor and warehouse are the two things an
+     * order is addressed to, so they filter alongside its status and date.
+     */
+    public function getFilterOptions(): array
+    {
+        return [
+            'status' => [
+                'type' => 'select',
+                'label' => 'Status',
+                'options' => PurchaseOrder::statuses(),
+            ],
+            'vendor_id' => [
+                'type' => 'select',
+                'label' => 'Vendor',
+                'options' => Vendor::orderBy('name')->pluck('name', 'id')->toArray(),
+            ],
+            'warehouse_id' => [
+                'type' => 'select',
+                'label' => 'Deliver To',
+                'options' => Warehouse::orderBy('name')->pluck('name', 'id')->toArray(),
+            ],
+            'date_from' => [
+                'type' => 'date',
+                'label' => 'Ordered From',
+                'placeholder' => 'Select start date',
+            ],
+            'date_to' => [
+                'type' => 'date',
+                'label' => 'Ordered To',
+                'placeholder' => 'Select end date',
+            ],
+        ];
+    }
+
+    /**
+     * Sortable columns. Keys are real columns on purchase_orders - see the
+     * whitelist in getFilteredPurchaseOrders().
+     */
+    public function getSortOptions(): array
+    {
+        return [
+            'id' => 'Order',
+            'status' => 'Status',
+            'total_cost' => 'Total',
+            'expected_date' => 'Expected Date',
+            'created_at' => 'Created Date',
+        ];
     }
 
     /**
