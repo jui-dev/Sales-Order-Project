@@ -23,6 +23,7 @@
         :searchPlaceholder="'Search products by name, SKU, or description...'"
         :filterOptions="$filterOptions"
         :sortOptions="$sortOptions"
+        :sortDirections="$sortDirections"
         :defaultSort="'id'"
         :defaultDirection="'desc'"
     />
@@ -33,12 +34,18 @@
                 <table class="table table-striped table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Category</th>
-                            <th>Selling Price</th>
-                            <th>Available Stocks</th>
-                            <th>Purchase Price</th>
+                            {{-- Every column the database can actually order by is
+                                 clickable. The two below it are not: margin is derived
+                                 per row and MTD profit is looked up for the page after
+                                 it has been paginated, so neither exists at the point
+                                 the order is decided. A dead sort arrow on them would
+                                 promise something the query cannot do. --}}
+                            <x-sortable-header field="id" :default-direction="$sortDirections['id']" is-default>ID</x-sortable-header>
+                            <x-sortable-header field="name" :default-direction="$sortDirections['name']">Name</x-sortable-header>
+                            <x-sortable-header field="category" :default-direction="$sortDirections['category']">Category</x-sortable-header>
+                            <x-sortable-header field="selling_price" :default-direction="$sortDirections['selling_price']">Selling Price</x-sortable-header>
+                            <x-sortable-header field="available_stocks" :default-direction="$sortDirections['available_stocks']">Available Stocks</x-sortable-header>
+                            <x-sortable-header field="purchase_price" :default-direction="$sortDirections['purchase_price']">Purchase Price</x-sortable-header>
                             {{-- Two different questions, so two columns. The first is a
                                  property of the price list; the second is a property of
                                  what actually happened. Calling both "GP" was what made a

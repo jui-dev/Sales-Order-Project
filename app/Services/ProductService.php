@@ -14,6 +14,30 @@ class ProductService
 {
     use HasErrorHandling;
 
+    /**
+     * Sortable columns, keyed by the value the query string carries.
+     *
+     * Half of what the products listing shows is not a column on products: the
+     * sale price in force is joined in, the average cost is a sub-select and
+     * the category is a row in another table. Mapping the key here is what
+     * lets the header of any of those columns be clickable, and what keeps the
+     * request out of the SQL - the values below are literals in this file, not
+     * anything a caller supplied.
+     *
+     * Kept in step with getSortOptions(), which is the whitelist the request
+     * is checked against.
+     */
+    private const SORT_COLUMNS = [
+        'id' => 'products.id',
+        'name' => 'products.name',
+        'sku' => 'products.sku',
+        'category' => 'sort_category.name',
+        'selling_price' => 'current_price_row.unit_price',
+        'purchase_price' => 'current_cost',
+        'available_stocks' => 'products.available_stocks',
+        'created_at' => 'products.created_at',
+    ];
+
     public function list(): Collection
     {
         return $this->getCollectionOrEmpty(Product::class, 'products');
@@ -286,15 +310,41 @@ class ProductService
                     $query->where('products.available_stocks', '<=', $filters['stock_max']);
                 }
 
-                // Apply sorting. Sorting by price means the joined column;
-                // everything else is a real column on products, and is
-                // qualified so the join cannot make it ambiguous.
+                // Apply sorting. Half of what the listing shows does not live
+                // on products - the in-force sale price, the average cost, the
+                // category name - so the request's sort key is translated
+                // through SORT_COLUMNS rather than concatenated into a column
+                // name. Nothing from the request reaches the database unmapped.
                 [$sortField, $sortDirection] = $this->sortFrom($filters, $this->getSortOptions());
 
-                $query->orderBy(
-                    $sortField === 'selling_price' ? 'current_price_row.unit_price' : "products.{$sortField}",
-                    $sortDirection,
-                );
+                if ($sortField === 'category') {
+                    $query->leftJoin(
+                        'product_categories as sort_category',
+                        'sort_category.id', '=', 'products.category_id',
+                    );
+                }
+
+                $column = self::SORT_COLUMNS[$sortField];
+
+                // A product with no price, no cost or no category is missing
+                // the figure, not holding it at zero, so it belongs at the end
+                // whichever way the column points - otherwise "cheapest first"
+                // opens on a page of products that have no price at all. MySQL
+                // has no NULLS LAST; `col IS NULL` sorts 0 before 1 on both
+                // engines and means the same thing.
+                $query->orderByRaw("({$column} is null) asc");
+
+                $query->orderBy($column, $sortDirection);
+
+                // A tiebreaker, so a row cannot appear on two pages. These
+                // columns tie heavily - every unpriced product, every product
+                // out of stock - and with the order among ties undefined the
+                // database is free to break it differently for each page it is
+                // asked for, which is how page 2 came back showing rows from
+                // page 1.
+                if ($sortField !== 'id') {
+                    $query->orderBy('products.id', 'desc');
+                }
 
                 $products = $query->paginate($perPage);
 
@@ -688,7 +738,11 @@ class ProductService
     }
 
     /**
-     * Get sort options for the view
+     * The columns the listing may be sorted by, and how they are labelled.
+     *
+     * Keyed the same as SORT_COLUMNS - sortFrom() checks the request against
+     * these keys, so a key without a column behind it would pass the whitelist
+     * and then fail to resolve. Keep the two in step.
      */
     public function getSortOptions(): array
     {
@@ -696,9 +750,33 @@ class ProductService
             'id' => 'ID',
             'name' => 'Name',
             'sku' => 'SKU',
-            'selling_price' => 'Price',
+            'category' => 'Category',
+            'selling_price' => 'Selling Price',
+            'purchase_price' => 'Purchase Price',
             'available_stocks' => 'Stock Level',
             'created_at' => 'Created Date',
+        ];
+    }
+
+    /**
+     * Which direction each sortable column should open in when it is first
+     * clicked. Text reads forwards; money, stock and dates are asked about
+     * largest-first, because "what is dearest" and "what did we just add" are
+     * the questions people actually open them for.
+     *
+     * @return array<string,string>
+     */
+    public function getSortDirections(): array
+    {
+        return [
+            'id' => 'desc',
+            'name' => 'asc',
+            'sku' => 'asc',
+            'category' => 'asc',
+            'selling_price' => 'desc',
+            'purchase_price' => 'desc',
+            'available_stocks' => 'desc',
+            'created_at' => 'desc',
         ];
     }
 

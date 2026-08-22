@@ -41,8 +41,11 @@ class ProductController extends Controller
             $products = $this->service->getFilteredProducts($filters, 20);
             $filterOptions = $this->service->getFilterOptions();
             $sortOptions = $this->service->getSortOptions();
+            $sortDirections = $this->service->getSortDirections();
 
-            return view('products.index', compact('products', 'filterOptions', 'sortOptions'));
+            return view('products.index', compact(
+                'products', 'filterOptions', 'sortOptions', 'sortDirections'
+            ));
         } catch (\Exception $e) {
             \Log::error('Error loading products: ' . $e->getMessage());
 
@@ -58,7 +61,8 @@ class ProductController extends Controller
             return view('products.index', [
                 'products' => $emptyProducts,
                 'filterOptions' => $this->service->getFilterOptions(),
-                'sortOptions' => $this->service->getSortOptions()
+                'sortOptions' => $this->service->getSortOptions(),
+                'sortDirections' => $this->service->getSortDirections(),
             ]);
         }
     }
