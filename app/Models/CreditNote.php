@@ -302,40 +302,35 @@ class CreditNote extends Model
         return $query->where('return_transaction_id', $returnTransactionId);
     }
 
-    // Boot method for automatic formatted_id generation
     protected static function boot()
     {
         parent::boot();
 
-        static::creating(function ($creditNote) {
-            if (empty($creditNote->credit_note_number)) {
-                $creditNote->credit_note_number = static::generateCreditNoteNumber();
+        // Numbered from the primary key, which is the only source of a unique
+        // number the database will actually stand behind.
+        //
+        // This used to strip the digits out of the last row's number and add
+        // one. Delete a note and the next one is issued the number that has
+        // just been freed - on a unique column, so raising it fails outright -
+        // and two notes raised at once read the same last row and collide.
+        static::created(function (self $creditNote) {
+            if (empty($creditNote->getRawOriginal('credit_note_number'))) {
+                $creditNote->forceFill([
+                    'credit_note_number' => $creditNote->generateCreditNoteNumber(),
+                ])->saveQuietly();
             }
         });
-        
-        static::created(function ($creditNote) {
-            if (empty($creditNote->formatted_id)) {
-                $creditNote->formatted_id = $creditNote->generateFormattedId();
-                $creditNote->save();
-            }
-        });
-    }
-    
-    // Generate formatted_id for new records
-    public function generateFormattedId(): string
-    {
-        $prefix = $this->getIdPrefix();
-        $pad = max(4, strlen((string) $this->id));
-        return sprintf('%s-%s', $prefix, str_pad((string) $this->id, $pad, '0', STR_PAD_LEFT));
     }
 
-    // Generate credit note number
-    public static function generateCreditNoteNumber(): string
+    /**
+     * The note's own number, derived from its key.
+     *
+     * formatted_id is deliberately not written here. The HasFormattedId
+     * accessor shadows the column of the same name, so anything stored in it
+     * could never be read back again.
+     */
+    public function generateCreditNoteNumber(): string
     {
-        $lastCreditNote = static::orderBy('id', 'desc')->first();
-        $lastNumber = $lastCreditNote ? (int) preg_replace('/[^0-9]/', '', $lastCreditNote->credit_note_number) : 0;
-        $nextNumber = $lastNumber + 1;
-        
-        return 'CN-' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+        return 'CN-' . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
     }
 } 

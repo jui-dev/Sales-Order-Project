@@ -81,8 +81,13 @@ class SupplierBillService
 
             // Create supplier bill payment record (only if one doesn't exist)
             if (! $supplierBill->payment) {
+                // No formatted_id: it came from count() + 1 on a unique NOT NULL
+                // column, so deleting any payment row - or posting two bills at
+                // once - handed the next payment a number already taken and
+                // failed the whole posting. HasFormattedId derives SBP-0012
+                // from the primary key, and its accessor was shadowing this
+                // value anyway.
                 SupplierBillPayment::create([
-                    'formatted_id'      => 'SBP-' . str_pad((string) (SupplierBillPayment::count() + 1), 6, '0', STR_PAD_LEFT),
                     'supplier_bill_id'  => $supplierBill->id,
                     'vendor_id'         => $supplierBill->vendor_id,
                     'payment_amount'    => $supplierBill->total_amount,

@@ -298,28 +298,34 @@ class DebitNote extends Model
         return $query->where('return_transaction_id', $returnTransactionId);
     }
 
-    // Boot method for automatic formatted_id generation
     protected static function boot()
     {
         parent::boot();
 
-        static::creating(function ($debitNote) {
-            if (empty($debitNote->formatted_id)) {
-                $debitNote->formatted_id = static::generateFormattedId();
-            }
-            if (empty($debitNote->debit_note_number)) {
-                $debitNote->debit_note_number = static::generateDebitNoteNumber();
+        // Numbered from the primary key, for the same reason CreditNote is:
+        // deriving the next number from the last row's string duplicates one
+        // as soon as a note is deleted, on a column that is unique.
+        static::created(function (self $debitNote) {
+            if (empty($debitNote->getRawOriginal('debit_note_number'))) {
+                $debitNote->forceFill([
+                    'debit_note_number' => $debitNote->generateDebitNoteNumber(),
+                ])->saveQuietly();
             }
         });
     }
 
-    // Generate debit note number
-    public static function generateDebitNoteNumber(): string
+    /**
+     * The note's own number, derived from its key.
+     *
+     * The creating hook this replaces also tried to stamp formatted_id, by
+     * calling a generateFormattedId() that does not exist on this class. It
+     * never threw only because HasFormattedId's accessor shadows the column
+     * and answers "DN-0000" for an unsaved note, so the empty() guard in front
+     * of it was never true. Both halves are gone: the reference is the
+     * accessor's business.
+     */
+    public function generateDebitNoteNumber(): string
     {
-        $lastDebitNote = static::orderBy('id', 'desc')->first();
-        $lastNumber = $lastDebitNote ? (int) preg_replace('/[^0-9]/', '', $lastDebitNote->debit_note_number) : 0;
-        $nextNumber = $lastNumber + 1;
-        
-        return 'DN-' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+        return 'DN-' . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
     }
 } 

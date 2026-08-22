@@ -66,9 +66,11 @@ class GrnObserver
             ];
         }
 
+        // No formatted_id: HasFormattedId derives SB-0012 from the primary key
+        // and its accessor shadows the column, so the placeholder written here
+        // and the SB-000012 that replaced it were both write-only - and padded
+        // to a different width than the reference everyone actually saw.
         $bill = \App\Models\SupplierBill::create([
-            // Temporary placeholder; will update after ID generated
-            'formatted_id' => 'TMP-'.uniqid(),
             'grn_id'       => $grn->id,
             'vendor_id'    => $vendorId,
             'bill_date'    => now()->toDateString(),
@@ -76,10 +78,6 @@ class GrnObserver
             'total_amount' => round($totalAmount, 2),
             'status'       => 'draft',
         ]);
-
-        // Update formatted_id to proper code
-        $bill->formatted_id = 'SB-' . str_pad((string) $bill->id, 6, '0', STR_PAD_LEFT);
-        $bill->saveQuietly();
 
         // Attach items
         foreach ($billItemsData as $data) {
