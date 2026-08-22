@@ -4,6 +4,7 @@
     'showSort' => true,
     'filterOptions' => [],
     'sortOptions' => [],
+    'sortDirections' => [],
     'defaultSort' => 'id',
     'defaultDirection' => 'desc'
 ])
@@ -31,6 +32,40 @@
         $filterKeys,
         ['search', 'price_min', 'price_max', 'stock_min', 'stock_max']
     )));
+
+    // What the listing is sorted by right now, so the menu can say so. The
+    // button read "Sort" whether or not one had been applied and every option in
+    // it looked equally unselected: the sort was working and there was simply
+    // nothing on the page admitting it.
+    //
+    // The fallback is the page's own default rather than "nothing", because a
+    // listing nobody has sorted by hand is still sorted - and saying so is what
+    // makes the first click on that column look like it did something.
+    $activeSort = request('sort', $defaultSort);
+    $activeSortDirection = strtolower((string) request('direction', $defaultDirection)) === 'asc' ? 'asc' : 'desc';
+    $hasActiveSort = $activeSort !== null && array_key_exists($activeSort, $sortOptions);
+    $activeSortLabel = $hasActiveSort ? $sortOptions[$activeSort] : null;
+
+    // "Price (A-Z)" told the user nothing. A column is asked about in the terms
+    // of what is in it, so name the two directions after the column's kind,
+    // inferred from its key - a listing that wants to override this can pass
+    // the labels it prefers straight through $sortOptions.
+    $directionLabels = function (string $field): array {
+        if (str_ends_with($field, '_at') || str_contains($field, 'date')) {
+            return ['asc' => 'Oldest first', 'desc' => 'Newest first'];
+        }
+
+        $numeric = ['id', 'price', 'cost', 'amount', 'total', 'qty', 'quantity',
+                    'stock', 'count', 'number', 'balance', 'level', 'due'];
+
+        foreach ($numeric as $hint) {
+            if ($field === $hint || str_contains($field, $hint)) {
+                return ['asc' => 'Low to High', 'desc' => 'High to Low'];
+            }
+        }
+
+        return ['asc' => 'A to Z', 'desc' => 'Z to A'];
+    };
 @endphp
 
 <div class="unified-search-container card mb-4">
@@ -73,21 +108,47 @@
 
                 @if($showSort)
                     <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-sort-down me-1"></i> Sort
+                        <button type="button" class="btn {{ request()->hasAny(['sort', 'direction']) ? 'btn-primary' : 'btn-outline-secondary' }} dropdown-toggle"
+                                data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-sort-{{ $activeSortDirection === 'asc' ? 'up' : 'down' }} me-1"></i>
+                            @if($hasActiveSort)
+                                Sorted: {{ $activeSortLabel }}
+                            @else
+                                Sort
+                            @endif
                         </button>
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu dropdown-menu-end">
                             @foreach($sortOptions as $value => $label)
-                                <li>
-                                    <a class="dropdown-item sort-option" href="#" data-sort="{{ $value }}" data-direction="asc">
-                                        {{ $label }} (A-Z)
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item sort-option" href="#" data-sort="{{ $value }}" data-direction="desc">
-                                        {{ $label }} (Z-A)
-                                    </a>
-                                </li>
+                                @php
+                                    $labels = $directionLabels($value);
+                                    // Offer the column's natural direction first. Nobody
+                                    // opens a price column to ask what the cheapest thing
+                                    // is as often as they ask what the dearest is.
+                                    $first = $sortDirections[$value] ?? 'asc';
+                                    $order = $first === 'desc' ? ['desc', 'asc'] : ['asc', 'desc'];
+                                @endphp
+
+                                @if(!$loop->first)
+                                    <li><hr class="dropdown-divider"></li>
+                                @endif
+
+                                <li><h6 class="dropdown-header">{{ $label }}</h6></li>
+
+                                @foreach($order as $direction)
+                                    @php
+                                        $isCurrent = $activeSort === $value && $activeSortDirection === $direction;
+                                    @endphp
+                                    <li>
+                                        <a class="dropdown-item sort-option d-flex align-items-center justify-content-between gap-3 {{ $isCurrent ? 'active' : '' }}"
+                                           href="#" data-sort="{{ $value }}" data-direction="{{ $direction }}"
+                                           @if($isCurrent) aria-current="true" @endif>
+                                            <span>{{ $labels[$direction] }}</span>
+                                            @if($isCurrent)
+                                                <i class="bi bi-check2"></i>
+                                            @endif
+                                        </a>
+                                    </li>
+                                @endforeach
                             @endforeach
                         </ul>
                     </div>
@@ -270,8 +331,19 @@
 <!-- Hidden Sort Form -->
 @if($showSort)
     <form method="GET" id="sort-form" style="display: none;">
+        {{-- Carry the current search and filters across, so choosing a sort does
+             not quietly widen the list back out. `page` is deliberately dropped:
+             re-sorting while on page 4 has no business landing on page 4 of the
+             new order. An array-valued parameter is flattened into one input per
+             value rather than echoed - echoing an array is a fatal error, so a
+             single multi-valued filter used to take the whole page down. --}}
         @foreach(request()->except(['sort', 'direction', 'page']) as $key => $value)
-            <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+            @foreach(\Illuminate\Support\Arr::wrap($value) as $subKey => $item)
+                @continue(is_array($item))
+                <input type="hidden"
+                       name="{{ is_array($value) ? $key . '[' . $subKey . ']' : $key }}"
+                       value="{{ $item }}">
+            @endforeach
         @endforeach
         <input type="hidden" name="sort" value="{{ request('sort', $defaultSort) }}">
         <input type="hidden" name="direction" value="{{ request('direction', $defaultDirection) }}">
