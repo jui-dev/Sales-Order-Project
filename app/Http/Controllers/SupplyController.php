@@ -138,12 +138,9 @@ class SupplyController extends Controller
 
             $prefillLines = $this->prefillLines($purchaseOrder);
 
-            $products = \App\Models\Product::with('category')->orderBy('name')->get();
-            $categories = \App\Models\ProductCategory::getMainCategories();
-
+            // The lines are the order's own, so the form has no product picker
+            // and nothing to populate one with.
             return view('supplies.create', compact(
-                'products',
-                'categories',
                 'purchaseOrder',
                 'prefillLines'
             ));
@@ -320,7 +317,11 @@ class SupplyController extends Controller
      * An order's lines as supply rows: only what is still outstanding, at the
      * cost that was agreed when the order was placed.
      *
-     * @return array<int, array{product_id: int, quantity: int, unit_cost: string}>
+     * These are the whole of the form's item section - it shows them and
+     * submits them back, but cannot change them - so each one carries the
+     * product's name and what was ordered for the reader as well.
+     *
+     * @return array<int, array{product_id: int, product_name: string, quantity: int, quantity_ordered: int, unit_cost: string}>
      */
     private function prefillLines(PurchaseOrder $order): array
     {
@@ -328,7 +329,9 @@ class SupplyController extends Controller
             ->filter(fn ($item) => $item->outstanding() > 0)
             ->map(fn ($item) => [
                 'product_id' => $item->product_id,
+                'product_name' => $item->product->name ?? 'Unknown product',
                 'quantity' => $item->outstanding(),
+                'quantity_ordered' => $item->quantity_ordered,
                 'unit_cost' => $item->unit_cost,
             ])
             ->values()

@@ -308,6 +308,75 @@ class PurchaseOrderTest extends TestCase
         $this->assertSame(6, $lines[0]['quantity']);
     }
 
+    /**
+     * The form shows the order's lines rather than asking for them, so there is
+     * no product picker, no way to add a line and nothing to search a catalogue
+     * with. What gets submitted is the order's own figures, carried hidden.
+     */
+    public function test_the_supply_form_offers_no_way_to_change_or_add_a_line(): void
+    {
+        $order = $this->sentOrder(10);
+
+        $response = $this->get(route('supplies.create', ['purchase_order' => $order->id]))
+            ->assertOk();
+
+        $response->assertDontSee('Quick add a product');
+        $response->assertDontSee('id="add-item"', false);
+        $response->assertDontSee('class="form-select product-select"', false);
+
+        $response->assertSee('name="products[0][product_id]" value="'.$this->product->id.'"', false);
+        $response->assertSee('name="products[0][quantity]" value="10"', false);
+    }
+
+    public function test_a_supply_cannot_bring_more_than_the_order_is_waiting_on(): void
+    {
+        $order = $this->sentOrder(5);
+
+        $this->recordSupply($order, 6)->assertSessionHasErrors('products.0.quantity');
+
+        $this->assertSame(0, Supply::count());
+        $this->assertSame(PurchaseOrder::STATUS_SENT, $order->fresh()->status);
+    }
+
+    public function test_a_supply_cannot_bring_a_cost_the_order_did_not_agree(): void
+    {
+        $order = $this->sentOrder(5);
+
+        $this->post(route('supplies.store'), [
+            'purchase_order_id' => $order->id,
+            'vendor_id' => $order->vendor_id,
+            'warehouse_id' => $order->warehouse_id,
+            'supply_date' => now()->toDateString(),
+            'products' => [
+                ['product_id' => $this->product->id, 'quantity' => 5, 'unit_cost' => 50.00],
+            ],
+        ])->assertSessionHasErrors('products.0.unit_cost');
+
+        $this->assertSame(0, Supply::count());
+    }
+
+    /**
+     * Split across two lines, the same product could slip past a per-line cap -
+     * so what is outstanding is checked against the product's whole total.
+     */
+    public function test_the_same_product_twice_cannot_together_exceed_what_is_outstanding(): void
+    {
+        $order = $this->sentOrder(10);
+
+        $this->post(route('supplies.store'), [
+            'purchase_order_id' => $order->id,
+            'vendor_id' => $order->vendor_id,
+            'warehouse_id' => $order->warehouse_id,
+            'supply_date' => now()->toDateString(),
+            'products' => [
+                ['product_id' => $this->product->id, 'quantity' => 6, 'unit_cost' => 47.50],
+                ['product_id' => $this->product->id, 'quantity' => 6, 'unit_cost' => 47.50],
+            ],
+        ])->assertSessionHasErrors('products.1.quantity');
+
+        $this->assertSame(0, Supply::count());
+    }
+
     public function test_the_supply_form_refuses_an_order_that_cannot_be_received_against(): void
     {
         $order = $this->createOrder();

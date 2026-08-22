@@ -44,7 +44,12 @@ class StoreSupplyRequest extends FormRequest
     }
 
     /**
-     * A delivery cannot bring goods that were never ordered.
+     * A delivery is the order's own lines, or it is not this delivery.
+     *
+     * The form shows those lines and cannot change them, so everything here is
+     * about the request rather than the screen: a product that was never
+     * ordered, more than the order is still waiting on, or a cost other than
+     * the one agreed all mean the supply and the order would disagree.
      *
      * A line that did not turn up at all is left off the form rather than sent
      * as a zero, so there is nothing to check on the low side.
@@ -64,18 +69,50 @@ class StoreSupplyRequest extends FormRequest
                 $ordered = PurchaseOrder::query()
                     ->find($orderId)
                     ?->items
-                    ->pluck('product_id')
-                    ->all() ?? [];
+                    ->keyBy('product_id') ?? collect();
 
-                if (! $ordered) {
+                if ($ordered->isEmpty()) {
                     return;
                 }
 
+                // Summed per product before anything is compared, so two lines
+                // of the same product are caught by the same check as one line
+                // that is simply too big.
+                $submitted = [];
+
                 foreach ($this->input('products', []) as $index => $line) {
-                    if (! in_array((int) ($line['product_id'] ?? 0), $ordered, true)) {
+                    $productId = (int) ($line['product_id'] ?? 0);
+                    $item = $ordered->get($productId);
+
+                    if (! $item) {
                         $validator->errors()->add(
                             "products.{$index}.product_id",
                             'That product was not on this purchase order.'
+                        );
+
+                        continue;
+                    }
+
+                    // Costs are decimals on both sides, so they are compared
+                    // with a tolerance rather than for equality.
+                    if (abs((float) ($line['unit_cost'] ?? 0) - (float) $item->unit_cost) > 0.001) {
+                        $validator->errors()->add(
+                            "products.{$index}.unit_cost",
+                            'That is not the cost this purchase order agreed for the product.'
+                        );
+                    }
+
+                    $submitted[$productId]['quantity'] = ($submitted[$productId]['quantity'] ?? 0) + (int) ($line['quantity'] ?? 0);
+                    $submitted[$productId]['last_index'] = $index;
+                }
+
+                foreach ($submitted as $productId => $line) {
+                    $outstanding = $ordered->get($productId)->outstanding();
+
+                    if ($line['quantity'] > $outstanding) {
+                        $validator->errors()->add(
+                            "products.{$line['last_index']}.quantity",
+                            "This purchase order is only waiting on {$outstanding} of that product."
                         );
                     }
                 }
@@ -94,6 +131,7 @@ class StoreSupplyRequest extends FormRequest
             'products.*.product_id.*'    => 'The selected product is invalid.',
             'products.*.quantity.min'    => 'Quantity must be at least 1.',
             'products.*.unit_cost.min'   => 'Unit cost cannot be negative.',
+            'products.*.unit_cost.numeric' => 'Unit cost must be a number.',
         ];
     }
 }

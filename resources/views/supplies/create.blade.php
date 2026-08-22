@@ -14,8 +14,8 @@
         <div>
             This delivery is against
             <a href="{{ route('purchase-orders.show', $purchaseOrder->id) }}">{{ $purchaseOrder->code }}</a>.
-            The vendor, the receiving warehouse and the items below come from the order — change the quantities
-            to match what actually turned up, and remove any line that did not arrive.
+            The vendor, the receiving warehouse and the items below all come from the order and cannot be
+            changed here. Remove any line that did not arrive — it stays outstanding on the order.
         </div>
     </div>
 
@@ -95,86 +95,66 @@
                 <span class="supply-card__step">2</span>
                 <div>
                     <h2 class="supply-card__title">Supply Items <span class="text-danger">*</span></h2>
-                    <p class="supply-card__subtitle">Add each product being bought, with its quantity and unit cost.</p>
+                    <p class="supply-card__subtitle">Everything {{ $purchaseOrder->code }} is still waiting on. Remove anything that did not arrive.</p>
                 </div>
             </div>
             <div class="card-body">
                 <div class="supply-panel">
 
-                <div class="supply-search mb-4">
-                    <label class="form-label" for="product-search-input">Quick add a product</label>
-                    <div class="position-relative">
-                        <span class="supply-search__icon"><i class="bi bi-search"></i></span>
-                        <input type="text" id="product-search-input" class="form-control supply-search__input" placeholder="Start typing a product name…" autocomplete="off">
-                        <div id="product-suggestions" class="list-group position-absolute w-100 shadow-sm" style="max-height: 220px; overflow-y: auto; display: none; z-index: 1050;"></div>
+                @if (empty($prefillLines))
+                    <div class="supply-empty">
+                        <i class="bi bi-inbox"></i>
+                        <p>This order has nothing left outstanding, so there is nothing to record against it.</p>
+                        <a href="{{ route('purchase-orders.show', $purchaseOrder->id) }}" class="btn btn-outline-primary">
+                            Back to {{ $purchaseOrder->code }}
+                        </a>
                     </div>
-                    <small class="form-text text-muted">Click a suggestion, or press Enter to add the first match.</small>
-                </div>
-
+                @else
                 <div id="supply-items">
-                    <div class="supply-item">
-                        <div class="supply-item__bar">
-                            <span class="supply-item__label">Item</span>
-                            <button type="button" class="remove-item" title="Remove this item" aria-label="Remove this item">
-                                <i class="bi bi-x-lg"></i>
-                            </button>
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-lg-3 col-md-6">
-                                <label class="form-label">Category</label>
-                                <select name="products[0][category_id]" class="form-select category-select">
-                                    <option value="">All Categories</option>
-                                    @foreach($categories as $category)
-                                        <option value="{{ $category->id }}">{{ $category->name }}</option>
-                                    @endforeach
-                                </select>
+                    @foreach ($prefillLines as $index => $line)
+                        @php $lineSubtotal = $line['quantity'] * (float) $line['unit_cost']; @endphp
+                        <div class="supply-item" data-subtotal="{{ number_format($lineSubtotal, 2, '.', '') }}">
+                            <div class="supply-item__bar">
+                                <span class="supply-item__label">Item</span>
+                                <button type="button" class="remove-item" title="This item did not arrive — remove it" aria-label="Remove this item">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
                             </div>
-                            <div class="col-lg-3 col-md-6">
-                                <label class="form-label">Subcategory</label>
-                                <select name="products[0][subcategory_id]" class="form-select subcategory-select" disabled>
-                                    <option value="">All Subcategories</option>
-                                </select>
-                            </div>
-                            <div class="col-lg-6">
-                                <label class="form-label">Product <span class="text-danger">*</span></label>
-                                <select name="products[0][product_id]" class="form-select product-select" required>
-                                    <option value="">Select Product</option>
-                                    @foreach($products as $product)
-                                        <option value="{{ $product->id }}"
-                                            data-stock="{{ $product->available_stocks }}"
-                                            data-category="{{ $product->category_id }}"
-                                            data-parent-category="{{ $product->category->parent_id ?? $product->category_id }}">
-                                            {{ $product->name }} ({{ $product->available_stocks }})
-                                        </option>
-                                    @endforeach
-                                </select>
-                                <div class="stock-info form-text mt-1"></div>
-                            </div>
-                            <div class="col-lg-3 col-md-4 col-sm-6">
-                                <label class="form-label">Quantity <span class="text-danger">*</span></label>
-                                <input type="number" name="products[0][quantity]" class="form-control item-quantity" min="1" value="1" required>
-                            </div>
-                            <div class="col-lg-4 col-md-4 col-sm-6">
-                                <label class="form-label">Unit Cost <span class="text-danger">*</span></label>
-                                <div class="input-group">
-                                    <span class="input-group-text">$</span>
-                                    <input type="number" name="products[0][unit_cost]" class="form-control item-unit-cost" min="0" step="0.01" placeholder="0.00" required>
-                                </div>
-                            </div>
-                            <div class="col-lg-5 col-md-4">
-                                <label class="form-label">Subtotal</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">$</span>
-                                    <input type="text" class="form-control item-subtotal subtotal-highlight" placeholder="0.00" readonly>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
-                <button type="button" id="add-item" class="btn btn-outline-primary supply-add-btn">
-                    <i class="bi bi-plus-lg"></i> Add Another Item
-                </button>
+                            {{-- The line is the order's. It is shown, not asked for; these
+                                 hidden fields are what actually gets submitted. --}}
+                            <input type="hidden" name="products[{{ $index }}][product_id]" value="{{ $line['product_id'] }}">
+                            <input type="hidden" name="products[{{ $index }}][quantity]" value="{{ $line['quantity'] }}">
+                            <input type="hidden" name="products[{{ $index }}][unit_cost]" value="{{ $line['unit_cost'] }}">
+
+                            <div class="row g-3">
+                                <div class="col-lg-5">
+                                    <span class="supply-field__label">Product</span>
+                                    <p class="supply-field__value">{{ $line['product_name'] }}</p>
+                                </div>
+                                <div class="col-lg-2 col-sm-4">
+                                    <span class="supply-field__label">Quantity</span>
+                                    <p class="supply-field__value">
+                                        {{ $line['quantity'] }}
+                                        @if ($line['quantity'] !== $line['quantity_ordered'])
+                                            <small class="text-muted">of {{ $line['quantity_ordered'] }} ordered</small>
+                                        @endif
+                                    </p>
+                                </div>
+                                <div class="col-lg-2 col-sm-4">
+                                    <span class="supply-field__label">Unit Cost</span>
+                                    <p class="supply-field__value">${{ number_format((float) $line['unit_cost'], 2) }}</p>
+                                </div>
+                                <div class="col-lg-3 col-sm-4">
+                                    <span class="supply-field__label">Subtotal</span>
+                                    <p class="supply-field__value supply-field__value--total">${{ number_format($lineSubtotal, 2) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+                @endif
+
                 </div>
             </div>
         </div>
@@ -185,18 +165,18 @@
                 <div class="supply-summary__inner">
                     <div>
                         <span class="supply-summary__label">Total Cost</span>
-                        <span class="supply-summary__value">$<span id="supply-total">0.00</span></span>
+                        {{-- Every figure comes from the order, so the total is known before the page is sent. --}}
+                        <span class="supply-summary__value">$<span id="supply-total">{{ number_format(collect($prefillLines)->sum(fn ($line) => $line['quantity'] * (float) $line['unit_cost']), 2) }}</span></span>
                     </div>
                     <div class="supply-summary__actions">
                         <a href="{{ route('supplies.index') }}" class="btn btn-danger">Cancel</a>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary" @disabled(empty($prefillLines))>
                             <i class="bi bi-check2-circle"></i> Record Supply
                         </button>
                     </div>
                 </div>
                 <p class="supply-summary__hint">
-                    Fields marked <span class="text-danger">*</span> are required. The supply is saved as
-                    <strong>pending</strong> until the goods are received.
+                    The supply is saved as <strong>pending</strong> until the goods are received.
                 </p>
             </div>
         </div>
@@ -207,465 +187,43 @@
 
 @section('scripts')
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        let itemIndex = 0;
-        let calculateTimeout;
-        let locationStockData = {};
-        
-        // Pre-load products for fast filtering (id, name, initial stock, category)
-        const allProducts = {!! $products->map(function ($p) {
-            return [
-                'id'              => $p->id,
-                'name'            => $p->name,
-                'stock'           => $p->available_stocks,
-                'category_id'     => $p->category_id,
-                'parent_category' => $p->category->parent_id ?? $p->category_id,
-            ];
-        })->values()->toJson() !!};
+    document.addEventListener('DOMContentLoaded', function () {
+        const list = document.getElementById('supply-items');
 
-        // Set when the form was opened from a purchase order: one entry per line
-        // still outstanding, at the cost agreed on the order.
-        const prefillLines = @json($prefillLines ?? []);
-
-        // DOM refs for the typeahead
-        const searchInput      = document.getElementById('product-search-input');
-        const suggestionBox    = document.getElementById('product-suggestions');
-
-        function renderSuggestions(term = '', categoryId = '', subcategoryId = '') {
-            const needle = term.toLowerCase();
-            let matches = !needle ? [] : allProducts.filter(p => p.name.toLowerCase().includes(needle));
-
-            // Filter by category if selected
-            if (categoryId) {
-                matches = matches.filter(p => {
-                    if (subcategoryId) {
-                        // If subcategory is selected, show only products from that subcategory
-                        return p.category_id === parseInt(subcategoryId);
-                    } else {
-                        // If only category is selected, show products from category and its subcategories
-                        return p.parent_category === parseInt(categoryId) || p.category_id === parseInt(categoryId);
-                    }
-                });
-            }
-
-            matches = matches.slice(0, 10);
-
-            if (!matches.length) {
-                suggestionBox.style.display = 'none';
-                return;
-            }
-
-            suggestionBox.innerHTML = matches.map(p => {
-                const stock = locationStockData[p.id] ?? p.stock ?? 0;
-                return `<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-id="${p.id}">
-                            <span>${p.name}</span>
-                            <small class="text-muted ms-2">(${stock})</small>
-                        </button>`;
-            }).join('');
-            suggestionBox.style.display = 'block';
+        // Nothing outstanding: the form rendered its empty state instead.
+        if (!list) {
+            return;
         }
 
-        // Filter as the user types
-        searchInput.addEventListener('input', () => {
-            const item = searchInput.closest('.supply-item') || document.querySelector('.supply-item');
-            const categoryId = item.querySelector('.category-select').value;
-            const subcategoryId = item.querySelector('.subcategory-select').value;
-            renderSuggestions(searchInput.value, categoryId, subcategoryId);
-        });
+        const totalEl = document.getElementById('supply-total');
 
-        // Handle click on a suggestion
-        suggestionBox.addEventListener('click', function(e) {
-            const btn = e.target.closest('[data-id]');
-            if (!btn) return;
-            const id = btn.getAttribute('data-id');
-            addSupplyItem(id);
-            suggestionBox.style.display = 'none';
-            searchInput.value = '';
-        });
-
-        // Add first suggestion on Enter
-        searchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const first = suggestionBox.querySelector('[data-id]');
-                if (first) {
-                    addSupplyItem(first.getAttribute('data-id'));
-                    suggestionBox.style.display = 'none';
-                    searchInput.value = '';
-                }
-            }
-        });
-
-        // Hide suggestions when clicking outside
-        document.addEventListener('click', (evt) => {
-            if (!searchInput.contains(evt.target) && !suggestionBox.contains(evt.target)) {
-                suggestionBox.style.display = 'none';
-            }
-        });
-        
-        // Function to fetch stock data for a location
-        async function fetchLocationStock(locationId) {
-            try {
-                const response = await fetch(`/api/stock-info/location/${locationId}`);
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                const data = await response.json();
-                console.log('Stock data received:', data); // Debug log
-                locationStockData = data;
-                updateAllProductStockInfo();
-                updateProductDropdowns();
-            } catch (error) {
-                console.error('Error fetching stock data:', error);
-                locationStockData = {};
-                updateAllProductStockInfo();
-                updateProductDropdowns();
-            }
-        }
-        
-        // Function to update stock info in product dropdowns
-        function updateProductDropdowns() {
-            // Update each per-row product dropdown
-            document.querySelectorAll('.product-select').forEach(select => {
-                select.querySelectorAll('option').forEach(option => {
-                    if (option.value) {
-                        const productId = option.value;
-                        const availableStock = locationStockData[productId] || 0;
-                        const productName = option.textContent.split(' (')[0];
-                        option.textContent = `${productName} (${availableStock})`;
-                    }
-                });
-            });
-
-            // Refresh any visible suggestions with correct stock numbers
-            if (suggestionBox.style.display !== 'none') {
-                renderSuggestions(searchInput.value);
-            }
-        }
-        
-        // Function to update stock info for all products
-        function updateAllProductStockInfo() {
-            document.querySelectorAll('.product-select').forEach(select => {
-                const productId = select.value;
-                if (productId) {
-                    updateProductStockInfo(select);
-                }
-            });
-        }
-        
-        // Function to update stock info for a single product
-        function updateProductStockInfo(productSelect) {
-            const locationId = document.getElementById('warehouse_id').value;
-            const productId = productSelect.value;
-            const item = productSelect.closest('.supply-item');
-            const stockInfo = item.querySelector('.stock-info');
-            
-            if (!locationId || !productId) {
-                stockInfo.innerHTML = '';
-                return;
-            }
-            
-            const availableStock = locationStockData[productId] || 0;
-            
-            // Update stock info display
-            if (availableStock > 0) {
-                stockInfo.innerHTML = `
-                    <div class="d-flex align-items-center mt-1">
-                        <i class="bi bi-box me-1"></i>
-                        <span class="text-${availableStock < 5 ? 'warning' : 'success'}">
-                            ${availableStock} units available in selected warehouse
-                        </span>
-                    </div>`;
-            } else {
-                stockInfo.innerHTML = `
-                    <div class="d-flex align-items-center mt-1">
-                        <i class="bi bi-exclamation-triangle me-1"></i>
-                        <span class="text-danger">No stock available in selected warehouse</span>
-                    </div>`;
-            }
-        }
-        
-        // Warehouse selection change
-        document.getElementById('warehouse_id').addEventListener('change', function() {
-            const locationId = this.value;
-            if (locationId) {
-                fetchLocationStock(locationId);
-            } else {
-                locationStockData = {};
-                updateAllProductStockInfo();
-                updateProductDropdowns();
-            }
-        });
-        
-        // Initial load if warehouse is selected
-        const initialWarehouse = document.getElementById('warehouse_id').value;
-        if (initialWarehouse) {
-            fetchLocationStock(initialWarehouse);
-        }
-        
-        // Add item button
-        document.getElementById('add-item').addEventListener('click', function() {
-            itemIndex++;
-            const template = document.querySelector('.supply-item').cloneNode(true);
-            
-            // Update name attributes with new index
-            template.querySelectorAll('[name]').forEach(input => {
-                input.name = input.name.replace(/\[\d+\]/, `[${itemIndex}]`);
-                if (input.classList.contains('item-quantity')) {
-                    input.value = 1;
-                }
-            });
-            
-            // Clear any selected values
-            template.querySelector('.product-select').selectedIndex = 0;
-            template.querySelector('.item-subtotal').value = '';
-            template.querySelector('.item-unit-cost').value = '';
-            template.querySelector('.stock-info').innerHTML = '';
-            
-            // Ensure required field indicators are preserved in cloned template
-            // The template already contains the required field indicators from the original HTML
-            
-            document.getElementById('supply-items').appendChild(template);
-            setupEventListeners();
-            
-            // Scroll to new item
-            template.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
-        
-        // Load subcategories for a category
-        async function loadSubcategories(categoryId, subcategorySelect) {
-            if (!categoryId) {
-                subcategorySelect.innerHTML = '<option value="">All Subcategories</option>';
-                subcategorySelect.disabled = true;
-                return;
-            }
-
-            try {
-                const response = await fetch(`/products/ajax/subcategories?category_id=${categoryId}`, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-                    }
-                });
-
-                if (!response.ok) throw new Error('Network response was not ok');
-                
-                const data = await response.json();
-                const options = data.options || {};
-                
-                subcategorySelect.innerHTML = Object.entries(options)
-                    .map(([value, text]) => `<option value="${value}">${text}</option>`)
-                    .join('');
-                
-                subcategorySelect.disabled = false;
-            } catch (error) {
-                console.error('Error loading subcategories:', error);
-                subcategorySelect.innerHTML = '<option value="">Error loading subcategories</option>';
-                subcategorySelect.disabled = true;
-            }
-        }
-
-        // Filter products based on category/subcategory
-        function filterProducts(item) {
-            const categoryId = item.querySelector('.category-select').value;
-            const subcategoryId = item.querySelector('.subcategory-select').value;
-            const productSelect = item.querySelector('.product-select');
-            
-            // Show/hide options based on category selection
-            Array.from(productSelect.options).forEach(option => {
-                if (!option.value) return; // Skip placeholder option
-                
-                const productCategoryId = option.getAttribute('data-category');
-                const productParentCategory = option.getAttribute('data-parent-category');
-                
-                let shouldShow = true;
-                if (categoryId) {
-                    if (subcategoryId) {
-                        shouldShow = productCategoryId === subcategoryId;
-                    } else {
-                        shouldShow = productParentCategory === categoryId || productCategoryId === categoryId;
-                    }
-                }
-                
-                option.style.display = shouldShow ? '' : 'none';
-            });
-            
-            // If current selection is hidden, clear it
-            if (productSelect.selectedOptions[0]?.style.display === 'none') {
-                productSelect.value = '';
-                updateProductStockInfo(productSelect);
-            }
-        }
-
-        // Setup event listeners for all items
-        function setupEventListeners() {
-            // Remove item button
-            document.querySelectorAll('.remove-item').forEach(button => {
-                button.onclick = function() {
-                    if (document.querySelectorAll('.supply-item').length > 1) {
-                        const item = this.closest('.supply-item');
-                        item.style.opacity = '0.5';
-                        setTimeout(() => {
-                            item.remove();
-                            updateTotal();
-                        }, 150);
-                    }
-                };
-            });
-
-            // Category selection change
-            document.querySelectorAll('.category-select').forEach(select => {
-                select.addEventListener('change', function() {
-                    const item = this.closest('.supply-item');
-                    const subcategorySelect = item.querySelector('.subcategory-select');
-                    loadSubcategories(this.value, subcategorySelect);
-                    filterProducts(item);
-                });
-            });
-
-            // Subcategory selection change
-            document.querySelectorAll('.subcategory-select').forEach(select => {
-                select.addEventListener('change', function() {
-                    const item = this.closest('.supply-item');
-                    filterProducts(item);
-                });
-            });
-            
-            // Product selection change
-            document.querySelectorAll('.product-select').forEach(select => {
-                select.addEventListener('change', async function() {
-                    const item = this.closest('.supply-item');
-                    const categorySelect = item.querySelector('.category-select');
-                    const subcategorySelect = item.querySelector('.subcategory-select');
-                    
-                    if (this.value) {
-                        const option = this.selectedOptions[0];
-                        const productCategoryId = option.getAttribute('data-category');
-                        const productParentCategory = option.getAttribute('data-parent-category');
-                        
-                        // Set the main category
-                        categorySelect.value = productParentCategory;
-                        
-                        // Load and set subcategory if applicable
-                        if (productParentCategory !== productCategoryId) {
-                            await loadSubcategories(productParentCategory, subcategorySelect);
-                            subcategorySelect.value = productCategoryId;
-                        } else {
-                            subcategorySelect.innerHTML = '<option value="">All Subcategories</option>';
-                            subcategorySelect.disabled = true;
-                        }
-                    }
-                    
-                    updateProductStockInfo(this);
-                });
-            });
-            
-            // Quantity and unit cost change
-            document.querySelectorAll('.item-quantity, .item-unit-cost').forEach(input => {
-                ['input', 'change'].forEach(eventType => {
-                    input.addEventListener(eventType, function() {
-                        const item = this.closest('.supply-item');
-                        updateSubtotal(item);
-                    });
-                });
-            });
-        }
-        
-        // Update subtotal for an item
-        function updateSubtotal(item) {
-            const quantityInput = item.querySelector('.item-quantity');
-            const unitCostInput = item.querySelector('.item-unit-cost');
-            const subtotalInput = item.querySelector('.item-subtotal');
-            
-            const quantity = parseFloat(quantityInput.value) || 0;
-            const unitCost = parseFloat(unitCostInput.value) || 0;
-            
-            subtotalInput.value = (quantity * unitCost).toFixed(2);
-            
-            clearTimeout(calculateTimeout);
-            calculateTimeout = setTimeout(updateTotal, 100);
-        }
-        
-        // Update total supply amount
+        // Each row carries its own subtotal, so the total is a sum of what is
+        // still on the page rather than anything recalculated from inputs.
         function updateTotal() {
-            const total = Array.from(document.querySelectorAll('.item-subtotal'))
-                .reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
-            document.getElementById('supply-total').textContent = total.toFixed(2);
-        }
-        
-        // Helper: returns array of productIds already present in supply items
-        function currentProductIds() {
-            return Array.from(document.querySelectorAll('.product-select'))
-                .map(sel => sel.value)
-                .filter(Boolean);
+            const total = Array.from(list.querySelectorAll('.supply-item'))
+                .reduce((sum, row) => sum + (parseFloat(row.dataset.subtotal) || 0), 0);
+
+            totalEl.textContent = total.toFixed(2);
         }
 
-        // Helper: create a new supply-item row for a given product id (if it does
-        // not exist). Returns the row it created or reused, null if it declined.
-        function addSupplyItem(productId) {
-            if (!productId) return null;
-            if (currentProductIds().includes(productId)) return null; // avoid duplicates
+        // Removing a line is the only edit this form allows: it means the item
+        // did not arrive, and it stays outstanding on the order. A supply needs
+        // at least one line, so the last row will not go.
+        list.addEventListener('click', function (event) {
+            const button = event.target.closest('.remove-item');
 
-            // Try to reuse the very first blank row if it hasn't been filled yet
-            const firstSelect = document.querySelector('.supply-item .product-select');
-            if (firstSelect && !firstSelect.value && currentProductIds().length === 0) {
-                firstSelect.value = productId;
-                updateProductStockInfo(firstSelect);
-                updateTotal();
-                return firstSelect.closest('.supply-item');
+            if (!button || list.querySelectorAll('.supply-item').length <= 1) {
+                return;
             }
 
-            itemIndex++;
-            const template = document.querySelector('.supply-item').cloneNode(true);
+            const row = button.closest('.supply-item');
+            row.style.opacity = '0.5';
 
-            // Update name attributes and reset field values
-            template.querySelectorAll('[name]').forEach(input => {
-                input.name = input.name.replace(/\[\d+\]/, `[${itemIndex}]`);
-                if (input.classList.contains('item-quantity')) {
-                    input.value = 1;
-                }
-                if (input.classList.contains('item-unit-cost')) {
-                    input.value = '';
-                }
-            });
-
-            // Set selected product
-            const select = template.querySelector('.product-select');
-            select.value = productId;
-
-            // Clear calculated fields & stock info
-            template.querySelector('.item-subtotal').value = '';
-            template.querySelector('.stock-info').innerHTML = '';
-
-            // Required field indicators are preserved in the cloned template
-
-            document.getElementById('supply-items').appendChild(template);
-
-            setupEventListeners();
-            updateProductStockInfo(select);
-            updateTotal();
-
-            return template;
-        }
-
-        // Bind events for the initial (first) row
-        setupEventListeners();
-
-        // Lines carried over from a purchase order. Dispatching `change` on the
-        // product select reuses the handler above, so Category and Subcategory
-        // fill themselves in from the product that was ordered.
-        prefillLines.forEach(function (line) {
-            const row = addSupplyItem(String(line.product_id));
-            if (!row) return;
-
-            row.querySelector('.item-quantity').value = line.quantity;
-            row.querySelector('.item-unit-cost').value = line.unit_cost;
-            row.querySelector('.product-select').dispatchEvent(new Event('change'));
-            updateSubtotal(row);
+            setTimeout(function () {
+                row.remove();
+                updateTotal();
+            }, 150);
         });
-
-        // Previous datalist-driven handlers removed in favour of custom type-ahead
     });
 </script>
 <style>
@@ -745,28 +303,6 @@
         color: #6c757d;
     }
 
-    /* ---- Quick-add search ------------------------------------------- */
-    .supply-search__icon {
-        position: absolute;
-        top: 50%;
-        left: 0.85rem;
-        transform: translateY(-50%);
-        color: #9aa0a6;
-        pointer-events: none;
-        z-index: 3;
-    }
-
-    .supply-search__input {
-        padding-left: 2.35rem;
-    }
-
-    #product-suggestions .list-group-item {
-        border-left: 0;
-        border-right: 0;
-        padding: 0.55rem 0.85rem;
-        font-size: 0.9rem;
-    }
-
     /* ---- Item rows --------------------------------------------------- */
     #supply-items {
         counter-reset: supply-item;
@@ -822,31 +358,48 @@
         background-color: rgba(231, 111, 81, 0.1);
     }
 
-    .supply-item .form-label {
-        font-size: 0.82rem;
+    /* ---- Read-only line fields --------------------------------------- */
+    .supply-field__label {
+        display: block;
+        font-size: 0.78rem;
         font-weight: 500;
-        margin-bottom: 0.3rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #6c757d;
+        margin-bottom: 0.25rem;
     }
 
-    .subtotal-highlight {
+    .supply-field__value {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: #212529;
+        margin-bottom: 0;
+    }
+
+    .supply-field__value small {
+        font-weight: 400;
+        margin-left: 0.3rem;
+    }
+
+    .supply-field__value--total {
         font-weight: 600;
-        background-color: #f1f5f2;
     }
 
-    .item-subtotal {
-        transition: all 0.3s ease;
+    /* ---- Nothing left to record -------------------------------------- */
+    .supply-empty {
+        text-align: center;
+        padding: 2rem 1rem;
+        color: #6c757d;
     }
 
-    .supply-add-btn {
-        border-style: dashed;
-        width: 100%;
-        padding: 0.6rem 1rem;
-        font-weight: 500;
-        background-color: #fff;
+    .supply-empty .bi {
+        font-size: 1.75rem;
+        display: block;
+        margin-bottom: 0.6rem;
     }
 
-    .supply-add-btn:hover {
-        background-color: var(--primary);
+    .supply-empty p {
+        margin-bottom: 1rem;
     }
 
     /* ---- Summary card ------------------------------------------------ */
