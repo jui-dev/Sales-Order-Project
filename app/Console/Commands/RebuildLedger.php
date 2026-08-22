@@ -64,6 +64,8 @@ class RebuildLedger extends Command
         $this->newLine();
         $this->info(sprintf('Replayed %d document(s).', $posted));
 
+        $this->relinkDocuments($engine);
+
         return $this->report($reconciliation);
     }
 
@@ -102,6 +104,68 @@ class RebuildLedger extends Command
         }
 
         return $posted;
+    }
+
+    /**
+     * Point each document back at the entry the replay raised for it.
+     *
+     * discardLedger() nulls these columns before deleting the entries, because
+     * a foreign key cannot outlive the row it names. Nothing put them back, so
+     * a rebuild left every credit note, debit note and supplier bill unable to
+     * find its own journal - the show pages eager-load these relations and
+     * rendered nothing where the entry should be.
+     *
+     * The entry is found the way the live path finds it: by document and rule
+     * key, which is what the unique index is on.
+     */
+    private function relinkDocuments(PostingEngine $engine): void
+    {
+        $this->info('Relinking documents to their entries...');
+
+        $links = [
+            \App\Models\CreditNote::class => [
+                'journal_entry_id' => 'credit_note.customer_return',
+            ],
+            \App\Models\DebitNote::class => [
+                'journal_entry_id' => 'debit_note.vendor_return',
+            ],
+            \App\Models\SupplierBill::class => [
+                'purchase_journal_id' => 'supplier_bill.purchase',
+                'payment_journal_id' => 'supplier_bill.payment',
+            ],
+        ];
+
+        foreach ($links as $class => $columns) {
+            /** @var class-string<Model> $class */
+            $class::query()->orderBy('id')->chunkById(200, function ($documents) use ($engine, $columns) {
+                foreach ($documents as $document) {
+                    $values = [];
+
+                    foreach ($columns as $column => $ruleKey) {
+                        if ($entry = $engine->existingEntry($document, $ruleKey)) {
+                            $values[$column] = $entry->id;
+                        }
+                    }
+
+                    if ($values !== []) {
+                        $document->updateQuietly($values);
+                    }
+                }
+            });
+        }
+
+        // The payment row carries the same entry as the bill it settles.
+        \App\Models\SupplierBillPayment::query()
+            ->whereHas('supplierBill', fn ($q) => $q->whereNotNull('payment_journal_id'))
+            ->with('supplierBill')
+            ->orderBy('id')
+            ->chunkById(200, function ($payments) {
+                foreach ($payments as $payment) {
+                    $payment->updateQuietly([
+                        'payment_journal_id' => $payment->supplierBill->payment_journal_id,
+                    ]);
+                }
+            });
     }
 
     private function discardLedger(): void

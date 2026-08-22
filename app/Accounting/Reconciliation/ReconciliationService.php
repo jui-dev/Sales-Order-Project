@@ -170,6 +170,21 @@ class ReconciliationService
 
     private function inventory(?string $asOf): Check
     {
+        // product_stocks holds what is on the shelves now and keeps no history,
+        // and stock_transactions is not a complete movement log - several
+        // services adjust the balance directly - so there is no honest way to
+        // value the shelves as they stood on a past date. Answering with
+        // today's quantities against a dated ledger balance reported a
+        // difference that was never real.
+        if ($asOf !== null && \Illuminate\Support\Carbon::parse($asOf)->lt(\Illuminate\Support\Carbon::today())) {
+            return Check::unavailable(
+                'inventory',
+                'Inventory value ties to stock on hand',
+                'Stock on hand is a live figure with no history behind it, so this check can only be made as at today.',
+                'Not available for a past date - stock levels are not historised.',
+            );
+        }
+
         $ledgerByLocation = $this->ledger->locationBalances(AccountRole::Inventory, $asOf);
         $physical = $this->physicalStockValue();
 
@@ -256,12 +271,17 @@ class ReconciliationService
             'total_amount',
         );
 
+        // What was actually paid, which is what SupplierPaymentPostingRule
+        // posts: payment_amount when there is a payment row, the whole bill
+        // otherwise. Summing total_amount here meant any partial settlement
+        // reported a difference against a ledger that was right.
         $paid = $this->sumByKey(
             SupplierBill::query()
-                ->whereNotNull('paid_at')
-                ->when($asOf, fn ($q) => $q->whereDate('paid_at', '<=', $asOf)),
-            'vendor_id',
-            'total_amount',
+                ->whereNotNull('supplier_bills.paid_at')
+                ->leftJoin('supplier_bill_payments', 'supplier_bill_payments.supplier_bill_id', '=', 'supplier_bills.id')
+                ->when($asOf, fn ($q) => $q->whereDate('supplier_bills.paid_at', '<=', $asOf)),
+            'supplier_bills.vendor_id',
+            'COALESCE(supplier_bill_payments.payment_amount, supplier_bills.total_amount)',
         );
 
         $debited = $this->sumByKey(

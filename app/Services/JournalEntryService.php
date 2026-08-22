@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Accounting\ManualEntryDraft;
+use App\Accounting\PostingEngine;
 use App\Models\Account;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
@@ -10,8 +12,23 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
+/**
+ * The journal entry screens, and nothing that writes to the ledger.
+ *
+ * This class used to call JournalEntry::create() and lines()->create() itself,
+ * which made it the only writer outside app/Accounting - and the only one that
+ * skipped the period guard, the exact balance check, the requirement that a
+ * control account names its party, and the refusal to post to a rollup
+ * account. Entries are built as a JournalDraft and written by PostingEngine
+ * now, exactly like every entry a posting rule raises.
+ */
 class JournalEntryService
 {
+    public function __construct(
+        private readonly PostingEngine $ledger,
+    ) {
+    }
+
     /**
      * Get filtered journal entries with pagination
      */
@@ -99,113 +116,56 @@ class JournalEntryService
     }
 
     /**
-     * Create a manual journal entry
+     * Create a manual journal entry.
+     *
+     * It lands as a draft and takes the approve-then-post path: review belongs
+     * on entries a person typed, which is exactly what origin distinguishes.
      */
     public function createManualEntry(array $data): JournalEntry
     {
-        return DB::transaction(function () use ($data) {
-            // Validate that debits equal credits
-            $totalDebit = collect($data['lines'])->sum('debit');
-            $totalCredit = collect($data['lines'])->sum('credit');
+        $draft = ManualEntryDraft::from($data);
 
-            if (abs($totalDebit - $totalCredit) > 0.01) {
-                throw new \Exception('Total debits must equal total credits.');
-            }
+        $entry = $this->ledger->write($draft, JournalEntry::ORIGIN_MANUAL);
 
-            // Create journal entry. A manual entry starts as a draft like every
-            // generated one and reaches the ledger only once approved and posted.
-            //
-            // formatted_id and source_id are both NOT NULL, so the row goes in
-            // with placeholders and is patched below once the key exists. The
-            // source points at the entry itself, matching AccountingService, so
-            // the morph columns are never left empty.
-            $journalEntry = JournalEntry::create([
-                'entry_date'   => $data['entry_date'],
-                'description'  => $data['description'] ?? null,
-                'source_type'  => JournalEntry::class,
-                'source_id'    => 0,
-                'status'       => JournalEntry::STATUS_DRAFT,
-                // Typed by a person, so it takes the review path and is
-                // labelled as such. The column defaults to 'system', which is
-                // right for an entry a posting rule raised and wrong here.
-                'origin'       => JournalEntry::ORIGIN_MANUAL,
-                'formatted_id' => (string) Str::uuid(),
-            ]);
+        if (! $entry) {
+            throw new \RuntimeException('An entry needs at least one line with a value on it.');
+        }
 
-            // Fall back to the entry's own code so a manual entry carries the same
-            // JE-0000 reference shape as a generated one; a reference the user
-            // typed wins over it.
-            $journalEntry->forceFill([
-                'formatted_id' => ($data['reference'] ?? null) ?: $journalEntry->code,
-                'source_id'    => $journalEntry->getKey(),
-            ])->saveQuietly();
+        // A reference the user typed wins over the JE-0000 the engine derives.
+        // JournalEntry overrides the HasFormattedId accessor to prefer the
+        // stored value, so unlike the other documents this column is read.
+        if (! empty($data['reference'])) {
+            $entry->forceFill(['formatted_id' => $data['reference']])->saveQuietly();
+        }
 
-            // Create journal entry lines
-            foreach ($data['lines'] as $line) {
-                $journalEntry->lines()->create([
-                    'account_id' => $line['account_id'],
-                    'debit' => $line['debit'] ?? 0,
-                    'credit' => $line['credit'] ?? 0,
-                    'description' => $line['description'] ?? null,
-                ]);
-            }
+        $this->log($entry, 'created', "Created manual journal entry #{$entry->formatted_id}");
 
-            // Log the creation
-            // audit_logs keys the subject morphically and has no columns for
-            // before/after snapshots. Writing model_type/old_values here put a
-            // NOT NULL subject_type in breach on every call, so each of these
-            // logs threw a QueryException that the controller turned into a
-            // flash message - which is what made approving and posting from the
-            // journal page fail silently.
-            $this->log($journalEntry, 'created', "Created manual journal entry #{$journalEntry->formatted_id}");
-
-            return $journalEntry;
-        });
+        return $entry->fresh();
     }
 
     /**
-     * Update a journal entry
+     * Update a journal entry.
+     *
+     * Only a draft can be edited; PostingEngine::rewrite() enforces that as
+     * well as the balance, the dimensions and the period, so an edit cannot
+     * put an entry into a state creating it would have refused.
      */
     public function updateEntry(JournalEntry $journalEntry, array $data): JournalEntry
     {
-        return DB::transaction(function () use ($journalEntry, $data) {
-            // Check if entry can be edited
-            if ($journalEntry->status !== JournalEntry::STATUS_DRAFT) {
-                throw new \Exception('Only draft entries can be edited.');
-            }
+        if ($journalEntry->status !== JournalEntry::STATUS_DRAFT) {
+            throw new \Exception('Only draft entries can be edited.');
+        }
 
-            // Validate that debits equal credits
-            $totalDebit = collect($data['lines'])->sum('debit');
-            $totalCredit = collect($data['lines'])->sum('credit');
+        $entry = $this->ledger->rewrite($journalEntry, ManualEntryDraft::from($data));
 
-            if (abs($totalDebit - $totalCredit) > 0.01) {
-                throw new \Exception('Total debits must equal total credits.');
-            }
+        if (! empty($data['reference'])) {
+            $entry->forceFill(['formatted_id' => $data['reference']])->saveQuietly();
+            $entry = $entry->fresh();
+        }
 
-            // Update journal entry
-            $journalEntry->update([
-                'entry_date' => $data['entry_date'],
-                'formatted_id' => ($data['reference'] ?? null) ?: $journalEntry->formatted_id,
-                'description' => $data['description'] ?? null,
-            ]);
+        $this->log($entry, 'updated', "Updated journal entry #{$entry->formatted_id}");
 
-            // Delete existing lines and create new ones
-            $journalEntry->lines()->delete();
-
-            foreach ($data['lines'] as $line) {
-                $journalEntry->lines()->create([
-                    'account_id' => $line['account_id'],
-                    'debit' => $line['debit'] ?? 0,
-                    'credit' => $line['credit'] ?? 0,
-                    'description' => $line['description'] ?? null,
-                ]);
-            }
-
-            // Log the update
-            $this->log($journalEntry, 'updated', "Updated journal entry #{$journalEntry->formatted_id}");
-
-            return $journalEntry->fresh();
-        });
+        return $entry;
     }
 
     /**

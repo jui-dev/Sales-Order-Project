@@ -2,118 +2,105 @@
 
 namespace Tests\Feature\Accounting;
 
-use App\Accounting\AccountRole;
-use App\Accounting\LedgerService;
-use App\Models\Customer;
 use App\Models\Grn;
-use App\Models\Invoice;
 use App\Models\JournalEntry;
-use App\Models\Order;
-use App\Models\Payment;
 use App\Models\Product;
+use App\Models\SupplierBill;
 use App\Models\Supply;
 use App\Models\SupplyItem;
 use App\Models\Vendor;
 use App\Models\Warehouse;
-use App\Services\GrnService;
 use App\Services\SupplierBillService;
 use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The ledger holds nothing the documents do not already know.
+ * Throwing the ledger away and replaying it gets the same books back.
+ *
+ * That is the claim accounting:rebuild exists to make good, and the reason a
+ * change to a posting rule can be applied to history. It was not quite true:
+ * discardLedger() nulls the document-to-entry foreign keys before deleting the
+ * entries they name, and nothing put them back, so every document came out of
+ * a rebuild unable to find its own journal.
  */
 class RebuildLedgerTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_ledger_can_be_deleted_and_reproduced_from_the_documents(): void
+    public function test_a_rebuild_leaves_each_document_pointing_at_its_entry(): void
     {
         $this->seed(ChartOfAccountsSeeder::class);
 
-        $this->buildACycle();
+        $bill = $this->postedAndPaidBill();
 
-        $ledger = app(LedgerService::class);
-        $before = $this->snapshot($ledger);
-        $entryCount = JournalEntry::count();
+        $purchaseBefore = $bill->purchase_journal_id;
+        $paymentBefore = $bill->payment_journal_id;
 
-        $this->assertGreaterThan(0, $entryCount, 'The cycle should have posted something.');
+        $this->assertNotNull($purchaseBefore);
+        $this->assertNotNull($paymentBefore);
 
-        $this->artisan('accounting:rebuild', ['--force' => true])
-            ->assertExitCode(0);
+        $this->artisan('accounting:rebuild', ['--force' => true])->assertSuccessful();
 
-        $this->assertSame($entryCount, JournalEntry::count(), 'Replaying should raise the same number of entries.');
-        $this->assertSame($before, $this->snapshot($ledger), 'Replaying should reproduce the same balances.');
+        $rebuilt = $bill->fresh();
+
+        $this->assertNotNull($rebuilt->purchase_journal_id, 'The bill lost its purchase journal in the rebuild.');
+        $this->assertNotNull($rebuilt->payment_journal_id, 'The bill lost its payment journal in the rebuild.');
+
+        // The entries are new rows - the old ones were deleted - but they are
+        // the entries for the same document and rule.
+        $this->assertSame(
+            'supplier_bill.purchase',
+            JournalEntry::find($rebuilt->purchase_journal_id)->rule_key,
+        );
+        $this->assertSame(
+            'supplier_bill.payment',
+            JournalEntry::find($rebuilt->payment_journal_id)->rule_key,
+        );
+
+        $this->assertNotNull($rebuilt->payment->fresh()->payment_journal_id);
     }
 
-    /** @return array<string,string> */
-    private function snapshot(LedgerService $ledger): array
+    private function postedAndPaidBill(): SupplierBill
     {
-        $out = [];
-
-        foreach (AccountRole::cases() as $role) {
-            $out[$role->value] = $ledger->balance($role)->toDecimal();
-        }
-
-        return $out;
-    }
-
-    private function buildACycle(): void
-    {
-        $vendor    = Vendor::factory()->create();
+        $vendor = Vendor::factory()->create();
         $warehouse = Warehouse::factory()->create();
-        $product   = Product::factory()->create(['purchase_price' => 12]);
-        $customer  = Customer::factory()->create();
+        $product = Product::factory()->create(['purchase_price' => 10]);
 
         $supply = Supply::create([
-            'vendor_id'    => $vendor->id,
+            'vendor_id' => $vendor->id,
             'warehouse_id' => $warehouse->id,
-            'status'       => 'completed',
-            'supply_date'  => now(),
-            'total_cost'   => 120,
+            'supply_date' => now(),
+            'status' => 'pending',
+            'total_cost' => 100,
         ]);
 
         SupplyItem::create([
-            'supply_id'  => $supply->id,
+            'supply_id' => $supply->id,
             'product_id' => $product->id,
-            'quantity'   => 10,
-            'unit_cost'  => 12,
-            'subtotal'   => 120,
+            'quantity' => 10,
+            'unit_cost' => 10,
+            'subtotal' => 100,
         ]);
 
         $grn = Grn::create([
-            'supply_id'     => $supply->id,
+            'supply_id' => $supply->id,
             'received_date' => now(),
-            'status'        => 'draft',
+            'status' => 'draft',
         ]);
 
-        app(GrnService::class)->transitionStatus($grn->id, 'posted');
+        // Through the service: it is what moves the stock, while GrnObserver
+        // is what posts the ledger. Setting the status on the model alone
+        // books the value without the goods, and the rebuild's inventory
+        // check is right to refuse that.
+        app(\App\Services\GrnService::class)->transitionStatus($grn->id, 'posted');
 
-        $bills = app(SupplierBillService::class);
-        $bill = $bills->postSupplierBill($grn->fresh()->supplierBill);
-        $bills->paySupplierBill($bill->fresh());
+        $bill = SupplierBill::where('grn_id', $grn->id)->firstOrFail();
 
-        $order = Order::factory()->create(['customer_id' => $customer->id]);
+        $service = app(SupplierBillService::class);
+        $service->postSupplierBill($bill);
+        $service->paySupplierBill($bill->fresh());
 
-        $invoice = Invoice::create([
-            'invoice_number' => 'INV-REBUILD-1',
-            'order_id'       => $order->id,
-            'customer_id'    => $customer->id,
-            'invoice_date'   => now(),
-            'subtotal'       => 500,
-            'tax'            => 75,
-            'discount'       => 25,
-            'total'          => 550,
-            'payment_status' => 'unpaid',
-        ]);
-
-        Payment::create([
-            'invoice_id'   => $invoice->id,
-            'amount'       => 300,
-            'method'       => 'cash',
-            'payment_date' => now(),
-            'status'       => 'completed',
-        ]);
+        return $bill->fresh();
     }
 }

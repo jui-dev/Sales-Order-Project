@@ -28,7 +28,32 @@ final class Check
         public readonly Money $tolerance,
         /** @var array<int,array{label:string,ledger:Money,expected:Money,difference:Money}> */
         public readonly array $breakdown = [],
+        /**
+         * Why this check could not be made, or null when it was.
+         *
+         * Not every check can be answered as at a past date. Saying so is the
+         * only honest answer: reporting it as passed hides a question nobody
+         * asked, and reporting it as failed raises an alarm about nothing.
+         */
+        public readonly ?string $unavailable = null,
     ) {
+    }
+
+    /** A check that cannot be answered on the terms it was asked. */
+    public static function unavailable(string $key, string $title, string $explanation, string $reason): self
+    {
+        return new self(
+            key: $key,
+            title: $title,
+            explanation: $explanation,
+            ledger: Money::zero(),
+            expected: Money::zero(),
+            difference: Money::zero(),
+            passed: true,
+            tolerance: Money::zero(),
+            breakdown: [],
+            unavailable: $reason,
+        );
     }
 
     /**
@@ -61,7 +86,16 @@ final class Check
 
     public function status(): string
     {
+        if ($this->unavailable !== null) {
+            return 'unavailable';
+        }
+
         return $this->passed ? 'passed' : 'failed';
+    }
+
+    public function wasMade(): bool
+    {
+        return $this->unavailable === null;
     }
 
     /** Only the rows that disagree - what someone actually has to look at. */

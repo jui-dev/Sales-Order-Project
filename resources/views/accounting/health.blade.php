@@ -68,9 +68,13 @@
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center gap-3">
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-{{ $check->passed ? 'success' : 'danger' }}">
-                        {{ $check->passed ? 'OK' : 'Out' }}
-                    </span>
+                    @if(! $check->wasMade())
+                        <span class="badge bg-secondary">N/A</span>
+                    @else
+                        <span class="badge bg-{{ $check->passed ? 'success' : 'danger' }}">
+                            {{ $check->passed ? 'OK' : 'Out' }}
+                        </span>
+                    @endif
                     <strong>{{ $check->title }}</strong>
                 </div>
                 @unless($check->passed)
@@ -83,6 +87,11 @@
             <div class="card-body">
                 <p class="text-muted small mb-3">{{ $check->explanation }}</p>
 
+                {{-- A check that could not be answered says so, rather than
+                     showing two zeroes that read as agreement. --}}
+                @unless($check->wasMade())
+                    <p class="text-muted small mb-0"><em>{{ $check->unavailable }}</em></p>
+                @else
                 <div class="table-responsive">
                     <table class="table table-sm mb-0">
                         <thead>
@@ -118,6 +127,7 @@
                         </tbody>
                     </table>
                 </div>
+                @endunless
             </div>
         </div>
     @endforeach

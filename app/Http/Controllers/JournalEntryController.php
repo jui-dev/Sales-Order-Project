@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Accounting\ManualEntryDraft;
 use App\Models\Account;
 use App\Models\JournalEntry;
 use App\Services\JournalEntryService;
@@ -40,8 +41,21 @@ class JournalEntryController extends Controller
      */
     public function create(): View
     {
-        $accounts = Account::orderBy('code')->get();
-        return view('journal-entries.create', compact('accounts'));
+        $accounts = $this->postableAccounts();
+        $dimensions = ManualEntryDraft::options();
+
+        return view('journal-entries.create', compact('accounts', 'dimensions'));
+    }
+
+    /**
+     * The accounts a line may name.
+     *
+     * Rollup accounts refuse direct posting - AccountResolver has always
+     * refused one to a posting rule - so the form must not offer them either.
+     */
+    private function postableAccounts()
+    {
+        return Account::where('is_postable', true)->orderBy('code')->get();
     }
 
     /**
@@ -61,6 +75,11 @@ class JournalEntryController extends Controller
             'lines.*.debit' => ['required_without:lines.*.credit', 'nullable', 'numeric', 'min:0'],
             'lines.*.credit' => ['required_without:lines.*.debit', 'nullable', 'numeric', 'min:0'],
             'lines.*.description' => ['nullable', 'string', 'max:255'],
+            // A control account has to name the customer or vendor it belongs
+            // to, and inventory the location - the ledger refuses the line
+            // otherwise, so the form has to be able to say.
+            'lines.*.party' => ['nullable', 'string', 'regex:/^(customer|vendor):[0-9]+$/'],
+            'lines.*.location' => ['nullable', 'string', 'regex:/^(warehouse|retailer):[0-9]+$/'],
         ]);
 
         try {
@@ -93,9 +112,11 @@ class JournalEntryController extends Controller
      */
     public function edit(JournalEntry $journalEntry): View
     {
-        $accounts = Account::orderBy('code')->get();
-        $journalEntry->load(['lines.account']);
-        return view('journal-entries.edit', compact('journalEntry', 'accounts'));
+        $accounts = $this->postableAccounts();
+        $dimensions = ManualEntryDraft::options();
+        $journalEntry->load(['lines.account', 'lines.party', 'lines.location']);
+
+        return view('journal-entries.edit', compact('journalEntry', 'accounts', 'dimensions'));
     }
 
     /**
@@ -112,6 +133,11 @@ class JournalEntryController extends Controller
             'lines.*.debit' => ['required_without:lines.*.credit', 'nullable', 'numeric', 'min:0'],
             'lines.*.credit' => ['required_without:lines.*.debit', 'nullable', 'numeric', 'min:0'],
             'lines.*.description' => ['nullable', 'string', 'max:255'],
+            // A control account has to name the customer or vendor it belongs
+            // to, and inventory the location - the ledger refuses the line
+            // otherwise, so the form has to be able to say.
+            'lines.*.party' => ['nullable', 'string', 'regex:/^(customer|vendor):[0-9]+$/'],
+            'lines.*.location' => ['nullable', 'string', 'regex:/^(warehouse|retailer):[0-9]+$/'],
         ]);
 
         try {

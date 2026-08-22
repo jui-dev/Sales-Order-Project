@@ -159,6 +159,59 @@ class PostingEngine
         }
     }
 
+    /**
+     * Replace the lines of an entry that has not been posted yet.
+     *
+     * Editing a manual entry used to delete and re-create its lines from
+     * JournalEntryService, which meant the balance, the dimensions and the
+     * period were checked on the way in and never again on the way back. A
+     * draft is the only thing that may be rewritten, and it is rewritten
+     * through the same validation everything else passes.
+     */
+    public function rewrite(JournalEntry $entry, JournalDraft $draft): JournalEntry
+    {
+        if ($entry->isPosted()) {
+            throw new \RuntimeException('A posted entry cannot be rewritten; reverse it with a further entry instead.');
+        }
+
+        $draft->assertValid();
+
+        if ($draft->isEmpty()) {
+            throw new \RuntimeException('An entry needs at least one line with a value on it.');
+        }
+
+        $date = $draft->date();
+        $this->periods->assertOpen($date);
+
+        return DB::transaction(function () use ($entry, $draft, $date) {
+            $entry->update([
+                'entry_date' => $date,
+                'description' => $draft->description(),
+            ]);
+
+            $entry->lines()->delete();
+
+            foreach ($draft->lines() as $line) {
+                $entry->lines()->create([
+                    'account_id'    => $this->accountIdFor($line['role']),
+                    'debit'         => $line['debit']->toDecimal(),
+                    'credit'        => $line['credit']->toDecimal(),
+                    'description'   => $line['description'],
+                    'party_type'    => $line['party']?->getMorphClass(),
+                    'party_id'      => $line['party']?->getKey(),
+                    'location_type' => $line['location']?->getMorphClass(),
+                    'location_id'   => $line['location']?->getKey(),
+                    'product_id'    => $line['product_id'],
+                    'currency'      => config('accounting.base_currency'),
+                ]);
+            }
+
+            $this->log($entry, 'journal_updated');
+
+            return $entry->fresh();
+        });
+    }
+
     // ------------------------------------------------------------------
     // Reversal
     // ------------------------------------------------------------------

@@ -220,6 +220,13 @@ class JournalEntry extends Model
             throw new \RuntimeException('Cannot post an unbalanced journal entry.');
         }
 
+        // PostingEngine checks this when it writes an entry, but a manual entry
+        // is written days before it is posted and the period can close in
+        // between. Without this the one path a person drives by hand was also
+        // the one path that could restate a month somebody had already
+        // reported on - which is the whole thing PeriodGuard exists to stop.
+        app(\App\Accounting\PeriodGuard::class)->assertOpen($this->entry_date);
+
         $this->update([
             'status'    => self::STATUS_POSTED,
             'posted_at' => now(),

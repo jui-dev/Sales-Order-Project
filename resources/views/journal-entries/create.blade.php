@@ -26,9 +26,10 @@
             <table class="table table-bordered align-middle" id="linesTable">
                 <thead class="table-light">
                     <tr>
-                        <th style="width:28%">Account</th>
-                        <th style="width:15%" class="text-end">Debit</th>
-                        <th style="width:15%" class="text-end">Credit</th>
+                        <th style="width:24%">Account</th>
+                        <th style="width:18%">Customer / Vendor / Location</th>
+                        <th style="width:13%" class="text-end">Debit</th>
+                        <th style="width:13%" class="text-end">Credit</th>
                         <th>Description</th>
                         <th style="width:5%"></th>
                     </tr>
@@ -38,7 +39,7 @@
                 </tbody>
                 <tfoot>
                     <tr class="table-light">
-                        <th class="text-end">Totals</th>
+                        <th class="text-end" colspan="2">Totals</th>
                         <th class="text-end" id="totalDebit">0.00</th>
                         <th class="text-end" id="totalCredit">0.00</th>
                         <th colspan="2"></th>
@@ -61,7 +62,18 @@
 @push('scripts')
 <script>
     (function(){
-        const accounts = @json($accounts->map(fn($a)=>['id'=>$a->id,'code'=>$a->code,'name'=>$a->name]));
+        // control_of and requires_location are what the ledger enforces on
+        // every line; the form asks for them so a line is not built that the
+        // ledger will only refuse afterwards.
+        const accounts = @json($accounts->map(fn($a)=>[
+            'id'=>$a->id,
+            'code'=>$a->code,
+            'name'=>$a->name,
+            'control_of'=>$a->control_of,
+            'requires_location'=>(bool) $a->requires_location,
+        ]));
+        const partyOptions    = @json($dimensions['parties']);
+        const locationOptions = @json($dimensions['locations']);
         const tbody    = document.querySelector('#linesTable tbody');
         const addBtn   = document.getElementById('addLineBtn');
         const totalDebitEl  = document.getElementById('totalDebit');
@@ -122,6 +134,11 @@
                         ${buildAccountOptions(data.account_id)}
                     </select>
                 </td>
+                <td>
+                    <select name="lines[${tbody.children.length}][party]" class="form-select form-select-sm party-select d-none"></select>
+                    <select name="lines[${tbody.children.length}][location]" class="form-select form-select-sm location-select d-none"></select>
+                    <span class="text-muted small dimension-none">Not required</span>
+                </td>
                 <td class="text-end">
                     <input type="number" step="0.01" min="0" name="lines[${tbody.children.length}][debit]" class="form-control text-end debit-input" value="${data.debit||''}">
                 </td>
@@ -141,7 +158,52 @@
             recalcTotals();
         }
 
+        /**
+         * Show the dimension the chosen account actually requires.
+         *
+         * Accounts Receivable and Payable name a party, inventory names a
+         * location, and everything else names neither. A line that leaves a
+         * required dimension empty is refused by the ledger, so the select is
+         * marked required rather than left to fail on submit.
+         */
+        function syncDimensions(row){
+            const account  = accounts.find(a => String(a.id) === row.querySelector('.account-select').value);
+            const party    = row.querySelector('.party-select');
+            const location = row.querySelector('.location-select');
+            const none     = row.querySelector('.dimension-none');
+
+            const wantsParty    = !!(account && account.control_of);
+            const wantsLocation = !!(account && account.requires_location);
+
+            toggle(party, wantsParty, partyOptions, account ? account.control_of : null);
+            toggle(location, wantsLocation, locationOptions, null);
+
+            none.classList.toggle('d-none', wantsParty || wantsLocation);
+        }
+
+        function toggle(select, wanted, options, limitTo){
+            select.classList.toggle('d-none', !wanted);
+            select.required = wanted;
+            select.disabled = !wanted;
+
+            if(!wanted){ select.innerHTML = ''; return; }
+
+            const keep = select.value;
+            const entries = Object.entries(options)
+                // A receivable names a customer and a payable a vendor; showing
+                // both would let a line be filed against the wrong ledger.
+                .filter(([value]) => !limitTo || value.startsWith(limitTo + ':'));
+
+            select.innerHTML = '<option value="">Select...</option>' + entries
+                .map(([value,label]) => `<option value="${value}" ${keep===value?'selected':''}>${label}</option>`)
+                .join('');
+        }
+
         function attachRowEvents(row){
+            const accountSelect = row.querySelector('.account-select');
+            accountSelect.addEventListener('change', ()=> syncDimensions(row));
+            syncDimensions(row);
+
             row.querySelectorAll('.debit-input,.credit-input').forEach(inp=>{
                 inp.addEventListener('input', recalcTotals);
             });
