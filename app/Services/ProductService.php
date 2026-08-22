@@ -289,8 +289,7 @@ class ProductService
                 // Apply sorting. Sorting by price means the joined column;
                 // everything else is a real column on products, and is
                 // qualified so the join cannot make it ambiguous.
-                $sortField = $filters['sort'] ?? 'id';
-                $sortDirection = $filters['direction'] ?? 'desc';
+                [$sortField, $sortDirection] = $this->sortFrom($filters, $this->getSortOptions());
 
                 $query->orderBy(
                     $sortField === 'selling_price' ? 'current_price_row.unit_price' : "products.{$sortField}",

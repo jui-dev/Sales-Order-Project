@@ -11,6 +11,32 @@ use Illuminate\Support\Facades\Log;
 trait HasErrorHandling
 {
     /**
+     * A sort field and direction the query builder will actually accept.
+     *
+     * Every listing offers a getSortOptions() whitelist, and only
+     * PurchaseOrderService ever consulted it. Everywhere else the request went
+     * straight into orderBy(): an unknown column raises a QueryException and a
+     * direction other than asc/desc an InvalidArgumentException, both of which
+     * getPaginatedOrEmpty() catches into an empty paginator - so ?sort=nonsense
+     * answered "no records found" rather than showing the records.
+     *
+     * @param  array<string,string>  $allowed  getSortOptions(), keyed by column
+     * @return array{0:string,1:string}
+     */
+    protected function sortFrom(array $filters, array $allowed, string $default = 'id', string $defaultDirection = 'desc'): array
+    {
+        $field = $filters['sort'] ?? $default;
+
+        if (! array_key_exists($field, $allowed)) {
+            $field = $default;
+        }
+
+        $direction = strtolower((string) ($filters['direction'] ?? $defaultDirection));
+
+        return [$field, in_array($direction, ['asc', 'desc'], true) ? $direction : $defaultDirection];
+    }
+
+    /**
      * Find a model by ID or throw a descriptive exception
      */
     protected function findOrFail(string $modelClass, int $id, string $resourceName = null): Model

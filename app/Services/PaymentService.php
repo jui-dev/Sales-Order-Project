@@ -69,7 +69,10 @@ class PaymentService
                 }
 
                 if (!empty($filters['sort'])) {
-                    $query->reorder($filters['sort'], $filters['direction'] ?? 'desc');
+                    // Whitelisted: reorder() takes the column straight into the
+                    // query, so an unknown one is a SQL error.
+                    [$sortField, $sortDirection] = $this->sortFrom($filters, $this->getSortOptions(), 'payment_date');
+                    $query->reorder($sortField, $sortDirection);
                 }
 
                 return $query->paginate($perPage);

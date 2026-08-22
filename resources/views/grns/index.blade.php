@@ -102,6 +102,12 @@
                 </tbody>
             </table>
         </div>
+
+        @if($grns->hasPages())
+            <div class="card-footer">
+                {{ $grns->withQueryString()->links() }}
+            </div>
+        @endif
     </div>
 </div>
 </div>

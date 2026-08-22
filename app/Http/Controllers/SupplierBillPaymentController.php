@@ -16,6 +16,10 @@ class SupplierBillPaymentController extends Controller
     {
         $filters = [
             'payment_status' => $request->payment_status,
+            // getFilterOptions() offers these two, so they have to arrive here
+            // for the service to be able to apply them.
+            'date_from' => $request->date_from,
+            'date_to' => $request->date_to,
         ];
 
         $payments = $this->supplierBillPaymentService->getFilteredPayments($filters, 20);

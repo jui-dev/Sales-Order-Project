@@ -5,11 +5,13 @@ namespace App\Observers;
 use App\Accounting\PostingEngine;
 use App\Models\Grn;
 use App\Models\AuditLog;
+use App\Services\GrnService;
 
 class GrnObserver
 {
     public function __construct(
         private readonly PostingEngine $ledger,
+        private readonly GrnService $stock,
     ) {
     }
 
@@ -24,9 +26,17 @@ class GrnObserver
         }
 
         // ------------------------------------------------------------------
-        // The goods are here, so the business owns them: inventory is debited
-        // now and the other side parks in Goods Received Not Invoiced until the
-        // vendor bills for it.
+        // The goods are here. Stock and ledger move on this one event, in that
+        // order: booking the value of goods that never reached a shelf is
+        // exactly the drift the goods-receipt rule was written to close, and
+        // that is what happened while the stock was posted from GrnService and
+        // the ledger from here.
+        // ------------------------------------------------------------------
+        $this->stock->postStock($grn);
+
+        // ------------------------------------------------------------------
+        // Inventory is debited and the other side parks in Goods Received Not
+        // Invoiced until the vendor bills for it.
         //
         // The ledger used to wait for the supplier bill to be posted - an
         // office task that happens later and sometimes not at all - so stock

@@ -266,9 +266,9 @@ class OrderService
                     $query->whereDate('created_at', '<=', $filters['date_to']);
                 }
 
-                // Apply sorting
-                $sortField = $filters['sort'] ?? 'id';
-                $sortDirection = $filters['direction'] ?? 'desc';
+                // Whitelisted, or an unknown column takes the whole listing
+                // down into the empty-paginator fallback.
+                [$sortField, $sortDirection] = $this->sortFrom($filters, $this->getSortOptions());
                 $query->orderBy($sortField, $sortDirection);
 
                 return $query->paginate($perPage);

@@ -84,13 +84,11 @@ class PickingListObserver
                     ? StockTransaction::TYPE_STOCK_TRANSFER
                     : StockTransaction::TYPE_ORDER_FULFILLMENT;
 
-                // Record outbound transaction (source warehouse)
-                // Note: We manually update stock above, so we need to prevent
-                // StockTransactionObserver from double-deducting. We'll disable
-                // the observer for this transaction by temporarily storing a flag.
-                $skipStockUpdate = true;
-
-                $transaction = StockTransaction::withoutEvents(function() use ($item, $stock, $qty, $txnType, $list) {
+                // Record outbound transaction (source warehouse). The stock is
+                // adjusted by hand above, so the transaction is written without
+                // events to keep StockTransactionObserver from deducting it a
+                // second time.
+                StockTransaction::withoutEvents(function() use ($item, $stock, $qty, $txnType, $list) {
                     return StockTransaction::create([
                         'product_id'       => $item->product_id,
                         'location_id'      => $stock->location_id,
@@ -121,7 +119,7 @@ class PickingListObserver
 
                     // Inbound transaction record
                     // Note: We manually update stock above, so prevent observer from double-updating
-                    $inboundTransaction = StockTransaction::withoutEvents(function() use ($item, $destStock, $qty, $txnType, $list) {
+                    StockTransaction::withoutEvents(function() use ($item, $destStock, $qty, $txnType, $list) {
                         return StockTransaction::create([
                             'product_id'       => $item->product_id,
                             'location_id'      => $destStock->location_id,
@@ -158,13 +156,17 @@ class PickingListObserver
                 if ($order && $order->status !== 'completed') {
                     $order->updateQuietly(['status' => 'completed']);
 
-                    // Auto-generate invoice upon completion
-                    try {
-                        $invoice = app(\App\Services\InvoiceService::class)->generateFromOrder($order);
-                        \Log::info('Invoice generated successfully for Order '.$order->id.': Invoice #'.$invoice->invoice_number);
-                    } catch (\Throwable $e) {
-                        \Log::error('Failed to auto-generate invoice for Order '.$order->id.' after picking completion: '.$e->getMessage());
-                    }
+                    // Auto-generate invoice upon completion.
+                    //
+                    // The failure travels rather than being logged and
+                    // swallowed. Catching it left the order marked completed
+                    // with no invoice behind it and no sign to the person who
+                    // completed the pick - the same failure mode that was
+                    // deliberately removed from PaymentObserver, where a
+                    // payment that cannot be accounted for is a payment that
+                    // should not be recorded.
+                    $invoice = app(\App\Services\InvoiceService::class)->generateFromOrder($order);
+                    \Log::info('Invoice generated for Order '.$order->id.': Invoice #'.$invoice->invoice_number);
                 }
             }
         });

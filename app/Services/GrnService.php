@@ -32,13 +32,12 @@ class GrnService
                 return $grn;
             }
 
-            // Update the status first
+            // Updating the status is the whole of it: GrnObserver books the
+            // stock and the ledger off that one event. They used to be split -
+            // the observer posted the ledger and this method posted the stock -
+            // so setting the status anywhere else booked the value of goods
+            // that never reached a shelf.
             $grn->update(['status' => $toStatus]);
-
-            // Only run stock posting logic when we reach the final state
-            if ($toStatus === 'posted') {
-                $this->postStock($grn);
-            }
 
             return $grn;
         });
@@ -50,11 +49,16 @@ class GrnService
      * We increase stock in the destination warehouse and create matching
      * stock transactions / transfer records so that the entire movement is
      * auditable.
+     *
+     * Driven by GrnObserver, so that the stock and the ledger move on the same
+     * event rather than on two different call sites.
      */
-    private function postStock(Grn $grn): void
+    public function postStock(Grn $grn): void
     {
-        // Guard against double-posting
-        if ($grn->posted_at ?? false) {
+        // Posting a delivery's stock twice would double the shelves. The column
+        // this reads did not exist until it was added alongside this comment,
+        // so the guard had never fired.
+        if ($grn->posted_at) {
             return;
         }
 
@@ -62,17 +66,21 @@ class GrnService
         $warehouse = $supply->warehouse;
 
         /* ------------------------------------------------------------
-         * Create (or fetch) a StockTransfer that represents the inbound
-         * movement from Vendor → Warehouse. Doing this upfront allows us
-         * to avoid running firstOrCreate inside the loop.
+         * One StockTransfer per GRN, recording the inbound movement from
+         * Vendor → Warehouse.
+         *
+         * This used to be a firstOrCreate keyed on vendor, warehouse and date,
+         * which is not unique to a delivery: two GRNs from one vendor into one
+         * warehouse on one day shared a single transfer and piled their items
+         * together. The posted_at guard above is what keeps this to one row per
+         * GRN now.
          * ------------------------------------------------------------ */
-        $transfer = \App\Models\StockTransfer::firstOrCreate([
+        $transfer = \App\Models\StockTransfer::create([
             'from_location_id' => $supply->vendor_id,
             'from_location_type' => \App\Models\Vendor::class,
             'to_location_id' => $supply->warehouse_id,
             'to_location_type' => get_class($warehouse),
             'transfer_date' => $grn->received_date ?? now(),
-        ], [
             'status' => 'completed',
             'notes' => 'Auto-generated from GRN #'.$grn->id,
         ]);
@@ -108,13 +116,15 @@ class GrnService
                 // rather than on SupplyItem::created, and inside the
                 // already-posted guard so a re-post cannot reprice twice.
                 $this->applyReceivedCost($item);
-            }
 
-            // Persist transfer item row (linked to the transfer created above)
-            $transfer->items()->create([
-                'product_id' => $item->product_id,
-                'quantity' => $item->quantity,
-            ]);
+                // Inside the guard, with the movement it belongs to. Sitting
+                // outside it, this ran on every call, so a re-post duplicated
+                // every transfer line while the stock correctly stayed put.
+                $transfer->items()->create([
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                ]);
+            }
         }
 
         // Mark supply as completed
@@ -122,12 +132,8 @@ class GrnService
             $supply->update(['status' => 'completed']);
         }
 
-        // Add a simple posted_at timestamp column on-the-fly (if exists) to
-        // guard against double-posting. If the column does not exist, we
-        // quietly ignore — this keeps the logic flexible.
-        if ($grn->getConnection()->getSchemaBuilder()->hasColumn($grn->getTable(), 'posted_at')) {
-            $grn->forceFill(['posted_at' => now()])->saveQuietly();
-        }
+        // What makes the guard at the top of this method mean something.
+        $grn->forceFill(['posted_at' => now()])->saveQuietly();
     }
 
     /**

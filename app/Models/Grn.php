@@ -19,10 +19,12 @@ class Grn extends Model
         'supply_id',
         'received_date',
         'status',
+        'posted_at',
     ];
 
     protected $casts = [
         'received_date' => 'date',
+        'posted_at' => 'datetime',
     ];
 
     public function supply(): BelongsTo

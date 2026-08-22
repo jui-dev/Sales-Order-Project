@@ -75,11 +75,7 @@ class PurchaseOrderService
                 // Sorting comes off the query string, so the field is only ever
                 // one this page offers - an unknown column would otherwise take
                 // the whole listing down with a SQL error.
-                $sortField = $filters['sort'] ?? 'id';
-                if (! array_key_exists($sortField, $this->getSortOptions())) {
-                    $sortField = 'id';
-                }
-                $sortDirection = strtolower((string) ($filters['direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+                [$sortField, $sortDirection] = $this->sortFrom($filters, $this->getSortOptions());
 
                 return $query->orderBy("purchase_orders.{$sortField}", $sortDirection)->paginate($perPage);
             },

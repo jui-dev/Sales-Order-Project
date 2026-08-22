@@ -18,6 +18,18 @@ class SupplierBillPaymentService
             $query->where('payment_status', $filters['payment_status']);
         }
 
+        // The date filters are offered by getFilterOptions() and were read by
+        // nothing, so the two inputs rendered on the page and did not narrow
+        // the list. Dated by when the payment was made, which is what the
+        // labels say.
+        if (!empty($filters['date_from'])) {
+            $query->whereDate('paid_at', '>=', $filters['date_from']);
+        }
+
+        if (!empty($filters['date_to'])) {
+            $query->whereDate('paid_at', '<=', $filters['date_to']);
+        }
+
         return $query->orderByDesc('id')->paginate($perPage);
     }
 

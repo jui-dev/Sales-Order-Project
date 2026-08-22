@@ -13,7 +13,9 @@ class GrnController extends Controller
 
     public function index(): View
     {
-        $grns = Grn::with(['supply.vendor'])->latest()->get();
+        // Paginated like every other listing. This loaded every GRN ever
+        // received on one page.
+        $grns = Grn::with(['supply.vendor'])->latest()->paginate(20);
 
         return view('grns.index', compact('grns'));
     }
@@ -24,19 +26,16 @@ class GrnController extends Controller
         if ($grn->status === 'posted') {
             return back()->with('info', "GRN #{$grn->id} is already posted.");
         }
-        $next = $grn->status === 'draft' ? 'posted' : 'posted';
+        // Receiving is the only transition this button makes. Both arms of the
+        // ternary that used to stand here said 'posted'.
+        $this->service->transitionStatus($grn->id, 'posted');
 
-        // Delegate heavy lifting to the service so that when we hit
-        // "posted" the stock gets updated automatically.
-        $this->service->transitionStatus($grn->id, $next);
-
-        // If GRN was posted, redirect to the supplier bill page
-        if ($next === 'posted' && $grn->supplierBill) {
-            return redirect()->route('supplier-bills.show', $grn->supplierBill)
-                ->with('success', "GRN #{$grn->id} marked as {$next}. Supplier Bill generated.");
+        if ($bill = $grn->fresh()->supplierBill) {
+            return redirect()->route('supplier-bills.show', $bill)
+                ->with('success', "GRN #{$grn->id} marked as posted. Supplier Bill generated.");
         }
 
-        return back()->with('success', "GRN #{$grn->id} marked as {$next}.");
+        return back()->with('success', "GRN #{$grn->id} marked as posted.");
     }
 
     public function show(int $id): View
