@@ -160,7 +160,7 @@ class NoteDetailPageTest extends TestCase
     }
 
     /** @test */
-    public function it_shows_the_draft_ledger_once_a_credit_note_is_posted()
+    public function it_shows_the_posted_ledger_once_a_credit_note_is_posted()
     {
         $note = $this->creditNote();
 
@@ -169,51 +169,24 @@ class NoteDetailPageTest extends TestCase
         $response = $this->get(route('credit-notes.show', $note->fresh()));
 
         $response->assertOk();
-        // A draft entry exists but must be reported as having no effect yet. The
-        // note reports the entry and links to it; approving it belongs to the
-        // journal entries screen, so neither action is offered here.
-        $response->assertSee('neither has happened yet');
+        // The entry is on the books the moment the note is posted: the ledger
+        // is the system's record of a document a person has already approved,
+        // so there is no second approval to wait for. The note reports the
+        // entry and links to it, and offers no action of its own.
+        $response->assertSee('The reversal is posted.');
         $response->assertSee(route('journal-entries.show', $note->fresh()->journalEntry), false);
         $response->assertDontSee('Approve Journal Entry');
         $response->assertDontSee('Post Journal Entry');
     }
 
     /** @test */
-    public function it_points_an_approved_credit_note_journal_at_the_journal_entries_screen()
-    {
-        $note = $this->creditNote();
-
-        $service = app(CreditNoteService::class);
-        $service->postCreditNote($note);
-        $service->approveJournalEntry($note->fresh());
-
-        $response = $this->get(route('credit-notes.show', $note->fresh()));
-
-        $response->assertOk();
-        // Approved is still off the ledger, and posting it is done from the
-        // journal entries screen rather than from the note.
-        $response->assertSee('but not posted');
-        $response->assertSee(route('journal-entries.show', $note->fresh()->journalEntry), false);
-        $response->assertDontSee('Post Journal Entry');
-        $response->assertDontSee('Approve Journal Entry');
-    }
-
-    /**
-     * @test
-     * @testWith ["draft"]
-     *           ["approved"]
-     */
-    public function it_points_a_debit_note_journal_at_the_journal_entries_screen(string $journalStatus)
+    public function it_points_a_debit_note_journal_at_the_journal_entries_screen()
     {
         $note = $this->debitNote();
 
         app(DebitNoteService::class)->postDebitNote($note);
         $entry = $note->fresh()->journalEntry;
-        $this->assertSame('draft', $entry->status);
-
-        if ($journalStatus === 'approved') {
-            app(JournalEntryService::class)->approveEntry($entry);
-        }
+        $this->assertSame('posted', $entry->status);
 
         $response = $this->get(route('debit-notes.show', $note->fresh()));
 

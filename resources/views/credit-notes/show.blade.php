@@ -172,17 +172,10 @@
                     The reversal is posted. Sales returns and accounts receivable have both moved by
                     ${{ number_format($creditNote->total_amount, 2) }}, so this now shows in the
                     financial statements.
-                @elseif($journalApproved)
-                    The journal entry has been <strong>approved</strong> but not posted, so the accounts
-                    have not moved yet. Posting it is what gives this credit note its financial effect.
-                @elseif($hasJournal)
-                    A <strong>draft</strong> journal entry exists. It has to be approved and then posted
-                    in Journal Entries before the accounts move; neither has happened yet.
                 @else
                     This credit note is issued but has no journal entry, so it has no effect on the
-                    accounts yet. Posting it creates a draft reversal against
-                    {{ $invoice->invoice_number ?? 'the original invoice' }}, which is then posted
-                    separately.
+                    accounts yet. Posting it books the reversal against
+                    {{ $invoice->invoice_number ?? 'the original invoice' }} straight away.
                 @endif
             </div>
         </div>

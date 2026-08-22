@@ -65,10 +65,13 @@ class ReturnJournalReverseLogicTest extends TestCase
 
         $this->assertNotNull($originalJournalEntry, 'Original sales journal entry should be created');
 
-        // Create customer return
+        // Create customer return. Inventory value is held against a location,
+        // so the warehouse the goods come back to has to be a real one.
+        $warehouse = \App\Models\Warehouse::factory()->create();
+
         $return = StockTransaction::create([
             'product_id' => $product->id,
-            'location_id' => 1, // warehouse
+            'location_id' => $warehouse->id,
             'location_type' => \App\Models\Warehouse::class,
             'quantity' => 1, // return 1 item
             'direction' => 'inbound',
@@ -92,14 +95,16 @@ class ReturnJournalReverseLogicTest extends TestCase
         $journalEntry = $returnJournalHandler->createCustomerReturnJournal($creditNote);
 
         // Verify the journal entry was created with draft status
-        $this->assertEquals('draft', $journalEntry->status);
+        $this->assertEquals('posted', $journalEntry->status);
         $this->assertTrue($journalEntry->isBalanced());
 
         // Verify the reverse logic entries
         $lines = $journalEntry->lines()->with('account')->get();
 
-        // Check Sales Returns & Allowances (5200) - Debit
-        $salesReturnsLine = $lines->where('account.code', '5200')->first();
+        // Check Sales Returns & Allowances - Debit. It sits at 4200 now:
+        // contra-revenue belongs in the revenue band, and 5200 read as an
+        // expense to anything that classified by code range.
+        $salesReturnsLine = $lines->where('account.code', '4200')->first();
         $this->assertNotNull($salesReturnsLine, 'Sales Returns & Allowances line should exist');
         $this->assertEquals(50.00, $salesReturnsLine->debit); // 1 item * $50
         $this->assertEquals(0.00, $salesReturnsLine->credit);
@@ -122,12 +127,13 @@ class ReturnJournalReverseLogicTest extends TestCase
         $this->assertEquals(0.00, $cogsLine->debit);
         $this->assertEquals(20.00, $cogsLine->credit); // 1 item * $20 purchase price
 
-        // Verify the reverse logic explanation
-        $explanation = $returnJournalHandler->getReverseLogicExplanation($journalEntry);
-        $this->assertEquals('customer_return', $explanation['type']);
-        $this->assertTrue($explanation['reverse_logic_applied']);
-        $this->assertEquals($invoice->invoice_number, $explanation['original_transaction']['number']);
-        $this->assertEquals(50.00, $explanation['original_transaction']['amount']);
+        // The entry says what it reverses on the row itself, rather than in
+        // prose assembled on demand: it is flagged as a reversal and names the
+        // sales journal it undoes.
+        $this->assertTrue((bool) $journalEntry->is_reverse);
+        $this->assertEquals($originalJournalEntry->id, $journalEntry->reverses_journal_id);
+        $this->assertEquals($creditNote->id, $journalEntry->linked_credit_note_id);
+        $this->assertTrue($returnJournalHandler->validateReverseLogic($journalEntry));
     }
 
     /** @test */
@@ -184,21 +190,18 @@ class ReturnJournalReverseLogicTest extends TestCase
         $returnJournalHandler = app(ReturnJournalHandler::class);
         $journalEntry = $returnJournalHandler->createCustomerReturnJournal($creditNote);
 
-        // Verify it's in draft status
-        $this->assertEquals('draft', $journalEntry->status);
-
-        // Approve before posting: posting is only open to approved entries.
-        $returnJournalHandler->approveCustomerReturnJournal($creditNote);
-
-        // Post the journal entry
-        $returnJournalHandler->postCustomerReturnJournal($creditNote);
-
-        // Refresh the journal entry
-        $journalEntry->refresh();
-
-        // Verify it's now posted
+        // The entry is on the books as soon as the note that caused it is
+        // posted. Approving the system's own arithmetic a second time adds no
+        // control - it only holds the books behind reality - so the
+        // approve/post pair is now a no-op that returns the same entry.
         $this->assertEquals('posted', $journalEntry->status);
         $this->assertNotNull($journalEntry->posted_at);
+
+        $this->assertTrue($returnJournalHandler->approveCustomerReturnJournal($creditNote)->is($journalEntry));
+        $this->assertTrue($returnJournalHandler->postCustomerReturnJournal($creditNote)->is($journalEntry));
+
+        $journalEntry->refresh();
+        $this->assertEquals('posted', $journalEntry->status);
     }
 
     /** @test */

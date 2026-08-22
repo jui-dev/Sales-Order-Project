@@ -692,7 +692,7 @@ class StockTransaction extends Model
                 break;
             case self::TYPE_RETAILER_RETURN:
                 // No note is raised - nothing is owed either way - but the value
-                // still has to move back between the inventory sub-accounts that
+                // still has to move back between the inventory locations that
                 // the original transfer moved it out of.
                 $this->generateRetailerReturnJournal();
                 break;
@@ -724,7 +724,7 @@ class StockTransaction extends Model
     }
 
     /**
-     * Move the inventory value back between location sub-accounts for a
+     * Move the inventory value back between stock locations for a
      * retailer return. Rethrows for the same reason as generateCreditNote().
      */
     private function generateRetailerReturnJournal(): void

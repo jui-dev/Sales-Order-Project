@@ -2,59 +2,35 @@
 
 namespace App\Observers;
 
-use App\Models\Invoice;
-use App\Models\JournalEntry;
+use App\Accounting\PostingEngine;
 use App\Models\AuditLog;
-use App\Services\AccountingService;
-use Illuminate\Support\Facades\App;
+use App\Models\Invoice;
 
 class InvoiceObserver
 {
+    public function __construct(
+        private readonly PostingEngine $ledger,
+    ) {
+    }
+
     /**
      * Handle the Invoice "created" event.
+     *
+     * What the sale posts - receivable, revenue, tax and discount - is
+     * InvoicePostingRule's business, not this class's. The engine is
+     * idempotent on the invoice and the rule, so re-running is a no-op and the
+     * check this method used to do by hand is no longer needed here.
      */
     public function created(Invoice $invoice): void
     {
-        // Idempotency check
-        $exists = JournalEntry::where('source_type', $invoice->getMorphClass())
-            ->where('source_id', $invoice->getKey())
-            ->exists();
-        if ($exists) {
-            return;
-        }
+        $this->ledger->postFor($invoice);
 
-        $invoiceAmount = round($invoice->total, 2);
-        if ($invoiceAmount <= 0) {
-            return;
-        }
-
-        // Create journal entry for invoice (sale)
-        $lines = [
-            [
-                'account_code' => '1100', // Accounts Receivable
-                'debit'        => $invoiceAmount,
-                'credit'       => 0,
-                'description'  => 'Sale recorded for Invoice #' . $invoice->invoice_number,
-            ],
-            [
-                'account_code' => '4000', // Sales Revenue
-                'debit'        => 0,
-                'credit'       => $invoiceAmount,
-                'description'  => 'Sale recorded for Invoice #' . $invoice->invoice_number,
-            ],
-        ];
-
-        /** @var AccountingService $acct */
-        $acct = App::make(AccountingService::class);
-        $acct->post($lines, $invoice->invoice_date ?? now(), 'Sale recorded for Invoice #' . $invoice->invoice_number, $invoice);
-
-        // Audit trail
         AuditLog::create([
-            'user_id'      => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
+            'user_id'      => auth()->id() ?? 1,
             'action'       => 'invoice_created',
-            'description'  => 'Invoice #' . $invoice->invoice_number . ' created for $' . number_format($invoiceAmount, 2),
+            'description'  => 'Invoice #' . $invoice->invoice_number . ' created for ' . number_format((float) $invoice->total, 2),
             'subject_type' => $invoice->getMorphClass(),
             'subject_id'   => $invoice->getKey(),
         ]);
     }
-} 
+}

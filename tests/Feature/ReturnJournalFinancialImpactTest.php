@@ -2,23 +2,40 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
+use App\Accounting\AccountRole;
+use App\Accounting\LedgerService;
+use App\Models\Account;
+use App\Models\CreditNote;
 use App\Models\Customer;
-use App\Models\Product;
+use App\Models\Invoice;
+use App\Models\JournalEntry;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Invoice;
+use App\Models\Product;
 use App\Models\StockTransaction;
-use App\Models\CreditNote;
-use App\Models\JournalEntry;
-use App\Models\Account;
-use App\Services\InvoiceService;
-use App\Services\ReturnService;
-use App\Services\ReturnJournalHandler;
+use App\Models\Warehouse;
 use App\Services\AccountingService;
+use App\Services\InvoiceService;
 use App\Services\ReportService;
+use App\Services\ReturnJournalHandler;
+use App\Services\ReturnService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 
+/**
+ * When a customer return reaches the financial statements, and when it does not.
+ *
+ * This file used to assert that a return entry sat in draft carrying no
+ * financial effect until somebody approved and posted it by hand. That is no
+ * longer how it works: an entry the system raises from a document a person has
+ * already approved is posted when it is raised, because a second approval of
+ * the system's own arithmetic adds no control and only holds the books behind
+ * reality.
+ *
+ * The invariant those tests were really protecting - that an unposted entry has
+ * no effect on any statement - is still true and still tested here, on the kind
+ * of entry it now applies to: one a person typed.
+ */
 class ReturnJournalFinancialImpactTest extends TestCase
 {
     use RefreshDatabase;
@@ -30,480 +47,170 @@ class ReturnJournalFinancialImpactTest extends TestCase
     }
 
     /** @test */
-    public function it_creates_customer_return_journal_with_draft_status_no_financial_impact()
+    public function it_puts_a_customer_return_on_the_statements_as_soon_as_the_note_is_posted()
     {
-        // Create test data
-        $customer = Customer::factory()->create();
-        $product = Product::factory()->create([
-            'purchase_price' => 20,
-            'selling_price' => 50,
-        ]);
+        $ledger = app(LedgerService::class);
 
-        // Create order and invoice (this will create the original sales journal entry)
-        $order = Order::create([
-            'customer_id' => $customer->id,
-            'status' => 'completed',
-            'order_date' => now(),
-            'total_amount' => 100, // 2 * 50
-            'fulfillment_location_id' => null,
-            'fulfillment_location_type' => null,
-        ]);
+        [$invoice, $creditNote] = $this->saleAndReturn();
 
-        OrderItem::create([
-            'order_id' => $order->id,
-            'product_id' => $product->id,
-            'quantity' => 2,
-            'unit_price' => 50,
-            'subtotal' => 100,
-        ]);
+        $before = [
+            'receivable'    => $ledger->balance(AccountRole::AccountsReceivable)->toDecimal(),
+            'salesReturns'  => $ledger->balance(AccountRole::SalesReturns)->toDecimal(),
+        ];
 
-        $invoiceService = app(InvoiceService::class);
-        $invoice = $invoiceService->generateFromOrder($order);
+        $entry = app(ReturnJournalHandler::class)->createCustomerReturnJournal($creditNote);
 
-        // Create and approve customer return
-        $return = StockTransaction::create([
-            'product_id' => $product->id,
-            'location_id' => 1, // warehouse
-            'location_type' => \App\Models\Warehouse::class,
-            'quantity' => 1, // return 1 item
-            'direction' => 'inbound',
-            'transaction_type' => StockTransaction::TYPE_CUSTOMER_RETURN,
-            'reference_type' => Invoice::class,
-            'reference_id' => $invoice->id,
-            'transaction_date' => now(),
-            'status' => 'pending',
-        ]);
+        $this->assertEquals(JournalEntry::STATUS_POSTED, $entry->status);
+        $this->assertNotNull($entry->posted_at);
+        $this->assertTrue($entry->isBalanced());
 
-        $returnService = app(ReturnService::class);
-        $approvedReturn = $returnService->approveReturn($return);
+        // 2 units at 50 were sold and 1 came back. Gross revenue stays at 100
+        // with the 50 shown against it in sales returns, rather than one
+        // silently eroding the other, and the receivable falls to 50.
+        $this->assertSame('100.00', $ledger->balance(AccountRole::SalesRevenue)->negated()->toDecimal());
+        $this->assertSame('50.00', $ledger->balance(AccountRole::SalesReturns)->toDecimal());
+        $this->assertSame('50.00', $ledger->balance(AccountRole::AccountsReceivable)->toDecimal());
 
-        // Check that a credit note was generated
-        $creditNote = CreditNote::where('return_transaction_id', $approvedReturn->id)->first();
-        $this->assertNotNull($creditNote, 'Credit note should be generated');
-
-        // Get initial financial statement values
-        $accountingService = app(AccountingService::class);
-        $reportService = app(ReportService::class);
-        
-        $initialTrialBalance = $accountingService->trialBalance();
-        $initialIncomeStatement = $reportService->generateIncomeStatementReport();
-        $initialBalanceSheet = $reportService->generateBalanceSheetReport();
-
-        // Create journal entry with built-in reverse logic (draft status)
-        $returnJournalHandler = app(ReturnJournalHandler::class);
-        $journalEntry = $returnJournalHandler->createCustomerReturnJournal($creditNote);
-
-        // Verify the journal entry was created with draft status
-        $this->assertEquals('draft', $journalEntry->status);
-        $this->assertTrue($journalEntry->isBalanced());
-
-        // Verify financial statements are NOT affected (draft status)
-        $draftTrialBalance = $accountingService->trialBalance();
-        $draftIncomeStatement = $reportService->generateIncomeStatementReport();
-        $draftBalanceSheet = $reportService->generateBalanceSheetReport();
-
-        // Trial balance should be unchanged
-        $this->assertEquals(
-            $initialTrialBalance->count(),
-            $draftTrialBalance->count(),
-            'Trial balance should not be affected by draft journal entry'
-        );
-
-        // Income statement should be unchanged
-        $this->assertEquals(
-            $initialIncomeStatement['totalRevenue'],
-            $draftIncomeStatement['totalRevenue'],
-            'Income statement revenue should not be affected by draft journal entry'
-        );
-
-        // Balance sheet should be unchanged
-        $this->assertEquals(
-            $initialBalanceSheet['totalAssets'],
-            $draftBalanceSheet['totalAssets'],
-            'Balance sheet should not be affected by draft journal entry'
-        );
+        $this->assertNotSame($before['salesReturns'], $ledger->balance(AccountRole::SalesReturns)->toDecimal());
+        $this->assertNotSame($before['receivable'], $ledger->balance(AccountRole::AccountsReceivable)->toDecimal());
     }
 
     /** @test */
-    public function it_posts_customer_return_journal_and_affects_financial_statements()
+    public function it_nets_the_return_out_of_the_income_statement()
     {
-        // Create test data
-        $customer = Customer::factory()->create();
-        $product = Product::factory()->create([
-            'purchase_price' => 20,
-            'selling_price' => 50,
-        ]);
+        [, $creditNote] = $this->saleAndReturn();
 
-        // Create order and invoice
-        $order = Order::create([
-            'customer_id' => $customer->id,
-            'status' => 'completed',
-            'order_date' => now(),
-            'total_amount' => 100,
-            'fulfillment_location_id' => null,
-            'fulfillment_location_type' => null,
-        ]);
+        app(ReturnJournalHandler::class)->createCustomerReturnJournal($creditNote);
 
-        OrderItem::create([
-            'order_id' => $order->id,
-            'product_id' => $product->id,
-            'quantity' => 2,
-            'unit_price' => 50,
-            'subtotal' => 100,
-        ]);
+        $statement = app(ReportService::class)->generateIncomeStatementReport();
 
-        $invoiceService = app(InvoiceService::class);
-        $invoice = $invoiceService->generateFromOrder($order);
+        // Gross revenue of 100 less a 50 return is 50. Sales Returns is
+        // contra-revenue, so it subtracts by its sign rather than by any
+        // special case in the report.
+        $this->assertEquals(50.0, round($statement['totalRevenue'], 2));
 
-        // Create and approve return
-        $return = StockTransaction::create([
-            'product_id' => $product->id,
-            'location_id' => 1,
-            'location_type' => \App\Models\Warehouse::class,
-            'quantity' => 1,
-            'direction' => 'inbound',
-            'transaction_type' => StockTransaction::TYPE_CUSTOMER_RETURN,
-            'reference_type' => Invoice::class,
-            'reference_id' => $invoice->id,
-            'transaction_date' => now(),
-            'status' => 'pending',
-        ]);
-
-        $returnService = app(ReturnService::class);
-        $approvedReturn = $returnService->approveReturn($return);
-
-        $creditNote = CreditNote::where('return_transaction_id', $approvedReturn->id)->first();
-
-        // Create journal entry
-        $returnJournalHandler = app(ReturnJournalHandler::class);
-        $journalEntry = $returnJournalHandler->createCustomerReturnJournal($creditNote);
-
-        // Get financial statement values before posting
-        $accountingService = app(AccountingService::class);
-        $reportService = app(ReportService::class);
-        
-        $beforeTrialBalance = $accountingService->trialBalance();
-        $beforeIncomeStatement = $reportService->generateIncomeStatementReport();
-        $beforeBalanceSheet = $reportService->generateBalanceSheetReport();
-
-        // Approve before posting: posting is only open to approved entries.
-        $returnJournalHandler->approveCustomerReturnJournal($creditNote);
-
-        // Post the journal entry
-        $returnJournalHandler->postCustomerReturnJournal($creditNote);
-
-        // Refresh the journal entry
-        $journalEntry->refresh();
-
-        // Verify it's now posted
-        $this->assertEquals('posted', $journalEntry->status);
-        $this->assertNotNull($journalEntry->posted_at);
-
-        // Get financial statement values after posting
-        $afterTrialBalance = $accountingService->trialBalance();
-        $afterIncomeStatement = $reportService->generateIncomeStatementReport();
-        $afterBalanceSheet = $reportService->generateBalanceSheetReport();
-
-        // Verify financial statements are NOW affected
-        $this->assertNotEquals(
-            $beforeTrialBalance->count(),
-            $afterTrialBalance->count(),
-            'Trial balance should be affected by posted journal entry'
-        );
-
-        // Verify specific account impacts
-        $salesReturnsAccount = $afterTrialBalance->get('5200'); // Sales Returns & Allowances
-        $this->assertNotNull($salesReturnsAccount, 'Sales Returns & Allowances account should be in trial balance');
-        $this->assertEquals(50.00, $salesReturnsAccount['debit'], 'Sales Returns & Allowances should be debited');
-
-        $accountsReceivableAccount = $afterTrialBalance->get('1100'); // Accounts Receivable
-        $this->assertNotNull($accountsReceivableAccount, 'Accounts Receivable account should be in trial balance');
-        $this->assertEquals(50.00, $accountsReceivableAccount['credit'], 'Accounts Receivable should be credited');
-
-        // Verify income statement impact
-        $this->assertNotEquals(
-            $beforeIncomeStatement['totalRevenue'],
-            $afterIncomeStatement['totalRevenue'],
-            'Income statement should be affected by posted journal entry'
-        );
-
-        // Verify balance sheet impact
-        $this->assertNotEquals(
-            $beforeBalanceSheet['totalAssets'],
-            $afterBalanceSheet['totalAssets'],
-            'Balance sheet should be affected by posted journal entry'
-        );
-    }
-
-    /** @test */
-    public function it_calculates_financial_statement_impact_correctly()
-    {
-        // Create test data
-        $customer = Customer::factory()->create();
-        $product = Product::factory()->create([
-            'purchase_price' => 20,
-            'selling_price' => 50,
-        ]);
-
-        // Create order and invoice
-        $order = Order::create([
-            'customer_id' => $customer->id,
-            'status' => 'completed',
-            'order_date' => now(),
-            'total_amount' => 100,
-            'fulfillment_location_id' => null,
-            'fulfillment_location_type' => null,
-        ]);
-
-        OrderItem::create([
-            'order_id' => $order->id,
-            'product_id' => $product->id,
-            'quantity' => 2,
-            'unit_price' => 50,
-            'subtotal' => 100,
-        ]);
-
-        $invoiceService = app(InvoiceService::class);
-        $invoice = $invoiceService->generateFromOrder($order);
-
-        // Create and approve return
-        $return = StockTransaction::create([
-            'product_id' => $product->id,
-            'location_id' => 1,
-            'location_type' => \App\Models\Warehouse::class,
-            'quantity' => 1,
-            'direction' => 'inbound',
-            'transaction_type' => StockTransaction::TYPE_CUSTOMER_RETURN,
-            'reference_type' => Invoice::class,
-            'reference_id' => $invoice->id,
-            'transaction_date' => now(),
-            'status' => 'pending',
-        ]);
-
-        $returnService = app(ReturnService::class);
-        $approvedReturn = $returnService->approveReturn($return);
-
-        $creditNote = CreditNote::where('return_transaction_id', $approvedReturn->id)->first();
-
-        // Create and post journal entry
-        $returnJournalHandler = app(ReturnJournalHandler::class);
-        $journalEntry = $returnJournalHandler->createCustomerReturnJournal($creditNote);
-        $returnJournalHandler->approveCustomerReturnJournal($creditNote);
-        $returnJournalHandler->postCustomerReturnJournal($creditNote);
-
-        // Get financial impact summary
-        $financialImpact = $returnJournalHandler->getFinancialImpactSummary($journalEntry);
-
-        // Verify financial impact summary
-        $this->assertEquals('posted', $financialImpact['status']);
-        $this->assertEquals('customer_return', $financialImpact['return_type']);
-        $this->assertGreaterThan(0, $financialImpact['total_impact']['trial_balance_entries']);
-        $this->assertGreaterThan(0, $financialImpact['total_impact']['income_statement_entries']);
-        $this->assertGreaterThan(0, $financialImpact['total_impact']['balance_sheet_entries']);
-
-        // Verify key effects
-        $this->assertContains('Revenue reduced via Sales Returns & Allowances', $financialImpact['key_effects']);
-        $this->assertContains('Accounts Receivable reduced', $financialImpact['key_effects']);
-
-        // Get detailed reverse logic explanation
-        $explanation = $returnJournalHandler->getReverseLogicExplanation($journalEntry);
-
-        // Verify reverse logic explanation
-        $this->assertTrue($explanation['reverse_logic_applied']);
-        $this->assertEquals('customer_return', $explanation['type']);
-        $this->assertNotNull($explanation['financial_impact']);
-        $this->assertArrayHasKey('trial_balance', $explanation['financial_impact']);
-        $this->assertArrayHasKey('income_statement', $explanation['financial_impact']);
-        $this->assertArrayHasKey('balance_sheet', $explanation['financial_impact']);
-        $this->assertArrayHasKey('cash_flow', $explanation['financial_impact']);
+        $this->assertTrue(app(LedgerService::class)->trialBalanceTotals()['balanced']);
     }
 
     /** @test */
     public function it_validates_reverse_logic_for_customer_return_journal()
     {
-        // Create test data
-        $customer = Customer::factory()->create();
-        $product = Product::factory()->create([
-            'purchase_price' => 20,
-            'selling_price' => 50,
-        ]);
+        [, $creditNote] = $this->saleAndReturn();
 
-        // Create order and invoice
-        $order = Order::create([
-            'customer_id' => $customer->id,
-            'status' => 'completed',
-            'order_date' => now(),
-            'total_amount' => 100,
-            'fulfillment_location_id' => null,
-            'fulfillment_location_type' => null,
-        ]);
+        $handler = app(ReturnJournalHandler::class);
+        $entry = $handler->createCustomerReturnJournal($creditNote);
 
-        OrderItem::create([
-            'order_id' => $order->id,
-            'product_id' => $product->id,
-            'quantity' => 2,
-            'unit_price' => 50,
-            'subtotal' => 100,
-        ]);
+        $this->assertTrue($handler->validateReverseLogic($entry));
 
-        $invoiceService = app(InvoiceService::class);
-        $invoice = $invoiceService->generateFromOrder($order);
-
-        // Create and approve return
-        $return = StockTransaction::create([
-            'product_id' => $product->id,
-            'location_id' => 1,
-            'location_type' => \App\Models\Warehouse::class,
-            'quantity' => 1,
-            'direction' => 'inbound',
-            'transaction_type' => StockTransaction::TYPE_CUSTOMER_RETURN,
-            'reference_type' => Invoice::class,
-            'reference_id' => $invoice->id,
-            'transaction_date' => now(),
-            'status' => 'pending',
-        ]);
-
-        $returnService = app(ReturnService::class);
-        $approvedReturn = $returnService->approveReturn($return);
-
-        $creditNote = CreditNote::where('return_transaction_id', $approvedReturn->id)->first();
-
-        // Create journal entry
-        $returnJournalHandler = app(ReturnJournalHandler::class);
-        $journalEntry = $returnJournalHandler->createCustomerReturnJournal($creditNote);
-
-        // Validate the reverse logic
-        $isValid = $returnJournalHandler->validateReverseLogic($journalEntry);
-        $this->assertTrue($isValid, 'Customer return journal entry should pass reverse logic validation');
-
-        // Test with an invalid journal entry (wrong account codes). Built
-        // directly rather than through AccountingService::post(), which would
-        // reject it - so formatted_id has to be supplied here.
-        $invalidEntry = JournalEntry::create([
+        // A balanced entry against the wrong accounts is the failure mode
+        // worth catching: every arithmetic check the ledger makes still passes.
+        $wrongAccounts = JournalEntry::create([
             'formatted_id' => 'JE-TEST-INVALID',
-            'entry_date' => now(),
-            'description' => 'Invalid customer return entry',
-            'status' => 'draft',
-            'source_type' => CreditNote::class,
-            'source_id' => $creditNote->id,
+            'entry_date'   => now(),
+            'description'  => 'Invalid customer return entry',
+            'status'       => JournalEntry::STATUS_DRAFT,
+            'origin'       => JournalEntry::ORIGIN_MANUAL,
+            'source_type'  => CreditNote::class,
+            'source_id'    => $creditNote->id,
         ]);
 
-        $invalidEntry->lines()->create([
-            'account_id' => Account::where('code', '1000')->first()->id, // Cash (wrong account)
-            'debit' => 50,
-            'credit' => 0,
+        $wrongAccounts->lines()->create([
+            'account_id' => Account::where('code', '1000')->first()->id, // Cash
+            'debit'      => 50,
+            'credit'     => 0,
         ]);
 
-        $invalidEntry->lines()->create([
-            'account_id' => Account::where('code', '2000')->first()->id, // Accounts Payable (wrong account)
-            'debit' => 0,
-            'credit' => 50,
+        $wrongAccounts->lines()->create([
+            'account_id' => Account::where('code', '2100')->first()->id, // Sales Tax Payable
+            'debit'      => 0,
+            'credit'     => 50,
         ]);
 
-        $isValid = $returnJournalHandler->validateReverseLogic($invalidEntry);
-        $this->assertFalse($isValid, 'Invalid customer return journal entry should fail validation');
+        $this->assertFalse($handler->validateReverseLogic($wrongAccounts->fresh()));
     }
 
     /** @test */
-    public function it_ensures_draft_journals_do_not_affect_financial_statements()
+    public function it_ensures_unposted_manual_entries_do_not_affect_financial_statements()
     {
-        // Create test data
-        $customer = Customer::factory()->create();
-        $product = Product::factory()->create([
+        $ledger = app(LedgerService::class);
+        $accounting = app(AccountingService::class);
+
+        $before = $ledger->balance(AccountRole::Cash)->toDecimal();
+
+        // A manual entry is the one kind that still takes the review path, and
+        // it carries no weight at all until it has been through it.
+        $entry = $accounting->post([
+            ['account_code' => '1000', 'debit' => 500, 'credit' => 0],
+            ['account_code' => '2100', 'debit' => 0, 'credit' => 500],
+        ], null, 'Manual adjustment awaiting review');
+
+        $this->assertEquals(JournalEntry::STATUS_DRAFT, $entry->status);
+        $this->assertEquals(JournalEntry::ORIGIN_MANUAL, $entry->origin);
+        $this->assertSame($before, $ledger->balance(AccountRole::Cash)->toDecimal());
+
+        // Approval is review only - it moves nothing.
+        $accounting->approveEntry($entry);
+        $this->assertSame($before, $ledger->balance(AccountRole::Cash)->toDecimal());
+
+        // Posting is the single moment the entry reaches the books.
+        $accounting->postJournalEntry($entry->fresh());
+        $this->assertSame('500.00', $ledger->balance(AccountRole::Cash)->toDecimal());
+    }
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    /**
+     * A completed sale of 2 units at 50, with 1 returned.
+     *
+     * @return array{0: Invoice, 1: CreditNote}
+     */
+    private function saleAndReturn(): array
+    {
+        $customer  = Customer::factory()->create();
+        $warehouse = Warehouse::factory()->create();
+        $product   = Product::factory()->create([
             'purchase_price' => 20,
-            'selling_price' => 50,
+            'selling_price'  => 50,
         ]);
 
-        // Create order and invoice
         $order = Order::create([
-            'customer_id' => $customer->id,
-            'status' => 'completed',
-            'order_date' => now(),
-            'total_amount' => 100,
-            'fulfillment_location_id' => null,
+            'customer_id'               => $customer->id,
+            'status'                    => 'completed',
+            'order_date'                => now(),
+            'total_amount'              => 100,
+            'fulfillment_location_id'   => null,
             'fulfillment_location_type' => null,
         ]);
 
         OrderItem::create([
-            'order_id' => $order->id,
+            'order_id'   => $order->id,
             'product_id' => $product->id,
-            'quantity' => 2,
+            'quantity'   => 2,
             'unit_price' => 50,
-            'subtotal' => 100,
+            'subtotal'   => 100,
         ]);
 
-        $invoiceService = app(InvoiceService::class);
-        $invoice = $invoiceService->generateFromOrder($order);
+        $invoice = app(InvoiceService::class)->generateFromOrder($order);
 
-        // Create and approve return
         $return = StockTransaction::create([
-            'product_id' => $product->id,
-            'location_id' => 1,
-            'location_type' => \App\Models\Warehouse::class,
-            'quantity' => 1,
-            'direction' => 'inbound',
+            'product_id'       => $product->id,
+            'location_id'      => $warehouse->id,
+            'location_type'    => Warehouse::class,
+            'quantity'         => 1,
+            'direction'        => 'inbound',
             'transaction_type' => StockTransaction::TYPE_CUSTOMER_RETURN,
-            'reference_type' => Invoice::class,
-            'reference_id' => $invoice->id,
+            'reference_type'   => Invoice::class,
+            'reference_id'     => $invoice->id,
             'transaction_date' => now(),
-            'status' => 'pending',
+            'status'           => 'pending',
         ]);
 
-        $returnService = app(ReturnService::class);
-        $approvedReturn = $returnService->approveReturn($return);
+        $approved = app(ReturnService::class)->approveReturn($return);
 
-        $creditNote = CreditNote::where('return_transaction_id', $approvedReturn->id)->first();
+        $creditNote = CreditNote::where('return_transaction_id', $approved->id)->firstOrFail();
 
-        // Get initial financial statement values
-        $accountingService = app(AccountingService::class);
-        $reportService = app(ReportService::class);
-        
-        $initialTrialBalance = $accountingService->trialBalance();
-        $initialIncomeStatement = $reportService->generateIncomeStatementReport();
-        $initialBalanceSheet = $reportService->generateBalanceSheetReport();
-        $initialCashFlow = $reportService->generateCashFlowStatementReport();
-
-        // Create journal entry (draft status)
-        $returnJournalHandler = app(ReturnJournalHandler::class);
-        $journalEntry = $returnJournalHandler->createCustomerReturnJournal($creditNote);
-
-        // Verify journal entry is in draft status
-        $this->assertEquals('draft', $journalEntry->status);
-
-        // Get financial statement values after creating draft journal entry
-        $draftTrialBalance = $accountingService->trialBalance();
-        $draftIncomeStatement = $reportService->generateIncomeStatementReport();
-        $draftBalanceSheet = $reportService->generateBalanceSheetReport();
-        $draftCashFlow = $reportService->generateCashFlowStatementReport();
-
-        // Verify NO financial impact from draft journal entry
-        $this->assertEquals(
-            $initialTrialBalance->count(),
-            $draftTrialBalance->count(),
-            'Trial balance should not be affected by draft journal entry'
-        );
-
-        $this->assertEquals(
-            $initialIncomeStatement['totalRevenue'],
-            $draftIncomeStatement['totalRevenue'],
-            'Income statement should not be affected by draft journal entry'
-        );
-
-        $this->assertEquals(
-            $initialBalanceSheet['totalAssets'],
-            $draftBalanceSheet['totalAssets'],
-            'Balance sheet should not be affected by draft journal entry'
-        );
-
-        $this->assertEquals(
-            $initialCashFlow['netChange'],
-            $draftCashFlow['netChange'],
-            'Cash flow should not be affected by draft journal entry'
-        );
-
-        // Verify financial impact summary shows draft status
-        $financialImpact = $returnJournalHandler->getFinancialImpactSummary($journalEntry);
-        $this->assertEquals('draft', $financialImpact['status']);
-        $this->assertEquals('Journal entry is in draft status - no financial impact yet', $financialImpact['message']);
+        return [$invoice, $creditNote];
     }
-} 
+}

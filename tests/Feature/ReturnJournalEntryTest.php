@@ -85,17 +85,18 @@ class ReturnJournalEntryTest extends TestCase
     }
 
     /** @test */
-    public function it_creates_journal_entry_with_draft_status_for_customer_return()
+    public function it_posts_the_journal_entry_when_a_customer_return_is_raised()
     {
         $creditNote = $this->approvedCreditNote();
 
         $journalEntry = app(ReturnJournalHandler::class)->createCustomerReturnJournal($creditNote);
 
-        // Draft on creation: the entry stays out of the ledger until it is
-        // approved and then posted.
+        // On the books immediately. The credit note behind it has already been
+        // approved by a person; the ledger's record of it needs no second
+        // approval, and waiting for one only leaves the books behind reality.
         $this->assertNotNull($journalEntry);
-        $this->assertEquals('draft', $journalEntry->status);
-        $this->assertStringContainsString('Customer Return', $journalEntry->description);
+        $this->assertEquals('posted', $journalEntry->status);
+        $this->assertStringContainsString('Customer return', $journalEntry->description);
     }
 
     /** @test */

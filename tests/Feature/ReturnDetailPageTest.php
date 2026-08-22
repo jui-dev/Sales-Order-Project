@@ -209,11 +209,13 @@ class ReturnDetailPageTest extends TestCase
         $response->assertDontSee('Mark as Completed');
         $response->assertSee('no note is raised', false);
 
-        // No note, but the inventory value still moves back with the goods.
+        // No note, but the inventory value still moves back with the goods -
+        // and it is on the books straight away, like every other entry the
+        // system raises for itself.
         $this->assertDatabaseHas('journal_entries', [
             'source_type' => $return->getMorphClass(),
             'source_id'   => $return->getKey(),
-            'status'      => 'draft',
+            'status'      => 'posted',
         ]);
     }
 

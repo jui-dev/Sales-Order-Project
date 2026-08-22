@@ -13,7 +13,6 @@ use App\Models\Retailer;
 use App\Models\Customer;
 use App\Models\Vendor;
 use App\Models\Account;
-use App\Services\AccountingService;
 use App\Traits\HasErrorHandling;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -22,13 +21,6 @@ use Illuminate\Support\Collection;
 class ReturnService
 {
     use HasErrorHandling;
-
-    protected AccountingService $accountingService;
-
-    public function __construct(AccountingService $accountingService)
-    {
-        $this->accountingService = $accountingService;
-    }
 
     /**
      * Get all return transactions with their related data

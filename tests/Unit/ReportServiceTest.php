@@ -8,6 +8,11 @@ use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * Non-control accounts are used throughout: a line against Accounts Receivable
+ * or Accounts Payable must name the party it belongs to, and these tests are
+ * about report structure rather than about the subsidiary ledgers.
+ */
 class ReportServiceTest extends TestCase
 {
     use RefreshDatabase;
@@ -29,7 +34,7 @@ class ReportServiceTest extends TestCase
         // Create a simple journal entry with posted status
         $this->accountingService->post([
             ['account_code' => '1000', 'debit' => 100, 'credit' => 0],
-            ['account_code' => '2000', 'debit' => 0,  'credit' => 100],
+            ['account_code' => '2100', 'debit' => 0,  'credit' => 100],
         ], null, null, null, 'posted');
 
         $reportData = $this->reportService->generateTrialBalanceReport();
@@ -69,7 +74,7 @@ class ReportServiceTest extends TestCase
         // Create a simple journal entry with posted status for revenue
         $this->accountingService->post([
             ['account_code' => '4000', 'debit' => 0, 'credit' => 100], // Revenue
-            ['account_code' => '1100', 'debit' => 100, 'credit' => 0], // Accounts Receivable
+            ['account_code' => '1000', 'debit' => 100, 'credit' => 0], // Cash
         ], null, null, null, 'posted');
 
         // Create a simple journal entry with posted status for expense

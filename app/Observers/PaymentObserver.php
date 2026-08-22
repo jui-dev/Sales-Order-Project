@@ -2,72 +2,35 @@
 
 namespace App\Observers;
 
-use App\Models\Payment;
-use App\Models\JournalEntry;
+use App\Accounting\PostingEngine;
 use App\Models\AuditLog;
-use App\Services\AccountingService;
-use Illuminate\Support\Facades\App;
+use App\Models\Payment;
 
 class PaymentObserver
 {
+    public function __construct(
+        private readonly PostingEngine $ledger,
+    ) {
+    }
+
     /**
      * Handle the Payment "created" event.
+     *
+     * This used to catch and log every exception, so a payment whose entry
+     * could not be built was recorded with nothing on the ledger against it
+     * and no sign beyond a log line. A payment that cannot be accounted for is
+     * a payment that should not be recorded, so the failure now travels.
      */
     public function created(Payment $payment): void
     {
-        try {
-            // Load the invoice relationship
-            $payment->load('invoice');
-            
-            if (!$payment->invoice) {
-                \Log::error('Payment created without invoice: Payment ID ' . $payment->id);
-                return;
-            }
+        $this->ledger->postFor($payment);
 
-            // Idempotency check
-            $exists = JournalEntry::where('source_type', $payment->getMorphClass())
-                ->where('source_id', $payment->getKey())
-                ->exists();
-            if ($exists) {
-                return;
-            }
-
-            $paymentAmount = round($payment->amount, 2);
-            if ($paymentAmount <= 0) {
-                return;
-            }
-
-            // Create journal entry for payment
-            $lines = [
-                [
-                    'account_code' => '1000', // Cash
-                    'debit'        => $paymentAmount,
-                    'credit'       => 0,
-                    'description'  => 'Payment received for Invoice #' . $payment->invoice->invoice_number,
-                ],
-                [
-                    'account_code' => '1100', // Accounts Receivable
-                    'debit'        => 0,
-                    'credit'       => $paymentAmount,
-                    'description'  => 'Payment received for Invoice #' . $payment->invoice->invoice_number,
-                ],
-            ];
-
-            /** @var AccountingService $acct */
-            $acct = App::make(AccountingService::class);
-            $acct->post($lines, $payment->payment_date ?? now(), 'Payment received for Invoice #' . $payment->invoice->invoice_number, $payment);
-
-            // Audit trail
-            AuditLog::create([
-                'user_id'      => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
-                'action'       => 'payment_created',
-                'description'  => 'Payment of $' . number_format($paymentAmount, 2) . ' recorded for Invoice #' . $payment->invoice->invoice_number,
-                'subject_type' => $payment->getMorphClass(),
-                'subject_id'   => $payment->getKey(),
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Error in PaymentObserver::created: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
-        }
+        AuditLog::create([
+            'user_id'      => auth()->id() ?? 1,
+            'action'       => 'payment_created',
+            'description'  => 'Payment of ' . number_format((float) $payment->amount, 2) . ' recorded for Invoice #' . ($payment->invoice?->invoice_number ?? $payment->invoice_id),
+            'subject_type' => $payment->getMorphClass(),
+            'subject_id'   => $payment->getKey(),
+        ]);
     }
-} 
+}

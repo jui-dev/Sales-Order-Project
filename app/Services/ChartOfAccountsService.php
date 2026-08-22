@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Accounting\ChartOfAccounts;
 use App\Models\Account;
 use App\Models\AccountType;
 use App\Traits\HasErrorHandling;
@@ -12,47 +13,17 @@ class ChartOfAccountsService
     use HasErrorHandling;
 
     /**
-     * Ensure default chart of accounts exists
+     * Ensure the chart of accounts matches the configuration.
+     *
+     * The definitions used to live here as a hardcoded array that disagreed
+     * with ChartOfAccountsSeeder, so which accounts existed depended on how
+     * the database had been bootstrapped. config/accounting.php is the single
+     * definition now and this reconciles the table to it.
      */
     public function ensureDefaultAccounts(): void
     {
         $this->handleServiceOperation(
-            function() {
-                // Type names are capitalised to match ChartOfAccountsSeeder, which
-                // is what actually seeds this table. Lowercase names here only
-                // looked equivalent because MySQL compares them case-insensitively;
-                // on a case-sensitive database the lookup missed the existing row
-                // and the insert then breached the unique index on name.
-                // 5100 and 5200 are the two accounts the return journals post to.
-                // They were missing here while ChartOfAccountsSeeder had them, so a
-                // database bootstrapped through this path made every credit- and
-                // debit-note journal fail with "Account not found for line."
-                $defaultAccounts = [
-                    ['code' => '1000', 'name' => 'Cash', 'type' => 'Asset', 'description' => 'Cash on hand and in bank'],
-                    ['code' => '1100', 'name' => 'Accounts Receivable', 'type' => 'Asset', 'description' => 'Amounts owed by customers'],
-                    ['code' => '1200', 'name' => 'Inventory', 'type' => 'Asset', 'description' => 'Product inventory'],
-                    ['code' => '2000', 'name' => 'Accounts Payable', 'type' => 'Liability', 'description' => 'Amounts owed to suppliers'],
-                    ['code' => '3000', 'name' => 'Retained Earnings', 'type' => 'Equity', 'description' => 'Accumulated profits'],
-                    ['code' => '4000', 'name' => 'Sales Revenue', 'type' => 'Revenue', 'description' => 'Revenue from sales'],
-                    ['code' => '5000', 'name' => 'Cost of Goods Sold', 'type' => 'Expense', 'description' => 'Cost of products sold'],
-                    ['code' => '5100', 'name' => 'Purchase Returns', 'type' => 'Expense', 'is_contra' => true, 'description' => 'Reductions in expenses due to product returns to vendors'],
-                    ['code' => '5200', 'name' => 'Sales Returns & Allowances', 'type' => 'Revenue', 'is_contra' => true, 'description' => 'Reductions in revenue due to product returns or sales discounts granted'],
-                ];
-
-                foreach ($defaultAccounts as $accountData) {
-                    $accountType = AccountType::firstOrCreate(['name' => $accountData['type']]);
-
-                    Account::firstOrCreate(
-                        ['code' => $accountData['code']],
-                        [
-                            'name' => $accountData['name'],
-                            'account_type_id' => $accountType->id,
-                            'is_contra' => $accountData['is_contra'] ?? false,
-                            'description' => $accountData['description'],
-                        ]
-                    );
-                }
-            },
+            fn () => app(ChartOfAccounts::class)->sync(),
             'chart_of_accounts'
         );
     }

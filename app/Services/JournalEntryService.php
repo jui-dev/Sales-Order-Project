@@ -66,6 +66,14 @@ class JournalEntryService
             $query->where('status', $filters['status']);
         }
 
+        // System entries are the ledger's own record of a confirmed document
+        // and are posted on sight; manual ones are the entries a person typed
+        // and the only ones with a review queue. Being able to separate them is
+        // what makes that queue findable.
+        if (!empty($filters['origin'])) {
+            $query->where('origin', $filters['origin']);
+        }
+
         // Apply sorting
         $sort = $filters['sort'] ?? 'id';
         $direction = strtolower($filters['direction'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
@@ -117,6 +125,10 @@ class JournalEntryService
                 'source_type'  => JournalEntry::class,
                 'source_id'    => 0,
                 'status'       => JournalEntry::STATUS_DRAFT,
+                // Typed by a person, so it takes the review path and is
+                // labelled as such. The column defaults to 'system', which is
+                // right for an entry a posting rule raised and wrong here.
+                'origin'       => JournalEntry::ORIGIN_MANUAL,
                 'formatted_id' => (string) Str::uuid(),
             ]);
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Accounting\Money;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Traits\HasFormattedId;
@@ -21,10 +22,10 @@ class JournalEntry extends Model
         'formatted_id',
         'source_type',
         'source_id',
-        // Added for status workflow
+        'rule_key',
         'status',
+        'origin',
         'approved_at',
-        // Added for reverse journal functionality
         'is_reverse',
         'reverses_journal_id',
         'linked_debit_note_id',
@@ -37,6 +38,53 @@ class JournalEntry extends Model
         'approved_at'=> 'datetime',
         'is_reverse' => 'boolean',
     ];
+
+    // ------------------------------------------------------------------
+    // Status and origin
+    // ------------------------------------------------------------------
+    public const STATUS_DRAFT    = 'draft';
+    public const STATUS_POSTED   = 'posted';
+    public const STATUS_APPROVED = 'approved';
+    public const STATUS_REJECTED = 'rejected';
+
+    /**
+     * Where the entry came from, which decides whether it is reviewed.
+     *
+     * A system entry is the ledger's own record of a document that has already
+     * been confirmed - approving the system's arithmetic a second time adds no
+     * control, it only holds the books behind reality. A manual entry is
+     * something a person typed, which is exactly where review belongs.
+     */
+    public const ORIGIN_SYSTEM = 'system';
+    public const ORIGIN_MANUAL = 'manual';
+
+    protected static function booted(): void
+    {
+        // A posted entry is a matter of record. Correcting one means posting a
+        // further entry against it, never editing it in place - which is what
+        // makes the audit trail worth having.
+        static::updating(function (self $entry) {
+            if ($entry->getOriginal('status') === self::STATUS_POSTED && $entry->isDirty()) {
+                throw new \RuntimeException(sprintf(
+                    'Journal entry %s is posted and cannot be changed. Reverse it with a further entry instead.',
+                    $entry->formatted_id,
+                ));
+            }
+        });
+
+        static::deleting(function (self $entry) {
+            if ($entry->status === self::STATUS_POSTED) {
+                throw new \RuntimeException(sprintf(
+                    'Journal entry %s is posted and cannot be deleted. Reverse it with a further entry instead.',
+                    $entry->formatted_id,
+                ));
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Relationships
+    // ------------------------------------------------------------------
 
     public function lines()
     {
@@ -80,6 +128,21 @@ class JournalEntry extends Model
         return $this->belongsTo(CreditNote::class, 'linked_credit_note_id');
     }
 
+    // ------------------------------------------------------------------
+    // Scopes
+    // ------------------------------------------------------------------
+
+    /** Only entries that are actually on the books. */
+    public function scopePosted($query)
+    {
+        return $query->where('status', self::STATUS_POSTED);
+    }
+
+    public function scopeManual($query)
+    {
+        return $query->where('origin', self::ORIGIN_MANUAL);
+    }
+
     /**
      * Prefer the reference stored on the row over the one the trait derives.
      *
@@ -95,6 +158,10 @@ class JournalEntry extends Model
         return $stored !== null && $stored !== '' ? $stored : $this->getCodeAttribute();
     }
 
+    // ------------------------------------------------------------------
+    // Totals
+    // ------------------------------------------------------------------
+
     public function totalDebit(): float
     {
         return (float) $this->lines()->sum('debit');
@@ -105,29 +172,43 @@ class JournalEntry extends Model
         return (float) $this->lines()->sum('credit');
     }
 
-    // ------------------------------------------------------------------
-    // Status constants
-    // ------------------------------------------------------------------
-    public const STATUS_DRAFT    = 'draft';
-    public const STATUS_POSTED   = 'posted';
-    public const STATUS_APPROVED = 'approved';
-    public const STATUS_REJECTED = 'rejected';
-
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
-    public function isBalanced(): bool
+    public function debitTotal(): Money
     {
-        return round($this->totalDebit(), 2) === round($this->totalCredit(), 2);
+        return Money::sum($this->lines->map(fn (JournalEntryLine $l) => $l->debitAmount()));
+    }
+
+    public function creditTotal(): Money
+    {
+        return Money::sum($this->lines->map(fn (JournalEntryLine $l) => $l->creditAmount()));
     }
 
     /**
-     * Posting is the single point at which an entry reaches the ledger.
+     * Balance is decided on integer minor units.
      *
-     * Every entry - whether it was raised by hand or generated by an invoice, a
-     * supplier bill or a return - is created as a draft and stays out of the
-     * trial balance and the financial statements until it has been approved and
-     * then posted here. Reports filter on `posted` alone for that reason.
+     * This used to be `round($debit, 2) === round($credit, 2)`, which compares
+     * two floats for exact identity - an entry could fail to balance by a value
+     * no report was able to display.
+     */
+    public function isBalanced(): bool
+    {
+        return $this->debitTotal()->equals($this->creditTotal());
+    }
+
+    // ------------------------------------------------------------------
+    // Manual review path
+    // ------------------------------------------------------------------
+
+    public function isSystemGenerated(): bool
+    {
+        return $this->origin === self::ORIGIN_SYSTEM;
+    }
+
+    /**
+     * Posting is the single point at which a manual entry reaches the ledger.
+     *
+     * System entries never travel this path: they are written posted, because
+     * the document behind them was already confirmed by the person who
+     * confirmed the document.
      */
     public function post(): void
     {
@@ -182,4 +263,4 @@ class JournalEntry extends Model
     {
         return $this->status === self::STATUS_APPROVED;
     }
-} 
+}

@@ -24,6 +24,7 @@ class JournalEntryController extends Controller
             'reference' => $request->reference,
             'account_id' => $request->account_id,
             'status' => $request->status,
+            'origin' => $request->origin,
             'sort' => $request->sort,
             'direction' => $request->direction,
         ];

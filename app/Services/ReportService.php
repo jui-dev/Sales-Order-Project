@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Accounting\AccountRole;
+use App\Accounting\LedgerService;
 use App\Models\OrderItem;
 use App\Models\Warehouse;
 use App\Models\Retailer;
@@ -12,6 +14,11 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportService
 {
+    public function __construct(
+        private readonly LedgerService $ledger,
+    ) {
+    }
+
     /**
      * Accounts that make up cost of sales rather than operating expense.
      *
@@ -144,7 +151,7 @@ class ReportService
             });
 
         // An account with no balance contributes nothing to either column, and
-        // the seeded chart plus per-location inventory sub-accounts leave enough
+        // the seeded chart leaves enough
         // of them to bury the accounts that are actually carrying value. The
         // count is reported so the omission is stated rather than silent.
         $balances = $allAccounts
@@ -283,8 +290,15 @@ class ReportService
         // negative. They are flipped here to the side they are actually read
         // on, which is also what makes the equation below legible.
         // ------------------------------------------------------------------
-        $section = function (array $codeRange, bool $flipSign) use ($asOfDate) {
-            $accounts = \App\Models\Account::whereBetween('code', $codeRange)->orderBy('code')->get();
+        $section = function (string $type, bool $flipSign) use ($asOfDate) {
+            // Selected by account type rather than by code range. A range is a
+            // string comparison over the code column, so it depended on the
+            // numbering happening to line up with the classification - and it
+            // disagreed with the income statement, which has always gone by
+            // type.
+            $accounts = \App\Models\Account::whereHas('accountType', fn ($q) => $q->where('name', $type))
+                ->orderBy('code')
+                ->get();
 
             $rows = $accounts->map(function ($account) use ($asOfDate, $flipSign) {
                 $balance = $this->calculateAccountBalance($account, $asOfDate);
@@ -295,31 +309,34 @@ class ReportService
                 ];
             });
 
-            // A chart of accounts carries sub-accounts that may never have been
+            // A chart of accounts carries accounts that may never have been
             // posted to. Listing them at zero buries the accounts that matter.
             return $rows->reject(fn($row) => abs($row['balance']) < 0.005)->values();
         };
 
-        $assets = $section([1000, 1999], false);
-        $liabilities = $section([2000, 2999], true);
-        $equity = $section([3000, 3999], true);
+        $assets = $section('Asset', false);
+        $liabilities = $section('Liability', true);
+        $equity = $section('Equity', true);
 
         $totalAssets = round($assets->sum('balance'), 2);
         $totalLiabilities = round($liabilities->sum('balance'), 2);
         $postedEquity = round($equity->sum('balance'), 2);
 
         // ------------------------------------------------------------------
-        // Profit earned this period belongs to the owners, but it only reaches
-        // an equity account when the books are closed - and nothing in this
-        // system posts a closing entry. Without this derived line the statement
-        // was missing that value entirely and could never balance, which is why
-        // the old totals check reported a failure on every correct data set.
+        // Profit earned since the last close belongs to the owners but has not
+        // reached an equity account yet, so it is shown as its own line.
+        //
+        // Closing entries are counted here, unlike on the income statement:
+        // a closed period has already moved its result into retained earnings,
+        // so its revenue and expense net to nil and only the open period is
+        // left. This used to cover all of history, because nothing ever posted
+        // a closing entry.
         // ------------------------------------------------------------------
         $revenueAccounts = \App\Models\Account::whereHas('accountType', fn($q) => $q->where('name', 'Revenue'))->get();
         $expenseAccounts = \App\Models\Account::whereHas('accountType', fn($q) => $q->where('name', 'Expense'))->get();
 
-        $revenueToDate = -$this->calculateAccountsBalance($revenueAccounts, null, $asOfDate);
-        $expenseToDate = $this->calculateAccountsBalance($expenseAccounts, null, $asOfDate);
+        $revenueToDate = -$this->ledger->balanceOf($revenueAccounts, $asOfDate)->toFloat();
+        $expenseToDate = $this->ledger->balanceOf($expenseAccounts, $asOfDate)->toFloat();
         $currentPeriodEarnings = round($revenueToDate - $expenseToDate, 2);
 
         $totalEquity = round($postedEquity + $currentPeriodEarnings, 2);
@@ -601,39 +618,21 @@ class ReportService
      */
     private function calculateAccountBalance($account, string $asOfDate): float
     {
-        return \App\Models\JournalEntryLine::where('account_id', $account->id)
-            ->whereHas('journalEntry', function ($q) use ($asOfDate) {
-                $q->where('status', 'posted')
-                  ->whereDate('entry_date', '<=', $asOfDate);
-            })
-            ->get()
-            ->sum(function ($line) {
-                return $line->debit - $line->credit;
-            });
+        return $this->ledger->balance($account, $asOfDate)->toFloat();
     }
 
     /**
-     * Calculate accounts balance for a date range
+     * Movement across a set of accounts within a period.
+     *
+     * Closing entries are excluded: they are dated on the last day of the
+     * period they close, so a reader that counted them would report nil
+     * revenue and nil expense for every period that has been closed.
      */
     private function calculateAccountsBalance(Collection $accounts, ?string $startDate, string $endDate): float
     {
-        $query = \App\Models\JournalEntryLine::whereIn('account_id', $accounts->pluck('id'))
-            ->whereHas('journalEntry', function ($q) use ($startDate, $endDate) {
-                // Posted is the single gate onto the books, matching
-                // calculateAccountBalance and AccountingService::trialBalance. When
-                // this accepted approved entries too, the balance sheet drew its
-                // line items from one set and its totals from the other, so the
-                // rows stopped adding up to the total printed beneath them.
-                $q->where('status', \App\Models\JournalEntry::STATUS_POSTED);
-                if ($startDate) {
-                    $q->whereDate('entry_date', '>=', $startDate);
-                }
-                $q->whereDate('entry_date', '<=', $endDate);
-            });
-
-        return $query->get()->sum(function ($line) {
-            return $line->debit - $line->credit;
-        });
+        return $this->ledger
+            ->excludingClosingEntries()
+            ->balanceOf($accounts, $endDate, $startDate)
+            ->toFloat();
     }
-
 } 

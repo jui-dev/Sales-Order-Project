@@ -63,15 +63,37 @@ class AccountingObserversTest extends TestCase
         // ------------------------------------------------------------------
         $grn->update(['status' => 'posted']);
 
-        // Receiving the goods raises the bill but deliberately stays off the
-        // ledger - GrnObserver creates a draft supplier bill "instead of
-        // posting journal entry", and nothing is owed until that bill is posted.
-        $this->assertNull(
-            JournalEntry::where('source_type', $grn->getMorphClass())
-                ->where('source_id', $grn->id)
-                ->first(),
-            'Posting a GRN should not reach the ledger on its own'
-        );
+        // Receiving the goods is what puts them on the books: the business
+        // owns them from the moment they arrive, whether or not the vendor has
+        // billed yet. The other side waits in the GR-IR clearing account.
+        $receipt = JournalEntry::where('source_type', $grn->getMorphClass())
+            ->where('source_id', $grn->id)
+            ->first();
+
+        $this->assertNotNull($receipt, 'Receiving goods should reach the ledger.');
+        $this->assertTrue($receipt->isBalanced());
+        $this->assertSame(JournalEntry::STATUS_POSTED, $receipt->status);
+
+        $inventoryAccount = Account::where('code', '1200')->first();
+        $grirAccount      = Account::where('code', '2050')->first();
+        $apAccount        = Account::where('code', '2000')->first();
+
+        $this->assertDatabaseHas('journal_entry_lines', [
+            'journal_entry_id' => $receipt->id,
+            'account_id'       => $inventoryAccount->id,
+            'debit'            => 100.00,
+            'credit'           => 0.00,
+            // Inventory is analysed by location, so the value is held against
+            // the warehouse it arrived at rather than in an account of its own.
+            'location_type'    => $warehouse->getMorphClass(),
+            'location_id'      => $warehouse->id,
+        ]);
+        $this->assertDatabaseHas('journal_entry_lines', [
+            'journal_entry_id' => $receipt->id,
+            'account_id'       => $grirAccount->id,
+            'debit'            => 0.00,
+            'credit'           => 100.00,
+        ]);
 
         $bill = $grn->fresh()->supplierBill;
 
@@ -79,29 +101,22 @@ class AccountingObserversTest extends TestCase
         $this->assertSame('draft', $bill->status);
         $this->assertEquals(100.00, $bill->total_amount);
 
-        // Posting the bill is what recognises the liability.
+        // Posting the bill moves the obligation from the clearing account to
+        // the vendor. It does not touch inventory - the goods were taken into
+        // stock when they turned up.
         app(SupplierBillService::class)->postSupplierBill($bill);
 
         $entry = JournalEntry::where('source_type', $bill->getMorphClass())
             ->where('source_id', $bill->id)
+            ->where('rule_key', 'supplier_bill.purchase')
             ->first();
 
         $this->assertNotNull($entry, 'Journal entry not created for supplier bill posting');
-
-        // Assert balanced totals
-        $this->assertEquals(
-            $entry->totalDebit(),
-            $entry->totalCredit(),
-            'Journal entry is not balanced'
-        );
-
-        // Assert correct accounts involved
-        $inventoryAccount = Account::where('code', '1200')->first();
-        $apAccount        = Account::where('code', '2000')->first();
+        $this->assertTrue($entry->isBalanced(), 'Journal entry is not balanced');
 
         $this->assertDatabaseHas('journal_entry_lines', [
             'journal_entry_id' => $entry->id,
-            'account_id'       => $inventoryAccount->id,
+            'account_id'       => $grirAccount->id,
             'debit'            => 100.00,
             'credit'           => 0.00,
         ]);
@@ -110,6 +125,10 @@ class AccountingObserversTest extends TestCase
             'account_id'       => $apAccount->id,
             'debit'            => 0.00,
             'credit'           => 100.00,
+            // A payable line names its vendor, so Accounts Payable can be
+            // reconciled against the purchase ledger.
+            'party_type'       => $vendor->getMorphClass(),
+            'party_id'         => $vendor->id,
         ]);
     }
 

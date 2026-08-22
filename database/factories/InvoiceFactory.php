@@ -32,6 +32,28 @@ class InvoiceFactory extends Factory
     }
 
     /**
+     * Keep the figures on an invoice consistent with each other.
+     *
+     * total is subtotal plus tax less discount, always. Tests routinely
+     * override the total alone and leave the generated subtotal behind, which
+     * produces an invoice that cannot be posted - the receivable would be
+     * taken from one figure and the revenue from another, and the entry would
+     * still balance, so nothing downstream would ever notice. Trusting the
+     * stated total and deriving the subtotal from it keeps that data valid
+     * without every caller having to spell out all four numbers.
+     */
+    public function configure(): static
+    {
+        return $this->afterMaking(function (Invoice $invoice) {
+            $expected = round((float) $invoice->subtotal + (float) $invoice->tax - (float) $invoice->discount, 2);
+
+            if (abs($expected - (float) $invoice->total) >= 0.01) {
+                $invoice->subtotal = round((float) $invoice->total - (float) $invoice->tax + (float) $invoice->discount, 2);
+            }
+        });
+    }
+
+    /**
      * A fully paid invoice.
      */
     public function paid(): static

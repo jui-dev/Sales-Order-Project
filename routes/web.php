@@ -1012,6 +1012,9 @@ Route::patch('/journal-entries/{journalEntry}/post', [JournalEntryController::cl
 Route::get('/journal-entries/{journalEntry}/edit', [JournalEntryController::class, 'edit'])->name('journal-entries.edit');
 Route::patch('/journal-entries/{journalEntry}', [JournalEntryController::class, 'update'])->name('journal-entries.update');
 Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])->name('audit-logs.index');
+// Does the ledger agree with the documents behind it? Control accounts are
+// only worth having if something checks them against their subsidiary ledger.
+Route::get('/accounting/health', [\App\Http\Controllers\AccountingHealthController::class, 'index'])->name('accounting.health');
 Route::get('/accounting/chart-of-accounts', [\App\Http\Controllers\ChartOfAccountsController::class, 'index'])->name('accounting.chart-of-accounts');
 Route::get('/accounting/chart-of-accounts/create', [\App\Http\Controllers\ChartOfAccountsController::class, 'create'])->name('accounting.chart-of-accounts.create');
 Route::post('/accounting/chart-of-accounts', [\App\Http\Controllers\ChartOfAccountsController::class, 'store'])->name('accounting.chart-of-accounts.store');

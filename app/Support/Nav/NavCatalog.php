@@ -256,6 +256,12 @@ final class NavCatalog
             'landing' => ['accounting.chart-of-accounts'],
             'permission' => 'accounting.view',
         ],
+        'accounting.health' => [
+            'label' => 'Accounting Health',
+            'parent' => 'accounting',
+            'landing' => ['accounting.health'],
+            'permission' => 'accounting.view',
+        ],
         'accounting.journal-entries' => [
             'label' => 'Journal Entries',
             'parent' => 'accounting',

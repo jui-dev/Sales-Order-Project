@@ -27,7 +27,6 @@ use App\Services\CreditNoteService;
 use App\Services\DebitNoteService;
 use App\Services\ReturnJournalHandler;
 use App\Services\ReturnService;
-use App\Support\InventoryLocationAccount;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -327,19 +326,26 @@ class ReturnAccountingIntegrityTest extends TestCase
             ->first();
 
         $this->assertNotNull($journal, 'A retailer return should move its inventory value back');
-        $this->assertEquals('draft', $journal->status);
+        $this->assertEquals('posted', $journal->status);
         $this->assertTrue($journal->isBalanced());
 
-        $retailerCode  = InventoryLocationAccount::codeFor(Retailer::class, $this->retailer->id);
-        $warehouseCode = InventoryLocationAccount::codeFor(Warehouse::class, $this->warehouse->id);
+        // Both sides are the one inventory account, told apart by the location
+        // on the line. There is no 1200-RT account any more: an account per
+        // warehouse never received purchase or sale value, so it could only
+        // ever go negative and reconcile to nothing.
+        $byLocation = $journal->lines->mapWithKeys(fn ($line) => [
+            $line->location_type . ':' . $line->location_id => [
+                'debit'  => (float) $line->debit,
+                'credit' => (float) $line->credit,
+            ],
+        ]);
 
-        $byCode = $journal->lines->mapWithKeys(
-            fn ($line) => [$line->account->code => ['debit' => (float) $line->debit, 'credit' => (float) $line->credit]]
-        );
+        $retailerKey  = Retailer::class . ':' . $this->retailer->id;
+        $warehouseKey = Warehouse::class . ':' . $this->warehouse->id;
 
         // 5 units at the 40.00 the product is carried for.
-        $this->assertEquals(200.00, $byCode[$retailerCode]['credit']);
-        $this->assertEquals(200.00, $byCode[$warehouseCode]['debit']);
+        $this->assertEquals(200.00, $byLocation[$retailerKey]['credit']);
+        $this->assertEquals(200.00, $byLocation[$warehouseKey]['debit']);
     }
 
     /** @test */
@@ -379,20 +385,18 @@ class ReturnAccountingIntegrityTest extends TestCase
         ]);
         app(ReturnService::class)->approveReturn($return);
 
-        $retailerCode = InventoryLocationAccount::codeFor(Retailer::class, $this->retailer->id);
-        $retailerAccount = Account::where('code', $retailerCode)->first();
-        $this->assertNotNull($retailerAccount);
-
-        $lines = $retailerAccount->journalEntryLines;
-        $net = $lines->sum(fn ($line) => (float) $line->debit - (float) $line->credit);
+        // What the retailer holds is a grouping of the one inventory account.
+        $atRetailer = app(\App\Accounting\LedgerService::class)
+            ->locationBalances(\App\Accounting\AccountRole::Inventory)
+            ->get(Retailer::class . ':' . $this->retailer->id);
 
         // Out and back at the same price nets to nothing. Before the return
         // posted an entry, the outbound leg sat here on its own forever.
-        $this->assertEquals(0.0, round($net, 2));
+        $this->assertEquals(0.0, (float) ($atRetailer['balance']?->toDecimal() ?? 0));
     }
 
     /** @test */
-    public function posting_a_debit_note_raises_a_draft_entry_that_reverses_the_purchase_journal()
+    public function posting_a_debit_note_raises_an_entry_that_reverses_the_purchase_journal()
     {
         [$bill, $note] = $this->vendorReturnNote();
 
@@ -408,41 +412,19 @@ class ReturnAccountingIntegrityTest extends TestCase
 
         $entry = $note->journalEntry;
         $this->assertNotNull($entry, 'Posting the note should raise its journal entry');
-        $this->assertEquals('draft', $entry->status);
+
+        // A return entry is the system's own record of a document somebody has
+        // already approved. Approving the system's arithmetic a second time
+        // adds no control - it only holds the books behind reality - so the
+        // entry is posted when it is raised, like an invoice or a bill.
+        $this->assertEquals('posted', $entry->status);
+        $this->assertNotNull($entry->posted_at);
         $this->assertTrue($entry->isBalanced());
 
         // It is a reversal, and it names what it reverses.
         $this->assertTrue((bool) $entry->is_reverse);
         $this->assertEquals($bill->purchase_journal_id, $entry->reverses_journal_id);
         $this->assertEquals($note->id, $entry->linked_debit_note_id);
-
-        // Draft is the whole point of the two-step flow: nothing on the books yet.
-        $this->assertSame($before, $this->postedBalances());
-    }
-
-    /** @test */
-    public function a_vendor_return_entry_is_approved_and_posted_from_the_journal_entries_screen()
-    {
-        [, $note] = $this->vendorReturnNote();
-
-        app(DebitNoteService::class)->postDebitNote($note);
-        $entry = $note->fresh()->journalEntry;
-
-        $before = $this->postedBalances();
-
-        // The note page no longer carries these actions; this is the route a
-        // user now takes, alongside every other entry in the ledger.
-        $this->patch(route('journal-entries.approve', $entry))->assertRedirect();
-
-        $this->assertEquals('approved', $entry->fresh()->status);
-        // Approval is review only.
-        $this->assertSame($before, $this->postedBalances());
-
-        $this->patch(route('journal-entries.post', $entry))->assertRedirect();
-
-        $entry->refresh();
-        $this->assertEquals('posted', $entry->status);
-        $this->assertNotNull($entry->posted_at);
 
         $after = $this->postedBalances();
 
@@ -453,32 +435,40 @@ class ReturnAccountingIntegrityTest extends TestCase
     }
 
     /** @test */
-    public function a_customer_return_entry_is_approved_and_posted_from_the_journal_entries_screen()
+    public function a_posted_return_entry_cannot_be_edited_or_re_approved()
+    {
+        [, $note] = $this->vendorReturnNote();
+
+        app(DebitNoteService::class)->postDebitNote($note);
+        $entry = $note->fresh()->journalEntry;
+
+        // The approval path belongs to entries a person typed. A posted entry
+        // is a matter of record: correcting one means posting another against
+        // it, never changing it in place.
+        $this->expectException(\RuntimeException::class);
+        $entry->approve();
+    }
+
+    /** @test */
+    public function a_customer_return_reaches_the_books_when_the_note_is_posted()
     {
         $note = $this->customerReturnNote();
 
-        app(CreditNoteService::class)->postCreditNote($note);
-        $entry = $note->fresh()->journalEntry;
-        $this->assertEquals('draft', $entry->status);
-
         $before = $this->postedBalances();
 
-        $this->patch(route('journal-entries.approve', $entry))->assertRedirect();
-        $this->assertEquals('approved', $entry->fresh()->status);
-        $this->assertSame($before, $this->postedBalances());
+        app(CreditNoteService::class)->postCreditNote($note);
+        $entry = $note->fresh()->journalEntry;
 
-        $this->patch(route('journal-entries.post', $entry))->assertRedirect();
-
-        $entry->refresh();
         $this->assertEquals('posted', $entry->status);
         $this->assertNotNull($entry->posted_at);
+        $this->assertTrue($entry->isBalanced());
 
         $after = $this->postedBalances();
 
         // 4 x 125 refunded: receivables fall, and the same figure lands in
         // sales returns rather than being taken back out of revenue.
         $this->assertEquals(-500.00, round($after['1100'] - ($before['1100'] ?? 0), 2));
-        $this->assertEquals(500.00, round($after['5200'] - ($before['5200'] ?? 0), 2));
+        $this->assertEquals(500.00, round($after['4200'] - ($before['4200'] ?? 0), 2));
         // 4 x 40 of stock comes back, and the COGS relieved on the sale with it.
         $this->assertEquals(160.00, round($after['1200'] - ($before['1200'] ?? 0), 2));
         $this->assertEquals(-160.00, round($after['5000'] - ($before['5000'] ?? 0), 2));

@@ -2,211 +2,179 @@
 
 namespace App\Services;
 
+use App\Accounting\AccountResolver;
+use App\Accounting\JournalDraft;
+use App\Accounting\LedgerService;
+use App\Accounting\PostingEngine;
+use App\Accounting\Money;
 use App\Models\Account;
-use App\Models\JournalEntry;
-use App\Models\JournalEntryLine;
 use App\Models\AuditLog;
+use App\Models\JournalEntry;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
-use Illuminate\Support\Str;
 
+/**
+ * @deprecated Use App\Accounting\PostingEngine to write and
+ *             App\Accounting\LedgerService to read.
+ *
+ * What is left of the old front door. Every system entry is now built by a
+ * posting rule and written by the engine, which is the only thing that decides
+ * what reaches the ledger. This class survives for the manual-entry path and
+ * for callers that still speak its vocabulary; it delegates and adds nothing.
+ *
+ * Note that its post() never posted - it created a draft, whatever the name
+ * said. That is preserved here, because a manual entry genuinely does belong
+ * in draft until somebody has reviewed it.
+ */
 class AccountingService
 {
+    public function __construct(
+        private readonly PostingEngine $engine,
+        private readonly LedgerService $ledger,
+        private readonly AccountResolver $accounts,
+    ) {
+    }
+
     /**
-     * Post a balanced journal entry.
+     * Create a manual journal entry from raw account codes.
      *
-     * @param array<int,array{account_code?:string,account_id?:int,debit:float,credit:float,description?:string}> $lines
+     * @param array<int,array{account_code?:string,account_id?:int,debit?:float,credit?:float,description?:string}> $lines
      */
-    public function post(array $lines, Carbon $date = null, ?string $description = null, ?Model $source = null, string $status = 'draft'): JournalEntry
-    {
-        $date = $date ?: Carbon::now();
+    public function post(
+        array $lines,
+        ?Carbon $date = null,
+        ?string $description = null,
+        ?Model $source = null,
+        string $status = JournalEntry::STATUS_DRAFT,
+    ): JournalEntry {
+        $draft = JournalDraft::for($source)
+            ->on($date ?? Carbon::now())
+            ->describedAs($description);
 
-        // Validate totals
-        $totalDebit = 0;
-        $totalCredit = 0;
         foreach ($lines as $line) {
-            $totalDebit += $line['debit'] ?? 0;
-            $totalCredit += $line['credit'] ?? 0;
+            $account = $this->resolve($line);
+
+            $draft->add(
+                $account,
+                Money::of((string) ($line['debit'] ?? 0))->minus(Money::of((string) ($line['credit'] ?? 0))),
+                [],
+                $line['description'] ?? null,
+            );
         }
 
-        if (round($totalDebit, 2) !== round($totalCredit, 2)) {
-            throw new InvalidArgumentException('Journal entry is not balanced.');
-        }
-
-        if ($totalDebit <= 0) {
+        if ($draft->isEmpty()) {
             throw new InvalidArgumentException('Journal entry totals must be greater than zero.');
         }
 
-        return DB::transaction(function () use ($lines, $date, $description, $source, $status) {
-            $entry = JournalEntry::create([
-                'entry_date'  => $date,
-                'description' => $description,
-                'status'      => $status,
-                // If no external model supplied, we will temporarily set blank values and later
-                // patch them to a self-reference so the morph columns are never left empty.
-                'source_type' => $source ? $source->getMorphClass() : '',
-                'source_id'   => $source ? $source->getKey() : 0,
-                // The real reference needs the primary key, which only exists once
-                // the row is in. A unique placeholder holds the slot until then.
-                'formatted_id'=> (string) Str::uuid(),
-            ]);
+        if (! $draft->isBalanced()) {
+            throw new InvalidArgumentException('Journal entry is not balanced.');
+        }
 
-            // Store the same reference the entry displays. The column used to keep
-            // the placeholder UUID forever - the branch that replaced it tested
-            // `empty()` on a value that had just been filled - which left search
-            // and the uniqueness rule matching against a string no user ever saw.
-            $entry->forceFill(['formatted_id' => $entry->code])->saveQuietly();
+        $entry = $this->engine->write(
+            $draft,
+            $status === JournalEntry::STATUS_POSTED ? JournalEntry::ORIGIN_SYSTEM : JournalEntry::ORIGIN_MANUAL,
+        );
 
-            foreach ($lines as $line) {
-                $account = null;
-                if (isset($line['account_id'])) {
-                    $account = Account::find($line['account_id']);
-                } elseif (isset($line['account_code'])) {
-                    $account = Account::where('code', $line['account_code'])->first();
-                }
+        if (! $entry) {
+            throw new InvalidArgumentException('Journal entry totals must be greater than zero.');
+        }
 
-                if (!$account) {
-                    throw new InvalidArgumentException('Account not found for line.');
-                }
+        return $entry;
+    }
 
-                $entry->lines()->create([
-                    'account_id' => $account->id,
-                    'debit' => $line['debit'] ?? 0,
-                    'credit' => $line['credit'] ?? 0,
-                    'description' => $line['description'] ?? null,
-                ]);
-            }
+    /** @param array<string,mixed> $line */
+    private function resolve(array $line): Account
+    {
+        $account = isset($line['account_id'])
+            ? Account::find($line['account_id'])
+            : Account::where('code', $line['account_code'] ?? null)->first();
 
-            // ------------------------------------------------------------------
-            // Guarantee valid morph columns to avoid queries with empty column names
-            // ------------------------------------------------------------------
-            if (! $source) {
-                // Update quietly to point to itself when the entry has no external source
-                $entry->updateQuietly([
-                    'source_type' => $entry->getMorphClass(),
-                    'source_id'   => $entry->getKey(),
-                ]);
-            }
+        if (! $account) {
+            throw new InvalidArgumentException('Account not found for line.');
+        }
 
-            // Record audit log depending on initial status
-            $logAction = ($status === JournalEntry::STATUS_POSTED || $status === JournalEntry::STATUS_APPROVED)
-                ? 'journal_posted'
-                : 'journal_created';
-
-            AuditLog::create([
-                'user_id'      => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
-                'action'       => $logAction,
-                'description'  => 'Journal Entry ' . ($entry->formatted_id ?? $entry->id) . ' created with status '.ucfirst($status).'.',
-                'subject_type' => $entry->getMorphClass(),
-                'subject_id'   => $entry->getKey(),
-            ]);
-
-            return $entry;
-        });
+        return $account;
     }
 
     /**
-     * Retrieve ledger lines for an account within a date range.
+     * @param array<int,array<string,mixed>> $lines
      */
+    public function createDraft(array $lines, ?Carbon $date = null, ?string $description = null, ?Model $source = null): JournalEntry
+    {
+        return $this->post($lines, $date, $description, $source);
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $lines
+     */
+    public function createReturnEntry(array $lines, ?Carbon $date = null, ?string $description = null, ?Model $source = null): JournalEntry
+    {
+        return $this->post($lines, $date, $description, $source);
+    }
+
+    // ------------------------------------------------------------------
+    // Reads
+    // ------------------------------------------------------------------
+
     public function ledger(Account|int $account, ?Carbon $from = null, ?Carbon $to = null)
     {
-        $account = $account instanceof Account ? $account : Account::findOrFail($account);
-
-        return $account->journalEntryLines()
-            ->whereHas('journalEntry', fn($j) => $j->where('status', JournalEntry::STATUS_POSTED))
-            ->when($from, fn($q) => $q->whereHas('journalEntry', fn($j) => $j->whereDate('entry_date', '>=', $from)))
-            ->when($to, fn($q) => $q->whereHas('journalEntry', fn($j) => $j->whereDate('entry_date', '<=', $to)))
-            ->with('journalEntry')
-            ->orderBy('journal_entry_id')
-            ->get();
+        return $this->ledger->ledgerFor(
+            $account instanceof Account ? $account : Account::findOrFail($account),
+            $from?->toDateString(),
+            $to?->toDateString(),
+        );
     }
 
     /**
-     * Generate a trial balance up to a given date.
-     * Returns collection keyed by account code with debit & credit totals.
+     * Trial balance keyed by account code.
      */
     public function trialBalance(?Carbon $to = null)
     {
-        $query = JournalEntryLine::query()
-            ->select('account_id', DB::raw('SUM(debit) as debit'), DB::raw('SUM(credit) as credit'))
-            ->groupBy('account_id')
-            ->with('account');
+        $balances = $this->ledger->balancesByAccount($to?->toDateString());
+        $accounts = Account::whereIn('id', $balances->keys()->all())->get()->keyBy('id');
 
-        if ($to) {
-            $query->whereHas('journalEntry', fn($q) => $q->whereDate('entry_date', '<=', $to));
-        }
+        return $balances->mapWithKeys(function (Money $signed, int $accountId) use ($accounts) {
+            $account = $accounts[$accountId] ?? null;
 
-        // Posting is the only thing that puts an entry on the books; an approved
-        // entry has cleared review but has not been booked yet.
-        $query->whereHas('journalEntry', fn($q) => $q->where('status', JournalEntry::STATUS_POSTED));
+            if (! $account) {
+                return [];
+            }
 
-        return $query->get()->mapWithKeys(function ($row) {
-            return [$row->account->code => [
-                'account' => $row->account,
-                'debit' => (float) $row->debit,
-                'credit' => (float) $row->credit,
+            return [$account->code => [
+                'account' => $account,
+                'debit'   => $signed->isPositive() ? $signed->toFloat() : 0.0,
+                'credit'  => $signed->isNegative() ? $signed->absolute()->toFloat() : 0.0,
             ]];
         });
     }
 
+    // ------------------------------------------------------------------
+    // Manual review path
+    // ------------------------------------------------------------------
+
     public function approveEntry(JournalEntry $entry): void
     {
-        // Guarded on the model: draft is the only status that can be approved.
         $entry->approve();
 
-        // Optional: dispatch events, audit log
+        $this->log($entry, 'journal_approved', 'approved');
+    }
+
+    public function postJournalEntry(JournalEntry $journalEntry): void
+    {
+        $journalEntry->post();
+
+        $this->log($journalEntry, 'journal_posted', 'posted');
+    }
+
+    private function log(JournalEntry $entry, string $action, string $verb): void
+    {
         AuditLog::create([
-            'user_id'      => auth()->id() ?? 1, // Default to user ID 1 if not authenticated
-            'action'       => 'journal_approved',
-            'description'  => 'Journal Entry ' . ($entry->formatted_id ?? $entry->id) . ' approved.',
+            'user_id'      => auth()->id() ?? 1,
+            'action'       => $action,
+            'description'  => 'Journal Entry ' . $entry->formatted_id . ' ' . $verb . '.',
             'subject_type' => $entry->getMorphClass(),
             'subject_id'   => $entry->getKey(),
         ]);
     }
-
-    /**
-     * Create a draft journal entry (alias for post with draft status).
-     *
-     * @param array<int,array{account_code?:string,account_id?:int,debit:float,credit:float,description?:string}> $lines
-     */
-    public function createDraft(array $lines, Carbon $date = null, ?string $description = null, ?Model $source = null): JournalEntry
-    {
-        return $this->post($lines, $date, $description, $source, 'draft');
-    }
-
-    /**
-     * Create a return journal entry with draft status.
-     *
-     * @param array<int,array{account_code?:string,account_id?:int,debit:float,credit:float,description?:string}> $lines
-     */
-    public function createReturnEntry(array $lines, Carbon $date = null, ?string $description = null, ?Model $source = null): JournalEntry
-    {
-        return $this->post($lines, $date, $description, $source, 'draft');
-    }
-
-    /**
-     * Post a journal entry (change status from approved to posted)
-     *
-     * Credit- and debit-note entries are built by ReturnJournalHandler, which is
-     * the only place that logic lives. They used to jump straight from draft to
-     * posted here while every other entry had to be approved first, which is why
-     * a return could reach the trial balance ahead of the sale it reverses.
-     */
-    public function postJournalEntry(JournalEntry $journalEntry): void
-    {
-        // Throws unless the entry is approved and balanced.
-        $journalEntry->post();
-
-        // Log the posting
-        AuditLog::create([
-            'user_id' => auth()->id() ?? 1,
-            'action' => 'journal_posted',
-            'description' => "Journal entry #{$journalEntry->formatted_id} posted",
-            'subject_type' => $journalEntry->getMorphClass(),
-            'subject_id' => $journalEntry->getKey(),
-        ]);
-    }
-} 
+}

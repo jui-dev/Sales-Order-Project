@@ -16,7 +16,7 @@ use App\Models\StockTransaction;
  *
  * Retailer returns raise no note, because nothing is owed either way. They do
  * still post a journal entry moving the inventory value back between location
- * sub-accounts (StockTransaction::generateReturnNotes() -> ReturnJournalHandler
+ * locations (StockTransaction::generateReturnNotes() -> ReturnJournalHandler
  * ::createRetailerReturnJournal()), but there is no note to settle, so the rail
  * ends at approval:
  *

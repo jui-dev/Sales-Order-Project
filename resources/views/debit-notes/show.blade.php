@@ -171,17 +171,10 @@
                     The entry is posted. Accounts payable has been reduced by
                     ${{ number_format($debitNote->total_amount, 2) }} and the goods have come out of
                     inventory, so this now shows in the financial statements.
-                @elseif($journalApproved)
-                    The journal entry has been <strong>approved</strong> but not posted, so what we owe
-                    {{ $vendor->name ?? 'the vendor' }} has not changed yet. Posting it is what gives this
-                    debit note its financial effect.
-                @elseif($hasJournal)
-                    A <strong>draft</strong> journal entry exists. It has to be approved and then posted
-                    in Journal Entries before what we owe {{ $vendor->name ?? 'the vendor' }} changes; neither has happened yet.
                 @else
                     This debit note is issued but has no journal entry, so it has no effect on the accounts
-                    yet. Posting it creates a draft entry against
-                    {{ $bill->formatted_id ?? 'the supplier bill' }}, which is then posted separately.
+                    yet. Posting it books the entry against
+                    {{ $bill->formatted_id ?? 'the supplier bill' }} straight away.
                 @endif
             </div>
         </div>

@@ -2,11 +2,17 @@
 
 namespace App\Observers;
 
+use App\Accounting\PostingEngine;
 use App\Models\Grn;
 use App\Models\AuditLog;
 
 class GrnObserver
 {
+    public function __construct(
+        private readonly PostingEngine $ledger,
+    ) {
+    }
+
     /**
      * Handle the Grn "updated" event.
      */
@@ -18,7 +24,19 @@ class GrnObserver
         }
 
         // ------------------------------------------------------------------
-        // Auto-create Supplier Bill (draft) instead of posting journal entry
+        // The goods are here, so the business owns them: inventory is debited
+        // now and the other side parks in Goods Received Not Invoiced until the
+        // vendor bills for it.
+        //
+        // The ledger used to wait for the supplier bill to be posted - an
+        // office task that happens later and sometimes not at all - so stock
+        // could be sold and its cost relieved from an inventory balance that
+        // had never been debited.
+        // ------------------------------------------------------------------
+        $this->ledger->postFor($grn);
+
+        // ------------------------------------------------------------------
+        // Auto-create the Supplier Bill as a draft.
         // ------------------------------------------------------------------
 
         // Prevent duplicate bill generation

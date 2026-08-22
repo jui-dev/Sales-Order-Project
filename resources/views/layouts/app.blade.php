@@ -381,6 +381,7 @@
                                 <li><a class="nav-link px-3{{ $navActive('reports.income-statement') }}" href="{{ route('reports.income-statement') }}"><i class="bi bi-clipboard-data me-2"></i>Income Statement</a></li>
                                 <li><a class="nav-link px-3{{ $navActive('reports.balance-sheet') }}" href="{{ route('reports.balance-sheet') }}"><i class="bi bi-columns-gap me-2"></i>Balance Sheet</a></li>
                                 <li><a class="nav-link px-3{{ $navActive('reports.cash-flow') }}" href="{{ route('reports.cash-flow') }}"><i class="bi bi-cash-stack me-2"></i>Cash Flow Statement</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('accounting.health') }}" href="{{ route('accounting.health') }}"><i class="bi bi-clipboard2-pulse me-2"></i>Accounting Health</a></li>
                                 <li><hr></li>
                                 <li><a class="nav-link px-3{{ $navActive('journal-entries.*') }}" href="{{ route('journal-entries.index') }}"><i class="bi bi-journal-text me-2"></i>Journal Entries<x-nav-badge for="accounting.journal-entries" /></a></li>
                                 <li><a class="nav-link px-3{{ $navActive('audit-logs.*') }}" href="{{ route('audit-logs.index') }}"><i class="bi bi-shield-check me-2"></i>Audit Trail<x-nav-badge for="accounting.audit-logs" /></a></li>
