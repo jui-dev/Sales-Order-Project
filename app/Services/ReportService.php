@@ -4,7 +4,8 @@ namespace App\Services;
 
 use App\Accounting\AccountRole;
 use App\Accounting\LedgerService;
-use App\Models\OrderItem;
+use App\Accounting\Money;
+use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\Retailer;
 use Illuminate\Support\Arr;
@@ -27,6 +28,28 @@ class ReportService
      * the expense range is an operating cost below it.
      */
     private const COST_OF_SALES_CODES = ['5000', '5100'];
+
+    /**
+     * The same two, as roles, for readers that go by role rather than by code.
+     *
+     * Cost of goods sold and its contra - goods sent back to a vendor - are
+     * what sits above the gross profit line.
+     */
+    private const COST_OF_SALES_ROLES = [
+        AccountRole::CostOfGoodsSold,
+        AccountRole::PurchaseReturns,
+    ];
+
+    /**
+     * Everything that makes up net revenue: gross sales less the two contra
+     * accounts that reduce it. Summed signed, so returns and discounts net
+     * themselves off without anything having to know which is which.
+     */
+    private const REVENUE_ROLES = [
+        AccountRole::SalesRevenue,
+        AccountRole::SalesDiscount,
+        AccountRole::SalesReturns,
+    ];
 
     /** The account cash actually moves through. */
     private const CASH_CODE = '1000';
@@ -78,56 +101,245 @@ class ReportService
     }
 
     /**
-     * Generate daily profit report data
+     * Profit for each day in a range, read off the ledger.
+     *
+     * This used to sum order_items directly, filtered only to orders that were
+     * not cancelled. A sale that had been returned and credited therefore went
+     * on reporting its full revenue and profit for ever - the credit note lives
+     * on the invoice, not the order, so nothing here could ever see it - and a
+     * pending order that had shipped nothing booked profit on the day it was
+     * typed. The page contradicted the income statement by construction.
+     *
+     * It is now derived the way every other statement is: by summing the lines
+     * of posted entries. Returns arrive for free, because the posting rules
+     * already write them to contra revenue and back out of cost of sales.
+     *
+     * Two consequences, both stated on the page:
+     *
+     *  - Only posted documents appear. An order that has not been invoiced is
+     *    not yet revenue, so this reports what was earned rather than what is
+     *    hoped for. statementBasis() carries the unposted backlog so that a
+     *    quiet month and an unposted one do not look alike.
+     *
+     *  - Revenue is dated to the invoice and cost to the shipment, so one day
+     *    can show either without the other. The period total is unaffected.
      */
     public function generateDailyProfitReport(array $filters = []): array
     {
-        // Determine date range – default to current month
         $startDate = Arr::get($filters, 'start_date', Carbon::now()->startOfMonth()->toDateString());
         $endDate = Arr::get($filters, 'end_date', Carbon::now()->toDateString());
 
-        // Fetch all order items within the date range whose parent orders are not cancelled
-        $orderItems = OrderItem::with(['order', 'product', 'location'])
-            ->whereHas('order', function ($q) use ($startDate, $endDate) {
-                $q->whereDate('order_date', '>=', $startDate)
-                  ->whereDate('order_date', '<=', $endDate)
-                  // Include every status except explicitly cancelled so that in-flight
-                  // orders still appear in the profitability dashboard.
-                  ->where('status', '!=', 'cancelled');
-            })
-            ->get();
+        $ledger = $this->ledger->excludingClosingEntries();
 
-        // Early exit – no data
-        if ($orderItems->isEmpty()) {
+        // Balances are signed debit minus credit throughout. Revenue is earned
+        // as a credit, so it reads negative and is flipped here; cost is a
+        // debit and is read as it stands. A contra account carries the opposite
+        // sign of its type, which is what lets returns and discounts reduce the
+        // total by being summed with it rather than special-cased.
+        $daily = fn (array $roles) => $ledger->dailyMovement($roles, $startDate, $endDate);
+
+        $grossRevenueByDay = $daily([AccountRole::SalesRevenue]);
+        $returnsByDay      = $daily([AccountRole::SalesReturns]);
+        $discountsByDay    = $daily([AccountRole::SalesDiscount]);
+        $costByDay         = $daily(self::COST_OF_SALES_ROLES);
+
+        $dates = collect()
+            ->merge($grossRevenueByDay->keys())
+            ->merge($returnsByDay->keys())
+            ->merge($discountsByDay->keys())
+            ->merge($costByDay->keys())
+            ->unique()
+            ->sort()
+            ->values();
+
+        $detail = $this->buildProfitDetail($ledger, $startDate, $endDate);
+
+        $dailyTotals = $dates->map(function (string $date) use (
+            $grossRevenueByDay, $returnsByDay, $discountsByDay, $costByDay, $detail
+        ) {
+            $gross     = -$this->amountOn($grossRevenueByDay, $date);
+            $returns   = $this->amountOn($returnsByDay, $date);
+            $discounts = $this->amountOn($discountsByDay, $date);
+            $cost      = $this->amountOn($costByDay, $date);
+
+            $revenue = $gross - $returns - $discounts;
+            $rows = $detail->where('date', $date);
+
             return [
-                'startDate'     => $startDate,
-                'endDate'       => $endDate,
-                'dailyProfits'  => collect(),
-                'dailyTotals'   => collect(),
-                'summary'       => $this->getBlankSummary(),
+                'date'             => $date,
+                'products_count'   => $rows->pluck('product_id')->unique()->count(),
+                'gross_revenue'    => round($gross, 2),
+                'total_returns'    => round($returns, 2),
+                'total_discounts'  => round($discounts, 2),
+                'total_revenue'    => round($revenue, 2),
+                'total_cost'       => round($cost, 2),
+                'total_profit'     => round($revenue - $cost, 2),
+                'warehouse_profit' => round($rows->where('location_type', 'warehouse')->sum('profit'), 2),
+                'retailer_profit'  => round($rows->where('location_type', 'retailer')->sum('profit'), 2),
             ];
-        }
-
-        // Build per-item profit records
-        $dailyProfits = $orderItems->map(function (OrderItem $item) {
-            return $this->buildProfitRecord($item);
         });
 
-        // Aggregate daily totals
-        $dailyTotals = $dailyProfits->groupBy('order_date')->map(function (Collection $items) {
-            return $this->buildDailyTotal($items);
-        })->sortBy('date')->values();
-
-        // Overall summary
-        $summary = $this->buildSummary($dailyProfits);
-
         return [
-            'startDate'     => $startDate,
-            'endDate'       => $endDate,
-            'dailyProfits'  => $dailyProfits,
-            'dailyTotals'   => $dailyTotals,
-            'summary'       => $summary,
+            'startDate'    => $startDate,
+            'endDate'      => $endDate,
+            'dailyProfits' => $detail,
+            'dailyTotals'  => $dailyTotals,
+            'summary'      => $dailyTotals->isEmpty()
+                ? $this->getBlankSummary()
+                : $this->buildSummary($dailyTotals, $detail),
+            // What the figures were built from, so an unposted backlog is
+            // stated rather than read as a quiet month.
+            'basis'        => $this->statementBasis($startDate, $endDate),
         ];
+    }
+
+    /**
+     * One row per product, location and day.
+     *
+     * Revenue, returns and cost of sales all carry the product and the location
+     * they belong to, so profit per product is a grouping of the same accounts
+     * the totals come from rather than a second calculation that has to be kept
+     * in step with the first.
+     *
+     * Lines with no product - an invoice posted without a line breakdown - are
+     * not in here, which is why the summary takes its totals from the accounts
+     * themselves and reports the difference as unattributed rather than letting
+     * the detail quietly disagree with the headline.
+     */
+    private function buildProfitDetail(LedgerService $ledger, string $startDate, string $endDate): Collection
+    {
+        $revenue = $ledger->movementByProductAndLocation(self::REVENUE_ROLES, $startDate, $endDate);
+        $cost = $ledger->movementByProductAndLocation(self::COST_OF_SALES_ROLES, $startDate, $endDate);
+
+        $key = fn (array $row) => $row['date'] . '|' . $row['product_id'] . '|'
+            . $row['location_type'] . ':' . $row['location_id'];
+
+        $rows = [];
+
+        foreach ($revenue as $row) {
+            $k = $key($row);
+            $rows[$k] = ($rows[$k] ?? $row + ['revenue' => 0.0, 'cost' => 0.0]);
+            $rows[$k]['revenue'] += -$row['amount']->toFloat();
+        }
+
+        foreach ($cost as $row) {
+            $k = $key($row);
+            $rows[$k] = ($rows[$k] ?? $row + ['revenue' => 0.0, 'cost' => 0.0]);
+            $rows[$k]['cost'] += $row['amount']->toFloat();
+        }
+
+        $products = Product::whereIn('id', array_column($rows, 'product_id'))->pluck('name', 'id');
+        $locations = $this->locationNames($rows);
+
+        return collect($rows)
+            ->map(function (array $row) use ($products, $locations) {
+                $revenue = round($row['revenue'], 2);
+                $cost = round($row['cost'], 2);
+
+                return [
+                    // order_date is kept as an alias so the print view and any
+                    // caller that grouped on it keep working.
+                    'order_date'    => $row['date'],
+                    'date'          => $row['date'],
+                    'product_id'    => $row['product_id'],
+                    'product_name'  => $products[$row['product_id']] ?? ('#' . $row['product_id']),
+                    'location_type' => $this->locationSlug($row['location_type']),
+                    'location_name' => $locations[$row['location_type'] . ':' . $row['location_id']] ?? 'Unknown',
+                    'revenue'       => $revenue,
+                    'cost'          => $cost,
+                    'profit'        => round($revenue - $cost, 2),
+                ];
+            })
+            ->sortBy([['date', 'asc'], ['product_name', 'asc']])
+            ->values();
+    }
+
+    /**
+     * Resolve every location the detail refers to, one query per type.
+     *
+     * @param  array<string,array<string,mixed>> $rows
+     * @return array<string,string>
+     */
+    private function locationNames(array $rows): array
+    {
+        $names = [];
+
+        foreach (collect($rows)->groupBy('location_type') as $type => $group) {
+            if (! $type || ! class_exists($type)) {
+                continue;
+            }
+
+            $ids = $group->pluck('location_id')->filter()->unique()->all();
+
+            foreach ($type::whereIn('id', $ids)->pluck('name', 'id') as $id => $name) {
+                $names[$type . ':' . $id] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * Normalise a location class to the slug the view splits on.
+     */
+    private function locationSlug(?string $type): string
+    {
+        return match ($type) {
+            Warehouse::class => 'warehouse',
+            Retailer::class  => 'retailer',
+            default          => 'other',
+        };
+    }
+
+    /**
+     * @param  Collection<string,Money> $movement
+     */
+    private function amountOn(Collection $movement, string $date): float
+    {
+        return isset($movement[$date]) ? $movement[$date]->toFloat() : 0.0;
+    }
+
+    /**
+     * Realised profit per product over a period.
+     *
+     * The same accounts and the same sign convention the daily profit report
+     * uses, exposed so the product listing can show what a product has actually
+     * earned without defining gross profit for a fourth time. Returns are
+     * already in it: they are posted to contra revenue and back out of cost of
+     * sales against the same product.
+     *
+     * A product with no posted sales in the period is absent rather than zero -
+     * "nothing sold" and "sold at cost" are different facts, and the caller is
+     * left to say so.
+     *
+     * @param  array<int,int>|null $productIds  restrict to these, for one page of a listing
+     * @return Collection<int,array{revenue:float,cost:float,profit:float}>
+     */
+    public function realisedProfitByProduct(
+        ?array $productIds = null,
+        ?string $startDate = null,
+        ?string $endDate = null,
+    ): Collection {
+        $ledger = $this->ledger->excludingClosingEntries();
+
+        $revenue = $ledger->movementByProduct(self::REVENUE_ROLES, $startDate, $endDate, $productIds);
+        $cost = $ledger->movementByProduct(self::COST_OF_SALES_ROLES, $startDate, $endDate, $productIds);
+
+        return collect($revenue->keys())
+            ->merge($cost->keys())
+            ->unique()
+            ->mapWithKeys(function (int $productId) use ($revenue, $cost) {
+                // Revenue is a credit balance, so it reads negative; cost is a
+                // debit and reads as it stands.
+                $earned = isset($revenue[$productId]) ? -$revenue[$productId]->toFloat() : 0.0;
+                $spent = isset($cost[$productId]) ? $cost[$productId]->toFloat() : 0.0;
+
+                return [$productId => [
+                    'revenue' => round($earned, 2),
+                    'cost'    => round($spent, 2),
+                    'profit'  => round($earned - $spent, 2),
+                ]];
+            });
     }
 
     /**
@@ -488,102 +700,58 @@ class ReportService
     }
 
     /**
-     * Build a profit record for an order item
+     * Build the overall summary from the daily rows.
+     *
+     * Totals come from the accounts themselves rather than from the detail, so
+     * revenue posted without a line breakdown still counts. The gap between the
+     * two is reported as unattributed instead of being quietly absorbed into
+     * whichever product happened to come first.
      */
-    private function buildProfitRecord(OrderItem $item): array
+    private function buildSummary(Collection $dailyTotals, Collection $detail): array
     {
-        $product = $item->product;
-        $locationModel = $item->location;
+        $totalRevenue = round($dailyTotals->sum('total_revenue'), 2);
+        $totalCost = round($dailyTotals->sum('total_cost'), 2);
+        $totalProfit = round($totalRevenue - $totalCost, 2);
 
-        // Normalise location type to friendly slug
-        $locationType = match ($item->location_type) {
-            \App\Models\Warehouse::class => 'warehouse',
-            \App\Models\Retailer::class  => 'retailer',
-            default => 'other',
+        $bucket = function (string $slug) use ($detail) {
+            $rows = $detail->where('location_type', $slug);
+            $revenue = round($rows->sum('revenue'), 2);
+            $profit = round($rows->sum('profit'), 2);
+
+            return [
+                'revenue'  => $revenue,
+                'profit'   => $profit,
+                'products' => $rows->pluck('product_id')->unique()->count(),
+                'margin'   => $revenue > 0 ? round(($profit / $revenue) * 100, 2) : 0,
+            ];
         };
 
-        // Guard against missing location records
-        $locationName = $locationModel?->name ?? 'Unknown';
-
-        // Cost comes off the line as captured at the time of sale. Reading the
-        // product's current purchase_price here meant every posted goods receipt
-        // retroactively rewrote the profit on every order already reported on.
-        $revenue = (float) $item->unit_price * (int) $item->quantity;
-        $cost = (float) $item->unit_cost * (int) $item->quantity;
-        $profit = $revenue - $cost;
+        $warehouse = $bucket('warehouse');
+        $retailer = $bucket('retailer');
+        $margin = $totalRevenue > 0 ? round(($totalProfit / $totalRevenue) * 100, 2) : 0;
 
         return [
-            'order_date'    => $item->order->order_date->toDateString(),
-            'product_id'    => $item->product_id,
-            'product_name'  => $product->name ?? 'Product',
-            'location_type' => $locationType,
-            'location_name' => $locationName,
-            'quantity_sold' => (int) $item->quantity,
-            'revenue'       => round($revenue, 2),
-            'cost'          => round($cost, 2),
-            'profit'        => round($profit, 2),
-        ];
-    }
-
-    /**
-     * Build daily total from profit records
-     */
-    private function buildDailyTotal(Collection $items): array
-    {
-        return [
-            'date'             => $items->first()['order_date'],
-            'products_count'   => $items->sum('quantity_sold'),
-            'total_revenue'    => $items->sum('revenue'),
-            'total_cost'       => $items->sum('cost'),
-            'total_profit'     => $items->sum('profit'),
-            'warehouse_profit' => $items->where('location_type', 'warehouse')->sum('profit'),
-            'retailer_profit'  => $items->where('location_type', 'retailer')->sum('profit'),
-        ];
-    }
-
-    /**
-     * Build summary from profit records
-     */
-    private function buildSummary(Collection $items): array
-    {
-        $totalRevenue = $items->sum('revenue');
-        $totalCost = $items->sum('cost');
-        $totalProfit = $items->sum('profit');
-
-        // Warehouse breakdown
-        $warehouseItems = $items->where('location_type', 'warehouse');
-        $warehouseRevenue = $warehouseItems->sum('revenue');
-        $warehouseCost = $warehouseItems->sum('cost');
-        $warehouseProfit = $warehouseItems->sum('profit');
-        $warehouseProductsSold = $warehouseItems->sum('quantity_sold');
-        $warehouseMargin = $warehouseRevenue > 0 ? ($warehouseProfit / $warehouseRevenue) * 100 : 0;
-
-        // Retailer breakdown
-        $retailerItems = $items->where('location_type', 'retailer');
-        $retailerRevenue = $retailerItems->sum('revenue');
-        $retailerCost = $retailerItems->sum('cost');
-        $retailerProfit = $retailerItems->sum('profit');
-        $retailerProductsSold = $retailerItems->sum('quantity_sold');
-        $retailerMargin = $retailerRevenue > 0 ? ($retailerProfit / $retailerRevenue) * 100 : 0;
-
-        return [
-            'total_revenue'    => round($totalRevenue, 2),
-            'total_cost'       => round($totalCost, 2),
-            'total_profit'     => round($totalProfit, 2),
-            'profit_margin'    => $totalRevenue > 0 ? round(($totalProfit / $totalRevenue) * 100, 2) : 0,
-            'warehouse_profit' => round($warehouseProfit, 2),
-            'retailer_profit'  => round($retailerProfit, 2),
-            'total_orders'     => $items->unique('order_date')->count(),
-            'total_products'   => $items->sum('quantity_sold'),
-            // Additional fields for view compatibility
-            'total_products_sold' => $items->sum('quantity_sold'),
-            'average_margin' => $totalRevenue > 0 ? round(($totalProfit / $totalRevenue) * 100, 2) : 0,
-            'warehouse_products_sold' => $warehouseProductsSold,
-            'warehouse_revenue' => round($warehouseRevenue, 2),
-            'warehouse_margin' => round($warehouseMargin, 2),
-            'retailer_products_sold' => $retailerProductsSold,
-            'retailer_revenue' => round($retailerRevenue, 2),
-            'retailer_margin' => round($retailerMargin, 2),
+            'gross_revenue'      => round($dailyTotals->sum('gross_revenue'), 2),
+            'total_returns'      => round($dailyTotals->sum('total_returns'), 2),
+            'total_discounts'    => round($dailyTotals->sum('total_discounts'), 2),
+            'total_revenue'      => $totalRevenue,
+            'total_cost'         => $totalCost,
+            'total_profit'       => $totalProfit,
+            'profit_margin'      => $margin,
+            'average_margin'     => $margin,
+            'products_count'     => $detail->pluck('product_id')->unique()->count(),
+            'days_count'         => $dailyTotals->count(),
+            // Revenue and cost carrying no product, so they are in the totals
+            // above but in none of the rows below.
+            'unattributed'       => round($totalProfit - $detail->sum('profit'), 2),
+            'warehouse_profit'   => $warehouse['profit'],
+            'warehouse_revenue'  => $warehouse['revenue'],
+            'warehouse_products' => $warehouse['products'],
+            'warehouse_margin'   => $warehouse['margin'],
+            'retailer_profit'    => $retailer['profit'],
+            'retailer_revenue'   => $retailer['revenue'],
+            'retailer_products'  => $retailer['products'],
+            'retailer_margin'    => $retailer['margin'],
         ];
     }
 
@@ -593,23 +761,25 @@ class ReportService
     private function getBlankSummary(): array
     {
         return [
-            'total_revenue'    => 0,
-            'total_cost'       => 0,
-            'total_profit'     => 0,
-            'profit_margin'    => 0,
-            'warehouse_profit' => 0,
-            'retailer_profit'  => 0,
-            'total_orders'     => 0,
-            'total_products'   => 0,
-            // Additional fields for view compatibility
-            'total_products_sold' => 0,
-            'average_margin' => 0,
-            'warehouse_products_sold' => 0,
-            'warehouse_revenue' => 0,
-            'warehouse_margin' => 0,
-            'retailer_products_sold' => 0,
-            'retailer_revenue' => 0,
-            'retailer_margin' => 0,
+            'gross_revenue'      => 0,
+            'total_returns'      => 0,
+            'total_discounts'    => 0,
+            'total_revenue'      => 0,
+            'total_cost'         => 0,
+            'total_profit'       => 0,
+            'profit_margin'      => 0,
+            'average_margin'     => 0,
+            'products_count'     => 0,
+            'days_count'         => 0,
+            'unattributed'       => 0,
+            'warehouse_profit'   => 0,
+            'warehouse_revenue'  => 0,
+            'warehouse_products' => 0,
+            'warehouse_margin'   => 0,
+            'retailer_profit'    => 0,
+            'retailer_revenue'   => 0,
+            'retailer_products'  => 0,
+            'retailer_margin'    => 0,
         ];
     }
 

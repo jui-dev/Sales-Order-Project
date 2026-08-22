@@ -430,7 +430,7 @@ Entries created by the system carry a polymorphic link back to their source (inv
 | **Balance Sheet** | as-of date | ✗ (buttons present) |
 | **Cash Flow Statement** | start + end | ✗ (buttons present) |
 
-**Daily Profit** is the richest: an overall summary (products sold, revenue, profit, average margin), then separate **Warehouse Sales** and **Retailer Sales** breakdowns, then a per-day detail table. Profit is computed per order item as `(unit_price − purchase_price) × quantity`.
+**Daily Profit** is the richest: an overall summary (net revenue, returns, profit, margin), then separate **Warehouse Sales** and **Retailer Sales** breakdowns, then a per-day detail table. It is read off the ledger — net revenue is `−(4000 + 4100 + 4200)` and cost of sales is `5000 + 5100`, summed over posted journal lines — so it is net of returns and agrees with the Income Statement. Per-product and per-location rows come from the `product` and `location` dimensions those lines carry. Only posted documents count: an order that has not been invoiced is not yet revenue.
 
 > ⚠️ All four financial statements show PDF and CSV buttons, but **CSV is not implemented anywhere** (it flashes an error), and **Balance Sheet and Cash Flow PDF export is dead** — the PDF methods exist in the controller but have no routes.
 

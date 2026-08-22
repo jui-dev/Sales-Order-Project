@@ -18,21 +18,50 @@
             Showing profit data from {{ date('M d, Y', strtotime($startDate)) }} 
             to {{ date('M d, Y', strtotime($endDate)) }}
         </p>
+        {{-- What the figures are, stated plainly. This page used to sum order
+             lines, so a sale that had been returned and credited kept its
+             profit for ever and a pending order booked profit before it
+             shipped. It now reads the ledger, which is why it agrees with the
+             income statement. --}}
         <div class="alert alert-info">
             <i class="bi bi-info-circle me-2"></i>
-            <strong>Note:</strong> This report shows profits from both warehouse and retailer sales:
+            <strong>How these figures are built:</strong> from posted journal entries only, so every
+            total here is <strong>net of returns</strong> and agrees with the Income Statement for the
+            same range. An order that has not been invoiced is not yet revenue and does not appear.
             <ul class="mb-0 mt-2">
-                <li>Warehouse sales: Direct sales from warehouse to customers</li>
-                <li>Retailer sales: Sales through retail locations</li>
+                <li>Warehouse sales: direct sales from a warehouse to customers</li>
+                <li>Retailer sales: sales through retail locations</li>
+                <li>Revenue is dated to the invoice and cost to the shipment, so a single day can
+                    show one without the other. The period total is unaffected.</li>
             </ul>
         </div>
+
+        @if(!($basis['is_complete'] ?? true))
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                {{ $basis['pending_count'] }} journal
+                {{ Str::plural('entry', $basis['pending_count']) }}
+                totalling ${{ number_format($basis['pending_total'], 2) }} in this range
+                {{ $basis['pending_count'] === 1 ? 'is' : 'are' }} not posted yet, so
+                {{ $basis['pending_count'] === 1 ? 'it is' : 'they are' }} not counted below.
+            </div>
+        @endif
     </div>
 </div>
 
 @if($dailyProfits->isEmpty())
+    {{-- The old wording said "completed transactions" while the query behind
+         it counted everything that was not cancelled. Both halves are now
+         true: nothing is posted in this range. --}}
     <div class="alert alert-warning">
         <i class="bi bi-exclamation-triangle me-2"></i>
-        No completed transactions found for the selected date range.
+        Nothing has been posted to the ledger in this date range, so there is no profit to report.
+        @if(!($basis['is_complete'] ?? true))
+            {{ $basis['pending_count'] }} unposted
+            {{ Str::plural('entry', $basis['pending_count']) }}
+            totalling ${{ number_format($basis['pending_total'], 2) }}
+            {{ $basis['pending_count'] === 1 ? 'is' : 'are' }} waiting.
+        @endif
     </div>
 @else
     @if(isset($summary))
@@ -46,14 +75,27 @@
                     <div class="row">
                         <div class="col-md-3 col-sm-6 mb-3 mb-md-0">
                             <div class="border rounded p-3 h-100">
-                                <div class="text-muted small">Total Products Sold</div>
-                                <div class="h4">{{ number_format($summary['total_products_sold']) }}</div>
+                                <div class="text-muted small">Net Revenue</div>
+                                <div class="h4">${{ number_format($summary['total_revenue'], 2) }}</div>
+                                <div class="text-muted small">
+                                    ${{ number_format($summary['gross_revenue'], 2) }} gross
+                                </div>
                             </div>
                         </div>
+                        {{-- Returns are shown rather than netted away silently: a month
+                             with none and a month whose sales all came back are not the
+                             same month, and the old page could not tell them apart. --}}
                         <div class="col-md-3 col-sm-6 mb-3 mb-md-0">
                             <div class="border rounded p-3 h-100">
-                                <div class="text-muted small">Total Revenue</div>
-                                <div class="h4">${{ number_format($summary['total_revenue'], 2) }}</div>
+                                <div class="text-muted small">Returns</div>
+                                <div class="h4 {{ $summary['total_returns'] > 0 ? 'text-danger' : '' }}">
+                                    @if($summary['total_returns'] > 0)-@endif${{ number_format($summary['total_returns'], 2) }}
+                                </div>
+                                @if($summary['total_discounts'] > 0)
+                                    <div class="text-muted small">
+                                        ${{ number_format($summary['total_discounts'], 2) }} discounts
+                                    </div>
+                                @endif
                             </div>
                         </div>
                         <div class="col-md-3 col-sm-6 mb-3 mb-md-0">
@@ -64,11 +106,28 @@
                         </div>
                         <div class="col-md-3 col-sm-6">
                             <div class="border rounded p-3 h-100">
-                                <div class="text-muted small">Average Margin</div>
+                                <div class="text-muted small">Margin</div>
                                 <div class="h4">{{ number_format($summary['average_margin'], 1) }}%</div>
+                                <div class="text-muted small">
+                                    {{ $summary['products_count'] }}
+                                    {{ Str::plural('product', $summary['products_count']) }}
+                                    over {{ $summary['days_count'] }}
+                                    {{ Str::plural('day', $summary['days_count']) }}
+                                </div>
                             </div>
                         </div>
                     </div>
+
+                    {{-- Revenue posted without a line breakdown carries no product, so
+                         it counts in the totals but appears in none of the rows below.
+                         Stating the gap is what stops the two from silently disagreeing. --}}
+                    @if(abs($summary['unattributed']) >= 0.01)
+                        <p class="text-muted small mb-0 mt-3">
+                            ${{ number_format(abs($summary['unattributed']), 2) }} of profit is not
+                            attributed to any product - it was posted without a line breakdown - so it
+                            is counted in the totals above but not in the tables below.
+                        </p>
+                    @endif
                 </div>
             </div>
         </div>
@@ -83,8 +142,8 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-6 mb-3">
-                            <div class="text-muted small">Products Sold</div>
-                            <div class="h5">{{ number_format($summary['warehouse_products_sold']) }}</div>
+                            <div class="text-muted small">Products</div>
+                            <div class="h5">{{ number_format($summary['warehouse_products']) }}</div>
                         </div>
                         <div class="col-6 mb-3">
                             <div class="text-muted small">Revenue</div>
@@ -110,8 +169,8 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-6 mb-3">
-                            <div class="text-muted small">Products Sold</div>
-                            <div class="h5">{{ number_format($summary['retailer_products_sold']) }}</div>
+                            <div class="text-muted small">Products</div>
+                            <div class="h5">{{ number_format($summary['retailer_products']) }}</div>
                         </div>
                         <div class="col-6 mb-3">
                             <div class="text-muted small">Revenue</div>
@@ -171,8 +230,10 @@
                             <thead>
                                 <tr>
                                     <th>Date</th>
-                                    <th>Products Sold</th>
-                                    <th class="text-end">Total Revenue</th>
+                                    <th>Products</th>
+                                    <th class="text-end">Gross Revenue</th>
+                                    <th class="text-end">Returns</th>
+                                    <th class="text-end">Net Revenue</th>
                                     <th class="text-end">Total Cost</th>
                                     <th class="text-end">Total Profit</th>
                                     <th class="text-end">Margin %</th>
@@ -185,6 +246,10 @@
                                     <tr>
                                         <td>{{ date('M d, Y', strtotime($day['date'])) }}</td>
                                         <td>{{ $day['products_count'] }}</td>
+                                        <td class="text-end">${{ number_format($day['gross_revenue'], 2) }}</td>
+                                        <td class="text-end {{ $day['total_returns'] > 0 ? 'text-danger' : 'text-muted' }}">
+                                            @if($day['total_returns'] > 0)-@endif${{ number_format($day['total_returns'], 2) }}
+                                        </td>
                                         <td class="text-end">${{ number_format($day['total_revenue'], 2) }}</td>
                                         <td class="text-end">${{ number_format($day['total_cost'], 2) }}</td>
                                         <td class="text-end">${{ number_format($day['total_profit'], 2) }}</td>
@@ -203,7 +268,14 @@
                             <tfoot class="table-group-divider">
                                 <tr class="fw-bold">
                                     <td>Total</td>
-                                    <td>{{ $dailyTotals->sum('products_count') }}</td>
+                                    {{-- A product sold on two days is one product, so the
+                                         column is counted over the period rather than summed
+                                         down it. --}}
+                                    <td>{{ $summary['products_count'] }}</td>
+                                    <td class="text-end">${{ number_format($dailyTotals->sum('gross_revenue'), 2) }}</td>
+                                    <td class="text-end {{ $summary['total_returns'] > 0 ? 'text-danger' : 'text-muted' }}">
+                                        @if($summary['total_returns'] > 0)-@endif${{ number_format($summary['total_returns'], 2) }}
+                                    </td>
                                     <td class="text-end">${{ number_format($dailyTotals->sum('total_revenue'), 2) }}</td>
                                     <td class="text-end">${{ number_format($dailyTotals->sum('total_cost'), 2) }}</td>
                                     <td class="text-end">${{ number_format($dailyTotals->sum('total_profit'), 2) }}</td>
@@ -234,6 +306,10 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">Detailed Daily Product Profit</h5>
+                    <small class="text-muted">
+                        Revenue net of anything returned that day, against the cost of the goods
+                        that shipped. Quantities are not shown: the ledger records value, not units.
+                    </small>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -243,7 +319,6 @@
                                     <th>Date</th>
                                     <th>Product</th>
                                     <th>Location</th>
-                                    <th>Quantity Sold</th>
                                     <th class="text-end">Revenue</th>
                                     <th class="text-end">Cost</th>
                                     <th class="text-end">Profit</th>
@@ -271,7 +346,6 @@
                                                 {{ $item['location_name'] }}
                                             </span>
                                         </td>
-                                        <td>{{ $item['quantity_sold'] }}</td>
                                         <td class="text-end">${{ number_format($item['revenue'], 2) }}</td>
                                         <td class="text-end">${{ number_format($item['cost'], 2) }}</td>
                                         <td class="text-end">${{ number_format($item['profit'], 2) }}</td>

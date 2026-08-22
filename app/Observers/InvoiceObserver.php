@@ -5,8 +5,17 @@ namespace App\Observers;
 use App\Accounting\PostingEngine;
 use App\Models\AuditLog;
 use App\Models\Invoice;
+use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
 
-class InvoiceObserver
+/**
+ * Posting waits for the transaction to commit.
+ *
+ * An invoice and its lines are written together, and the lines are what revenue
+ * is attributed to. Posting on the bare created event ran while the invoice was
+ * still line-less, so every sale credited one unattributed lump to revenue and
+ * profit per product could not be read off the ledger at all.
+ */
+class InvoiceObserver implements ShouldHandleEventsAfterCommit
 {
     public function __construct(
         private readonly PostingEngine $ledger,

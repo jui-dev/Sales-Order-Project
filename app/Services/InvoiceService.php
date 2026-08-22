@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Traits\HasErrorHandling;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use App\Models\Order;
 
 class InvoiceService
@@ -107,50 +108,58 @@ class InvoiceService
     {
         return $this->handleServiceOperation(
             function() use ($order) {
-                // Check if invoice already exists for this order
-                if ($order->invoice()->exists()) {
-                    return $order->invoice;
-                }
+                // Invoice and lines are written together. The ledger posts the
+                // sale from InvoiceObserver, which runs after the transaction
+                // commits - so by the time revenue is attributed to products,
+                // the lines it attributes to exist. Created outside a
+                // transaction, an invoice with no lines still posts its
+                // subtotal as one unattributed credit.
+                return DB::transaction(function () use ($order) {
+                    // Check if invoice already exists for this order
+                    if ($order->invoice()->exists()) {
+                        return $order->invoice;
+                    }
 
-                // Load order with items and customer
-                $order->load(['items.product', 'customer']);
+                    // Load order with items and customer
+                    $order->load(['items.product', 'customer']);
 
-                // Calculate totals
-                $subtotal = $order->items->sum('subtotal');
-                $tax = 0; // Calculate tax if needed
-                $discount = 0; // Calculate discount if needed
-                $total = $subtotal + $tax - $discount;
+                    // Calculate totals
+                    $subtotal = $order->items->sum('subtotal');
+                    $tax = 0; // Calculate tax if needed
+                    $discount = 0; // Calculate discount if needed
+                    $total = $subtotal + $tax - $discount;
 
-                // Generate invoice number
-                $lastInvoice = Invoice::orderBy('id', 'desc')->first();
-                $nextNumber = $lastInvoice ? (intval(substr($lastInvoice->invoice_number ?? 'INV0000', 3)) + 1) : 1;
-                $invoiceNumber = 'INV' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+                    // Generate invoice number
+                    $lastInvoice = Invoice::orderBy('id', 'desc')->first();
+                    $nextNumber = $lastInvoice ? (intval(substr($lastInvoice->invoice_number ?? 'INV0000', 3)) + 1) : 1;
+                    $invoiceNumber = 'INV' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
 
-                // Create invoice
-                $invoice = Invoice::create([
-                    'invoice_number' => $invoiceNumber,
-                    'order_id' => $order->id,
-                    'customer_id' => $order->customer_id,
-                    'invoice_date' => now(),
-                    'subtotal' => $subtotal,
-                    'tax' => $tax,
-                    'discount' => $discount,
-                    'total' => $total,
-                    'payment_status' => 'unpaid',
-                ]);
-
-                // Create invoice items from order items
-                foreach ($order->items as $orderItem) {
-                    $invoice->items()->create([
-                        'product_id' => $orderItem->product_id,
-                        'description' => $orderItem->product->name,
-                        'quantity' => $orderItem->quantity,
-                        'unit_price' => $orderItem->unit_price,
-                        'total' => $orderItem->subtotal,
+                    // Create invoice
+                    $invoice = Invoice::create([
+                        'invoice_number' => $invoiceNumber,
+                        'order_id' => $order->id,
+                        'customer_id' => $order->customer_id,
+                        'invoice_date' => now(),
+                        'subtotal' => $subtotal,
+                        'tax' => $tax,
+                        'discount' => $discount,
+                        'total' => $total,
+                        'payment_status' => 'unpaid',
                     ]);
-                }
 
-                return $invoice->load(['items', 'customer', 'order']);
+                    // Create invoice items from order items
+                    foreach ($order->items as $orderItem) {
+                        $invoice->items()->create([
+                            'product_id' => $orderItem->product_id,
+                            'description' => $orderItem->product->name,
+                            'quantity' => $orderItem->quantity,
+                            'unit_price' => $orderItem->unit_price,
+                            'total' => $orderItem->subtotal,
+                        ]);
+                    }
+
+                    return $invoice->load(['items', 'customer', 'order']);
+                });
             },
             'invoice from order',
             $order->id

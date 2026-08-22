@@ -14,8 +14,8 @@ use Illuminate\Support\Carbon;
 /**
  * Goods have left on a sale, so they stop being inventory and become cost.
  *
- *     Dr 5000 Cost of Goods Sold
- *         Cr 1200 Inventory     (per product, at the location they left from)
+ *     Dr 5000 Cost of Goods Sold   (per product, at the location they left from)
+ *         Cr 1200 Inventory        (the same, line for line)
  *
  * Only sales do this. A stock transfer keeps the value inside the business and
  * is handled by StockTransferPostingRule, which moves it between locations on
@@ -78,8 +78,6 @@ class CostOfGoodsSoldPostingRule implements PostingRule
             return $draft;
         }
 
-        $total = Money::zero();
-
         foreach ($list->items as $item) {
             $quantity = (int) ($item->quantity_picked ?? 0);
 
@@ -100,16 +98,19 @@ class CostOfGoodsSoldPostingRule implements PostingRule
                 continue;
             }
 
-            $draft->credit(
-                AccountRole::Inventory,
-                $value,
-                ['location' => $location, 'product' => $item->product_id],
-                sprintf('Shipped %s x %s', $quantity, $item->product?->name ?? ('#' . $item->product_id)),
-            );
+            $dimensions = ['location' => $location, 'product' => $item->product_id];
+            $line = sprintf('Shipped %s x %s', $quantity, $item->product?->name ?? ('#' . $item->product_id));
 
-            $total = $total->plus($value);
+            // Both sides carry the product and the location. Cost used to be
+            // relieved in one undimensioned lump, so the ledger knew what a
+            // sale cost in total but never what any one product cost - which
+            // left profit per product to be rebuilt from the orders, where a
+            // return could not reach it.
+            $draft
+                ->credit(AccountRole::Inventory, $value, $dimensions, $line)
+                ->debit(AccountRole::CostOfGoodsSold, $value, $dimensions, $line);
         }
 
-        return $draft->debit(AccountRole::CostOfGoodsSold, $total, [], $description);
+        return $draft;
     }
 }

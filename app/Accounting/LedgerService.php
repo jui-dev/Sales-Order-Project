@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -170,6 +171,116 @@ class LedgerService
             ]);
     }
 
+    /**
+     * Signed movement per day across a set of accounts.
+     *
+     * A period total says what was earned; this says when. Grouping on the
+     * entry date rather than on any document date is what keeps a daily report
+     * summing to the statement that covers the same range.
+     *
+     * @param  iterable<AccountRole|Account|int> $accounts
+     * @return Collection<string,Money>  keyed by Y-m-d
+     */
+    public function dailyMovement(iterable $accounts, ?string $from = null, ?string $to = null): Collection
+    {
+        $ids = $this->accountIds($accounts);
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return $this->lineQuery($to, $from)
+            ->whereIn('journal_entry_lines.account_id', $ids)
+            ->groupBy('journal_entries.entry_date')
+            ->selectRaw('journal_entries.entry_date, COALESCE(SUM(journal_entry_lines.debit - journal_entry_lines.credit), 0) AS signed')
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                Carbon::parse($row->entry_date)->toDateString() => Money::of((string) $row->signed),
+            ]);
+    }
+
+    /**
+     * Signed movement per product across a set of accounts.
+     *
+     * Revenue and cost of sales are single accounts carrying a product
+     * dimension, so what one product earned is a GROUP BY over its lines and
+     * the parts necessarily add up to the whole - the same reason inventory is
+     * not split into per-warehouse accounts.
+     *
+     * Lines with no product are excluded rather than bucketed: an invoice with
+     * no line breakdown posts unattributed revenue, and folding that into any
+     * one product would be worse than leaving it out of a per-product view.
+     * The totals are read separately and still include it.
+     *
+     * @param  iterable<AccountRole|Account|int> $accounts
+     * @param  array<int,int>|null $productIds  restrict to these, for a paginated page
+     * @return Collection<int,Money>  keyed by product id
+     */
+    public function movementByProduct(
+        iterable $accounts,
+        ?string $from = null,
+        ?string $to = null,
+        ?array $productIds = null,
+    ): Collection {
+        $ids = $this->accountIds($accounts);
+
+        if ($ids === [] || $productIds === []) {
+            return collect();
+        }
+
+        return $this->lineQuery($to, $from)
+            ->whereIn('journal_entry_lines.account_id', $ids)
+            ->whereNotNull('journal_entry_lines.product_id')
+            ->when($productIds !== null, fn ($q) => $q->whereIn('journal_entry_lines.product_id', $productIds))
+            ->groupBy('journal_entry_lines.product_id')
+            ->selectRaw('journal_entry_lines.product_id, COALESCE(SUM(journal_entry_lines.debit - journal_entry_lines.credit), 0) AS signed')
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                (int) $row->product_id => Money::of((string) $row->signed),
+            ]);
+    }
+
+    /**
+     * Signed movement per day, product and location across a set of accounts.
+     *
+     * The detail behind the daily profit report: one row per thing sold, per
+     * place it sold from, per day it landed on the books.
+     *
+     * @param  iterable<AccountRole|Account|int> $accounts
+     * @return Collection<int,array{date:string,product_id:int,location_type:?string,location_id:?int,amount:Money}>
+     */
+    public function movementByProductAndLocation(iterable $accounts, ?string $from = null, ?string $to = null): Collection
+    {
+        $ids = $this->accountIds($accounts);
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return $this->lineQuery($to, $from)
+            ->whereIn('journal_entry_lines.account_id', $ids)
+            ->whereNotNull('journal_entry_lines.product_id')
+            ->groupBy(
+                'journal_entries.entry_date',
+                'journal_entry_lines.product_id',
+                'journal_entry_lines.location_type',
+                'journal_entry_lines.location_id',
+            )
+            ->selectRaw(
+                'journal_entries.entry_date, journal_entry_lines.product_id, '
+                . 'journal_entry_lines.location_type, journal_entry_lines.location_id, '
+                . 'COALESCE(SUM(journal_entry_lines.debit - journal_entry_lines.credit), 0) AS signed'
+            )
+            ->get()
+            ->map(fn ($row) => [
+                'date'          => Carbon::parse($row->entry_date)->toDateString(),
+                'product_id'    => (int) $row->product_id,
+                'location_type' => $row->location_type,
+                'location_id'   => $row->location_id === null ? null : (int) $row->location_id,
+                'amount'        => Money::of((string) $row->signed),
+            ]);
+    }
+
     // ------------------------------------------------------------------
     // Trial balance
     // ------------------------------------------------------------------
@@ -260,6 +371,21 @@ class LedgerService
         }
 
         return $query;
+    }
+
+    /**
+     * @param  iterable<AccountRole|Account|int> $accounts
+     * @return array<int,int>
+     */
+    private function accountIds(iterable $accounts): array
+    {
+        $ids = [];
+
+        foreach ($accounts as $account) {
+            $ids[] = $this->accountId($account);
+        }
+
+        return $ids;
     }
 
     private function accountId(AccountRole|Account|int $account): int

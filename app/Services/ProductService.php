@@ -297,12 +297,56 @@ class ProductService
                     $sortDirection,
                 );
 
-                return $query->paginate($perPage);
+                $products = $query->paginate($perPage);
+
+                $this->attachRealisedProfit($products);
+
+                return $products;
             },
             'products',
             $perPage,
             $filters
         );
+    }
+
+    /**
+     * Hang month-to-date realised profit off each product on the page.
+     *
+     * The margin column beside it is a catalogue figure - list price less the
+     * average cost of the stock on hand - and never moves when goods are sold
+     * or sent back. This is the other question: what these products have
+     * actually earned, net of returns, according to the ledger.
+     *
+     * One grouped query for the whole page. A per-row accessor would be twenty
+     * queries a page, and the products listing is the most-visited screen in
+     * the system.
+     *
+     * @param  \Illuminate\Contracts\Pagination\LengthAwarePaginator $products
+     */
+    private function attachRealisedProfit($products): void
+    {
+        $ids = $products->getCollection()->pluck('id')->all();
+
+        if ($ids === []) {
+            return;
+        }
+
+        $profit = app(ReportService::class)->realisedProfitByProduct(
+            $ids,
+            now()->startOfMonth()->toDateString(),
+            now()->toDateString(),
+        );
+
+        $products->getCollection()->each(function (Product $product) use ($profit) {
+            // Absent, not zero: a product with no posted sale this month has
+            // not earned nothing, it has not sold. The view says so.
+            $product->realised_profit = $profit[$product->id]['profit'] ?? null;
+            $product->realised_revenue = $profit[$product->id]['revenue'] ?? null;
+
+            // Neither is a column. Syncing them into the original state means a
+            // later save() cannot see them as dirty and try to write them.
+            $product->syncOriginal();
+        });
     }
 
     /**

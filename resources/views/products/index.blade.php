@@ -39,7 +39,18 @@
                             <th>Selling Price</th>
                             <th>Available Stocks</th>
                             <th>Purchase Price</th>
-                            <th>GP</th>
+                            {{-- Two different questions, so two columns. The first is a
+                                 property of the price list; the second is a property of
+                                 what actually happened. Calling both "GP" was what made a
+                                 returned product look like it was still earning. --}}
+                            <th data-bs-toggle="tooltip"
+                                title="List price minus the weighted-average cost of the stock on hand. A catalogue figure - it does not move when goods are sold or returned.">
+                                Margin/unit <i class="bi bi-info-circle text-muted small"></i>
+                            </th>
+                            <th data-bs-toggle="tooltip"
+                                title="Profit actually earned this month according to the ledger, net of anything returned.">
+                                GP (MTD) <i class="bi bi-info-circle text-muted small"></i>
+                            </th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -105,6 +116,26 @@
                                     @endif
                                 </td>
                                 <td>
+                                    {{-- Realised profit, straight off the ledger. A product with
+                                         no posted sale this month reads "-" rather than $0.00:
+                                         not having sold and having sold at cost are different
+                                         facts, and the old page could not tell them apart. --}}
+                                    @if($product->realised_profit === null)
+                                        <small class="text-muted" data-bs-toggle="tooltip"
+                                               title="No posted sales this month.">-</small>
+                                    @elseif($product->realised_profit < 0)
+                                        <small class="text-danger fw-semibold" data-bs-toggle="tooltip"
+                                               title="Sold for less than the goods cost, or more came back than went out.">
+                                            <i class="bi bi-arrow-down-right me-1"></i>${{ number_format($product->realised_profit, 2) }}
+                                        </small>
+                                    @else
+                                        <small class="text-success fw-semibold" data-bs-toggle="tooltip"
+                                               title="On ${{ number_format((float) $product->realised_revenue, 2) }} of revenue, net of returns.">
+                                            ${{ number_format($product->realised_profit, 2) }}
+                                        </small>
+                                    @endif
+                                </td>
+                                <td>
                                     <div class="d-flex flex-wrap gap-1">
                                         <a href="{{ route('products.show', $product) }}" class="btn btn-sm btn-info d-inline-flex align-items-center gap-1" data-bs-toggle="tooltip" title="View Details">
                                             <i class="bi bi-eye"></i>
@@ -137,7 +168,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center py-4">
+                                <td colspan="9" class="text-center py-4">
                                     <div class="text-muted">
                                         <i class="bi bi-inbox display-1 d-block mb-3"></i>
                                         <h5>No Products Found</h5>

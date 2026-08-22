@@ -182,40 +182,17 @@ class Product extends Model
      | Computed Attributes
      |---------------------------------------------------------------------*/
 
-    /**
-     * Dynamically expose a "gp" attribute (Gross Profit amount).
-     * The gross profit is shown ONLY when the product has at least one
-     * confirmed order. For products without a confirmed sale, this
-     * accessor returns null so the UI can gracefully hide it.
+    /*
+     * There was a "gp" accessor here, gated on the product having a confirmed
+     * order but returning gross_profit - the catalogue margin, which does not
+     * depend on any order. The gate implied a realised figure and the value was
+     * a list one, so a returned sale left it unchanged and it read as though the
+     * product were still earning.
+     *
+     * Nothing referenced it outside its own test. Realised profit now comes off
+     * the ledger, where returns already are: ReportService::realisedProfitByProduct().
+     * The catalogue margin is still gross_profit, owned by ProductObserver.
      */
-    public function getGpAttribute(): ?float
-    {
-        if (! $this->hasConfirmedOrders()) {
-            return null;
-        }
-
-        // Return the stored gross_profit amount
-        if ($this->gross_profit !== null) {
-            return (float) $this->gross_profit;
-        }
-
-        // Fallback: calculate on-the-fly if we have both prices
-        if ($this->purchase_price && $this->selling_price) {
-            return round($this->selling_price - $this->purchase_price, 2);
-        }
-
-        return null;
-    }
-
-    /**
-     * Determine if the product has at least one confirmed order.
-     */
-    public function hasConfirmedOrders(): bool
-    {
-        return $this->orderItems()
-            ->whereHas('order', fn ($q) => $q->whereIn('status', ['confirmed', 'completed']))
-            ->exists();
-    }
 
     /**
      * Helper to fetch the stock balance for this product at a specific location.

@@ -155,31 +155,6 @@ class ReportController extends Controller
     }
 
     /**
-     * Download Daily Profit Report as PDF
-     */
-    public function dailyProfitPdf(Request $request)
-    {
-        $request->validate([
-            'start_date' => ['nullable', 'date'],
-            'end_date'   => ['nullable', 'date', 'after_or_equal:start_date'],
-        ]);
-
-        $filters = [
-            'start_date' => $request->start_date ?: now()->startOfMonth()->toDateString(),
-            'end_date' => $request->end_date ?: now()->toDateString(),
-        ];
-
-        $reportData = $this->reportService->generateDailyProfitReport($filters);
-
-        $pdf = Pdf::loadView('reports.daily-profit-pdf', $reportData);
-        return $pdf->download('daily-profit-report.pdf');
-    }
-
-
-
-
-
-    /**
      * Download Balance Sheet Report as PDF
      */
     public function balanceSheetPdf(Request $request)

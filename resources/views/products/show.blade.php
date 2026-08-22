@@ -65,7 +65,11 @@
                     <i class="bi bi-graph-up text-primary fs-1"></i>
                 </div>
                 {{-- Derived from the price and cost in force, so it always agrees
-                     with the two figures shown beside it. --}}
+                     with the two figures shown beside it. It is a catalogue
+                     figure: it says what a unit would earn at today's price, not
+                     what this product has earned. Realised profit, net of
+                     returns, is on the products listing and the Daily Profit
+                     report - both read the ledger. --}}
                 @php
                     $statCost = $product->currentCost();
                 @endphp
@@ -76,7 +80,7 @@
                         <span class="text-muted">N/A</span>
                     @endif
                 </h3>
-                <p class="text-muted mb-0 small">Gross Profit</p>
+                <p class="text-muted mb-0 small">Margin per unit</p>
             </div>
         </div>
     </div>
@@ -188,7 +192,7 @@
                                 </div>
                             </div>
                             <div class="detail-item mb-3">
-                                <label class="text-muted small fw-semibold text-uppercase">Gross Profit</label>
+                                <label class="text-muted small fw-semibold text-uppercase">Margin Per Unit</label>
                                 <div class="detail-value">
                                     @if($detailPrice !== null && $detailCost !== null)
                                         @php
@@ -371,7 +375,12 @@
             <div class="card-body">
                 <div class="alert alert-info border-0 mb-3">
                     <i class="bi bi-info-circle me-2"></i>
-                    <small>Product purchase prices are updated when supplies are marked as completed. GP (Gross Profit) is calculated when orders are confirmed.</small>
+                    <small>
+                        Purchase price is updated when goods are received. The margin above is
+                        derived from it and from the selling price - confirming an order does not
+                        change it. For profit actually earned, net of returns, see the
+                        <a href="{{ route('reports.daily-profit') }}">Daily Profit report</a>.
+                    </small>
                 </div>
 
                 <div class="table-responsive">

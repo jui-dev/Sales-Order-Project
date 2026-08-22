@@ -10,149 +10,106 @@ use App\Models\Retailer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * products.gross_profit is the catalogue margin and nothing else.
+ *
+ * This file used to assert that confirming an order wrote the column from the
+ * order line's margin. That writer was removed from OrderObserver - it made two
+ * owners of one column, so the figure on the products page contradicted the two
+ * prices printed beside it - but the assertions kept passing, because
+ * ProductObserver infers the same markup back out of the fixture's prices. The
+ * tests were green and proved nothing.
+ *
+ * What the column actually is: selling_price - purchase_price, owned by
+ * ProductObserver, a property of the price list. Profit actually earned is a
+ * different question with a different answer, and it is read off the ledger -
+ * see Tests\Feature\Accounting\ProfitReportingTest.
+ */
 class GrossProfitCalculationTest extends TestCase
 {
     use RefreshDatabase;
 
     /** @test */
-    public function gross_profit_is_calculated_when_order_is_confirmed(): void
+    public function gross_profit_is_the_margin_between_the_two_prices(): void
     {
-        // Create test data
+        $product = Product::factory()->create([
+            'purchase_price' => 50.00,
+            'selling_price'  => 75.00,
+        ]);
+
+        $this->assertEquals(25.00, $product->fresh()->gross_profit);
+    }
+
+    /** @test */
+    public function it_is_derived_from_the_markup_when_only_a_cost_is_given(): void
+    {
+        config(['pricing.default_markup' => 25]);
+
+        $product = Product::factory()->create([
+            'purchase_price' => 80.00,
+            'selling_price'  => 0,
+            'markup'         => null,
+        ]);
+
+        // 80 marked up 25% is 100, so the margin is 20.
+        $this->assertEquals(100.00, $product->fresh()->selling_price);
+        $this->assertEquals(20.00, $product->fresh()->gross_profit);
+    }
+
+    /**
+     * The behaviour this file used to assert the opposite of.
+     *
+     * @test
+     */
+    public function confirming_an_order_does_not_rewrite_it(): void
+    {
         $customer = Customer::factory()->create();
         $retailer = Retailer::factory()->create();
         $product = Product::factory()->create([
             'purchase_price' => 50.00,
-            'selling_price' => 75.00,
-            // Start with nothing recorded. The column is NOT NULL DEFAULT 0.00
-            // since 2025_07_27_084804_fix_products_pricing_defaults, so zero is
-            // how "not calculated yet" is spelled.
-            'gross_profit' => 0,
+            'selling_price'  => 75.00,
         ]);
 
-        // Create an order with one item
+        $this->assertEquals(25.00, $product->fresh()->gross_profit);
+
         $order = Order::create([
-            'customer_id' => $customer->id,
-            'status' => 'pending',
-            'order_date' => now(),
-            'total_amount' => 75.00,
-            'fulfillment_location_id' => $retailer->id,
+            'customer_id'               => $customer->id,
+            'status'                    => 'pending',
+            'order_date'                => now(),
+            'total_amount'              => 200.00,
+            'fulfillment_location_id'   => $retailer->id,
             'fulfillment_location_type' => Retailer::class,
         ]);
 
+        // Sold well above list. If confirming still wrote this column, the
+        // catalogue margin would jump to 150 and disagree with the two prices
+        // shown beside it on the products page.
         OrderItem::create([
-            'order_id' => $order->id,
-            'product_id' => $product->id,
-            'location_id' => $retailer->id,
+            'order_id'      => $order->id,
+            'product_id'    => $product->id,
+            'location_id'   => $retailer->id,
             'location_type' => Retailer::class,
-            'quantity' => 1,
-            'unit_price' => 75.00,
-            'subtotal' => 75.00,
+            'quantity'      => 1,
+            'unit_price'    => 200.00,
+            'subtotal'      => 200.00,
         ]);
 
-        // Action: Confirm the order
         $order->update(['status' => 'confirmed']);
 
-        // Refresh the product to get updated data
-        $product->refresh();
-
-        // Assert that gross profit was calculated correctly
-        // Expected: Revenue (75.00) - COGS (50.00) = 25.00
-        $this->assertEquals(25.00, $product->gross_profit, 'Gross profit should be calculated as Revenue - COGS');
-        $this->assertEquals(25.00, $product->gp, 'GP attribute should return the calculated gross profit');
+        $this->assertEquals(25.00, $product->fresh()->gross_profit);
     }
 
     /** @test */
-    public function gross_profit_calculation_handles_multiple_quantities(): void
+    public function a_product_with_no_cost_yet_is_left_alone(): void
     {
-        // Create test data
-        $customer = Customer::factory()->create();
-        $retailer = Retailer::factory()->create();
+        // purchase_price is NOT NULL DEFAULT 0.00, so a product that has never
+        // been received reads as zero. Deriving from that would zero the
+        // selling price on every save, so zero means "not priced yet".
         $product = Product::factory()->create([
-            'purchase_price' => 30.00,
-            'selling_price' => 45.00,
-            'gross_profit' => 0,
+            'purchase_price' => 0,
+            'selling_price'  => 90.00,
         ]);
 
-        // Create an order with multiple quantities
-        $order = Order::create([
-            'customer_id' => $customer->id,
-            'status' => 'pending',
-            'order_date' => now(),
-            'total_amount' => 90.00, // 2 * 45.00
-            'fulfillment_location_id' => $retailer->id,
-            'fulfillment_location_type' => Retailer::class,
-        ]);
-
-        OrderItem::create([
-            'order_id' => $order->id,
-            'product_id' => $product->id,
-            'location_id' => $retailer->id,
-            'location_type' => Retailer::class,
-            'quantity' => 2,
-            'unit_price' => 45.00,
-            'subtotal' => 90.00,
-        ]);
-
-        // Action: Confirm the order
-        $order->update(['status' => 'confirmed']);
-
-        // Refresh the product to get updated data
-        $product->refresh();
-
-        // Assert that gross profit per unit was calculated correctly
-        // Total Revenue: 2 * 45.00 = 90.00
-        // Total COGS: 2 * 30.00 = 60.00
-        // Total Gross Profit: 90.00 - 60.00 = 30.00
-        // Gross Profit per unit: 30.00 / 2 = 15.00
-        $this->assertEquals(15.00, $product->gross_profit, 'Gross profit per unit should be calculated correctly');
-        $this->assertEquals(15.00, $product->gp, 'GP attribute should return the calculated gross profit per unit');
+        $this->assertEquals(90.00, $product->fresh()->selling_price);
     }
-
-    /** @test */
-    public function gp_attribute_returns_null_for_products_without_confirmed_orders(): void
-    {
-        $product = Product::factory()->create([
-            'purchase_price' => 50.00,
-            'selling_price' => 75.00,
-            'gross_profit' => 0,
-        ]);
-
-        // Product has no orders, so GP should be null
-        $this->assertNull($product->gp, 'GP should be null for products without confirmed orders');
-    }
-
-    /** @test */
-    public function gp_attribute_returns_stored_gross_profit_for_products_with_confirmed_orders(): void
-    {
-        $customer = Customer::factory()->create();
-        $retailer = Retailer::factory()->create();
-        $product = Product::factory()->create([
-            'purchase_price' => 50.00,
-            'selling_price' => 75.00,
-            'gross_profit' => 25.00, // Pre-stored gross profit
-        ]);
-
-        // Create a confirmed order for this product
-        $order = Order::create([
-            'customer_id' => $customer->id,
-            'status' => 'confirmed',
-            'order_date' => now(),
-            'total_amount' => 75.00,
-            'fulfillment_location_id' => $retailer->id,
-            'fulfillment_location_type' => Retailer::class,
-        ]);
-
-        OrderItem::create([
-            'order_id' => $order->id,
-            'product_id' => $product->id,
-            'location_id' => $retailer->id,
-            'location_type' => Retailer::class,
-            'quantity' => 1,
-            'unit_price' => 75.00,
-            'subtotal' => 75.00,
-        ]);
-
-        // GP should return the stored gross profit
-        $this->assertEquals(25.00, $product->gp, 'GP should return the stored gross profit amount');
-    }
-} 
+}

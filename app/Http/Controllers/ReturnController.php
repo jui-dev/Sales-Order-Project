@@ -533,7 +533,7 @@ class ReturnController extends Controller
                 $successMessage .= 'Stock has been adjusted: ';
                 $successMessage .= 'Decreased ' . number_format($return->quantity) . ' units from ' . ($return->location->name ?? 'Retailer') . ', ';
                 $successMessage .= 'Increased ' . number_format($return->quantity) . ' units to ' . ($warehouse ? $warehouse->name : 'Warehouse') . '. ';
-                $successMessage .= 'A draft journal entry was created to move the inventory value back to the warehouse.';
+                $successMessage .= 'A journal entry was posted moving the inventory value back to the warehouse.';
                 
                 return back()->with('success', $successMessage);
             }
