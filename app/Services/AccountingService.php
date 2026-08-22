@@ -18,10 +18,19 @@ use InvalidArgumentException;
  * @deprecated Use App\Accounting\PostingEngine to write and
  *             App\Accounting\LedgerService to read.
  *
- * What is left of the old front door. Every system entry is now built by a
- * posting rule and written by the engine, which is the only thing that decides
- * what reaches the ledger. This class survives for the manual-entry path and
- * for callers that still speak its vocabulary; it delegates and adds nothing.
+ * What is left of the old front door, and now a test fixture rather than a code
+ * path. Nothing in app/ calls it: every system entry is built by a posting rule
+ * and written by the engine, and the manual-entry path went the same way when
+ * JournalEntryService moved onto ManualEntryDraft and PostingEngine. What keeps
+ * this class alive is that five test files find "build me an entry from account
+ * codes" a convenient thing to say, and that is a reasonable thing for a test
+ * to want.
+ *
+ * It delegates and adds nothing, so an entry raised through it still passes the
+ * period guard, the exact Money balance check and the engine's own writing. It
+ * is not a way round any of them. Do not call it from application code - reach
+ * for PostingEngine directly, which is the only thing that decides what reaches
+ * the ledger.
  *
  * Note that its post() never posted - it created a draft, whatever the name
  * said. That is preserved here, because a manual entry genuinely does belong
