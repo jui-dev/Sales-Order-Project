@@ -68,21 +68,7 @@
                                     <i class="bi bi-cart"></i>
                                 </a>
                             @endif
-                            <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1"
-                                data-bs-toggle="tooltip" title="Delete Invoice"
-                                onclick="if(confirm('Are you sure you want to delete this invoice?')) { 
-                                    document.getElementById('delete-invoice-{{ $invoice->id }}').submit(); 
-                                }">
-                                <i class="bi bi-trash"></i>
-                            </button>
                         </div>
-                        <form id="delete-invoice-{{ $invoice->id }}" 
-                            action="{{ route('invoices.destroy', $invoice) }}" 
-                            method="POST" 
-                            style="display: none;">
-                            @csrf
-                            @method('DELETE')
-                        </form>
                     </td>
                 </tr>
             @empty

@@ -68,22 +68,7 @@
                                             <i class="bi bi-credit-card"></i>
                                         </a>
                                     @endif
-
-                                    <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1"
-                                        data-bs-toggle="tooltip" title="Delete Bill"
-                                        onclick="if(confirm('Are you sure you want to delete this supplier bill?')) { 
-                                            document.getElementById('delete-bill-{{ $bill->id }}').submit(); 
-                                        }">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
                                 </div>
-                                <form id="delete-bill-{{ $bill->id }}" 
-                                    action="{{ route('supplier-bills.destroy', $bill) }}" 
-                                    method="POST" 
-                                    style="display: none;">
-                                    @csrf
-                                    @method('DELETE')
-                                </form>
                             </td>
                         </tr>
                     @empty

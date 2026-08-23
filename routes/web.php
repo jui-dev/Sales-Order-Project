@@ -90,7 +90,6 @@ Route::post('products/{id}/vendors', [ProductController::class, 'addVendor'])
     ->whereNumber('id')->middleware('permission:products.manage')->name('products.vendors.add');
 
 Route::resource('products', ProductController::class);
-Route::get('products/{id}/transaction-history', [ProductController::class, 'transactionHistory'])->name('products.transaction-history');
 Route::get('products/{id}/stock-analysis', [ProductController::class, 'stockAnalysis'])->name('products.stock-analysis')->whereNumber('id');
 Route::patch('products/{product}/complete-supplies', function (Product $product) {
     // Complete all pending supplies for this product
@@ -689,8 +688,6 @@ Route::patch('/customer-picking/{id}/update-status', function ($id) {
     return back()->with('error', 'Picking list not found.');
 })->whereNumber('id')->name('customer-picking.update-status');
 
-
-
 Route::post('/stock-transfers/warehouse-to-retailer', function () {
     $data = request()->validate([
         'from_location_id'          => 'required|exists:warehouses,id',
@@ -813,8 +810,6 @@ Route::post('/stock-transfers/warehouse-to-retailer', function () {
             ->with('error', 'Failed to create picking list. Please try again.');
     }
 
-
-
     // The show route resolves its {id} as a StockTransfer, so redirect with the
     // transfer id - picking_lists is an independent auto-increment sequence.
     $redirectUrl = route('stock-transfers.warehouse-to-retailer.show', $transfer->id);
@@ -936,11 +931,6 @@ Route::get('/payments', [\App\Http\Controllers\PaymentController::class, 'index'
 Route::get('/payments/{payment}', [\App\Http\Controllers\PaymentController::class, 'show'])
     ->whereNumber('payment')->name('payments.show');
 
-// Additional invoice routes for edit, update, destroy
-Route::get('invoices/{invoice}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
-Route::put('invoices/{invoice}', [InvoiceController::class, 'update'])->name('invoices.update');
-Route::delete('invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
-
 Route::get('/journal-entries', [JournalEntryController::class, 'index'])->name('journal-entries.index');
 // Manual Journal Entry creation
 Route::get('/journal-entries/create', [JournalEntryController::class, 'create'])->name('journal-entries.create');
@@ -967,11 +957,6 @@ Route::get('/supplier-bills/{supplierBill}', [\App\Http\Controllers\SupplierBill
 Route::post('/supplier-bills/{supplierBill}/post', [\App\Http\Controllers\SupplierBillController::class, 'post'])->name('supplier-bills.post');
 Route::post('/supplier-bills/{supplierBill}/pay', [\App\Http\Controllers\SupplierBillController::class, 'pay'])->name('supplier-bills.pay');
 Route::get('/supplier-bills/{supplierBill}/payment-info', [\App\Http\Controllers\SupplierBillController::class, 'paymentInfo'])->name('supplier-bills.payment-info');
-
-// Additional supplier bills routes for edit, update, destroy
-Route::get('/supplier-bills/{supplierBill}/edit', [\App\Http\Controllers\SupplierBillController::class, 'edit'])->name('supplier-bills.edit');
-Route::put('/supplier-bills/{supplierBill}', [\App\Http\Controllers\SupplierBillController::class, 'update'])->name('supplier-bills.update');
-Route::delete('/supplier-bills/{supplierBill}', [\App\Http\Controllers\SupplierBillController::class, 'destroy'])->name('supplier-bills.destroy');
 
 /**
  * Supplier Bill Payments Routes
