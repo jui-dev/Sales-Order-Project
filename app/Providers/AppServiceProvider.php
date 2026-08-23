@@ -3,6 +3,10 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use App\Models\Supply;
 use App\Models\Order;
 use App\Models\StockTransaction;
@@ -31,6 +35,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // ------------------------------------------------------------------
+        // Login rate limiting
+        // ------------------------------------------------------------------
+        //
+        // Auth::attempt was reachable without limit, so a password could be
+        // guessed as fast as the server would answer. Keyed on the submitted
+        // email as well as the IP: keying on the IP alone lets one attacker
+        // behind a shared address lock out everyone else working there.
+        //
+        // Registered here rather than in RouteServiceProvider, which is not
+        // listed in bootstrap/providers.php and so never boots.
+        RateLimiter::for('login', function (Request $request) {
+            $email = Str::lower((string) $request->input('email'));
+
+            return Limit::perMinute(5)->by($email . '|' . $request->ip());
+        });
+
         // ------------------------------------------------------------------
         // Ensure Chart of Accounts exists
         // ------------------------------------------------------------------

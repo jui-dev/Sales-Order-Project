@@ -6,6 +6,14 @@ require_once 'vendor/autoload.php';
 $app = require_once 'bootstrap/app.php';
 $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 
+// Refuses outside APP_ENV=local, and asks before touching anything. See guard.php.
+require_once __DIR__ . '/guard.php';
+
+guard_destructive_script(
+    'reset_auto_increment.php',
+    'Rewrites the auto-increment counter on every table in the database.',
+);
+
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 

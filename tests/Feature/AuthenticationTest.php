@@ -96,4 +96,68 @@ class AuthenticationTest extends TestCase
     {
         $this->get('/')->assertOk();
     }
+
+    /**
+     * Auth::attempt used to be reachable without limit, so a password could be
+     * guessed as fast as the server would answer.
+     *
+     * The limiter is keyed on email + IP, so this uses an address of its own
+     * and cannot spend the budget of any other test in the suite.
+     */
+    public function test_repeated_failed_logins_are_rate_limited(): void
+    {
+        $this->asGuest();
+
+        User::factory()->create([
+            'email' => 'bruteforce@example.com',
+            'password' => 'correct-horse',
+        ]);
+
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            $this->post(route('login'), [
+                'email' => 'bruteforce@example.com',
+                'password' => 'wrong-password',
+            ])->assertSessionHasErrors('email');
+        }
+
+        // The sixth is refused before the credentials are ever checked.
+        $this->post(route('login'), [
+            'email' => 'bruteforce@example.com',
+            'password' => 'wrong-password',
+        ])->assertStatus(429);
+
+        // Even the right password is refused while the lockout stands - that is
+        // the point of it.
+        $this->post(route('login'), [
+            'email' => 'bruteforce@example.com',
+            'password' => 'correct-horse',
+        ])->assertStatus(429);
+
+        $this->assertGuest();
+    }
+
+    /** One user's lockout must not lock anybody else out. */
+    public function test_rate_limit_is_scoped_to_the_email_being_guessed(): void
+    {
+        $this->asGuest();
+
+        User::factory()->create([
+            'email' => 'bystander@example.com',
+            'password' => 'correct-horse',
+        ]);
+
+        for ($attempt = 1; $attempt <= 6; $attempt++) {
+            $this->post(route('login'), [
+                'email' => 'victim@example.com',
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $this->post(route('login'), [
+            'email' => 'bystander@example.com',
+            'password' => 'correct-horse',
+        ])->assertRedirect('/');
+
+        $this->assertAuthenticated();
+    }
 }
