@@ -12,18 +12,18 @@ The whole process moves through five stages, in order:
 
 Everything starts with a vendor and ends with a hand-off to accounting.
 
-The first stage is optional in practice — a supply can still be recorded on its own for a delivery that arrived without an order behind it.
+Every supply has a purchase order behind it: there is no way to record a delivery nobody ordered. Supplies recorded before that rule existed may have no order behind them, and still open and read normally.
 
 ---
 
 ## Step-by-step walkthrough
 
-1. **Raise a purchase order.** *(optional)*
+1. **Raise a purchase order.**
    Choose the **vendor** and the **warehouse** the goods should be delivered to, then add the products you want. You can only order what that vendor actually carries, and each line's cost is filled in from the vendor's agreed price — you can still change it for a one-off deal. The order is saved as a **Draft**, then **Approved** and **Sent** to the vendor. Nothing has moved yet; you have only asked.
 
-2. **Record a new supply.**
-   Choose the **vendor** you're buying from, the **warehouse** the goods will go to, the **date**, and add your **product lines** — each with a **quantity** and a **unit cost**. The supply is saved with a *Pending* status and its total cost is added up for you.
-   *Good to know:* recording a supply does **not** change any prices. Ordering something, or writing down that it turned up, is not the same as having it — pricing only moves at the **Receive Goods** step below.
+2. **Record what turned up.**
+   Open a *sent* order — from its own page, or from **Requested Purchase Orders** on the Supplies page, which lists every order still waiting on a delivery. The vendor and warehouse come from the order and can't be changed, and the lines arrive already filled in with whatever is still outstanding, so you only adjust quantities and drop anything that didn't arrive. You can receive less than you ordered and leave the order open for the rest; you can't receive more, or add a line the order doesn't carry. The supply is saved as *Pending*, and the order moves itself to *Partially Received* or *Received*.
+   *Good to know:* recording a supply does **not** change any prices. Prices are set in **Catalog › Product Pricing** and nowhere else — not here, and not when the goods arrive.
 
 3. **Confirm / complete the supply.**
    Once the details are right, you move the supply forward. A **receiving note** (the goods-received document) is prepared so the warehouse team knows what to expect.

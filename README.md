@@ -24,8 +24,8 @@ Four ideas explain most of the system.
 
 ## What it does
 
-**Buying — purchase to payment**
-Record a supply against a vendor, receive the goods, get billed, pay the bill. Stock only becomes real at the receiving step; recording a supply notes what was ordered and nothing more. Posting a goods-receipt note raises the stock and auto-creates the supplier bill.
+**Buying — order to payment**
+Raise a purchase order against a vendor, record what actually turns up, receive the goods, get billed, pay the bill. Every supply has an order behind it, and a delivery cannot exceed or invent lines the order does not carry. Stock only becomes real at the receiving step; recording a supply notes what arrived and nothing more. Posting a goods-receipt note raises the stock, posts the ledger and auto-creates the supplier bill.
 
 **Selling — order to cash**
 Take a customer order, confirm it (reserving stock), pick and dispatch it, invoice, take payment. Completing the picking list is what moves stock, closes the order and generates the invoice.
@@ -36,6 +36,12 @@ Customer, vendor and retailer returns run through one engine. Approving a return
 **Accounting**
 Double-entry ledger with a chart of accounts and journal entries. Invoices, payments, supplier bills and returns post their own balanced entries. Unbalanced entries are refused at the service layer. Credit and debit notes post *reversing* entries linked to the entry they offset, so history is never rewritten.
 
+**Pricing**
+Prices are set in one place — Catalog › Product Pricing — and nowhere else changes them. Underneath they are effective-dated records rather than columns, so an order keeps the price it was placed at after somebody edits the catalogue, and a price locks once it has been charged on a document. A product with no price cannot be ordered. The system currently runs in a *simple mode* that gives each product one purchase price and a fixed markup; the full per-vendor model is still there behind a config flag, with every price on file and nothing to migrate.
+
+**Access**
+Session login, roles and permissions. Every route is gated — through one authorisation table rather than a middleware argument written out route by route — and a test walks the route list and fails the build if a new route is neither listed nor gated on itself. Accounts are created by an administrator; there is no self-registration.
+
 **Reporting**
 Trial balance, income statement, balance sheet, cash flow and daily profit, plus a KPI dashboard and a filterable audit trail. Invoices and reports export to PDF.
 
@@ -45,11 +51,15 @@ Full flow-by-flow detail, including known gaps, is in [docs/FEATURES.md](docs/FE
 
 Controller → Service → Model, with **Eloquent observers carrying the side effects**.
 
-Roughly 28 service classes hold the business logic and 10 observers act as an event-driven state machine. Posting a goods-receipt note, for instance, writes stock-in rows; observers then raise the warehouse balance, recompute the cached availability figure, and separately create a draft supplier bill.
+Roughly 29 service classes hold the business logic and 9 observers act as an event-driven state machine. Posting a goods-receipt note, for instance, writes stock-in rows; observers then raise the warehouse balance, recompute the cached availability figure, and separately create a draft supplier bill.
 
 The reason is single-responsibility for side effects. Stock has to move whether the trigger was a picking screen, a status change or a return approval — putting the movement in one observer means those paths cannot diverge. The tradeoff is that the chain is not visible from the controller; you have to know the observers exist.
 
 Every stock movement runs inside a database transaction with row locking. Workflow stage logic lives in one place per flow, under [`app/Support/`](app/Support/).
+
+Accounting is sealed off in [`app/Accounting/`](app/Accounting/) — nothing outside it writes to the ledger. Every entry is built by a posting rule and written by one engine, and every balance is derived in SQL from the posted lines rather than stored, so a balance cannot drift from the entries behind it.
+
+Authorisation works the same way: one table in [`app/Support/RoutePermissions.php`](app/Support/RoutePermissions.php), applied by a single middleware to every route, instead of a gate on each route that somebody has to remember to add.
 
 ## Tech stack
 
@@ -83,7 +93,13 @@ php artisan migrate --seed
 php artisan serve
 ```
 
-Seeding loads the chart of accounts, product categories, warehouses, retailers and sample reference data.
+Seeding loads the chart of accounts, product categories, warehouses, retailers and sample reference data. It also creates the administrator account:
+
+```
+admin@example.com / password
+```
+
+**Change that password the first time you sign in.** There is no self-registration — every other account is created from the Users screen by someone holding `users.manage`.
 
 ## Tests
 
@@ -91,12 +107,14 @@ Seeding loads the chart of accounts, product categories, warehouses, retailers a
 php artisan test
 ```
 
-23 test classes, weighted toward the places where a bug is expensive and silent rather than spread evenly: stock calculation, return posting, journal reversal and gross-profit maths.
+63 test classes, weighted toward the places where a bug is expensive and silent rather than spread evenly: stock calculation, return posting, journal reversal, gross-profit maths, pricing, and the route-permission coverage check that fails the build if a route ships ungated.
+
+The suite runs on an in-memory SQLite database, so it needs no local MySQL and touches nothing you have.
 
 ## Status
 
 A working project, still being built on.
 
-**There is no authentication** — no login, roles or permissions. It is built as a single-operator internal tool, and adding auth would be the first step toward anything wider. One consequence worth knowing: the audit trail records actions but cannot meaningfully attribute them.
+Some screens are further along than others. [docs/FEATURES.md](docs/FEATURES.md) §19–20 lists what is stubbed or known to be wrong — kept honest deliberately, and checked against the code rather than left to accumulate, so read it before relying on any single flow.
 
-Some screens are further along than others. [docs/FEATURES.md](docs/FEATURES.md) §15–16 lists what is stubbed or known to be wrong; it is kept honest deliberately, so read it before relying on any single flow.
+Known gaps worth naming here: a handful of screens are still placeholders (Warehouse Receiving, editing a stock location), two report exports are implemented but unrouted, and the Warehouse→Retailer transfer workflow still lives in route closures rather than a service.
