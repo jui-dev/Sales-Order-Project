@@ -43,20 +43,29 @@
                             <x-sortable-header field="id" :default-direction="$sortDirections['id']" is-default>ID</x-sortable-header>
                             <x-sortable-header field="name" :default-direction="$sortDirections['name']">Name</x-sortable-header>
                             <x-sortable-header field="category" :default-direction="$sortDirections['category']">Category</x-sortable-header>
-                            <x-sortable-header field="selling_price" :default-direction="$sortDirections['selling_price']">Selling Price</x-sortable-header>
+                            <x-sortable-header field="selling_price" :default-direction="$sortDirections['selling_price']" class="text-end">Selling Price</x-sortable-header>
                             <x-sortable-header field="available_stocks" :default-direction="$sortDirections['available_stocks']">Available Stocks</x-sortable-header>
-                            <x-sortable-header field="purchase_price" :default-direction="$sortDirections['purchase_price']">Purchase Price</x-sortable-header>
+                            <x-sortable-header field="purchase_price" :default-direction="$sortDirections['purchase_price']" class="text-end">Purchase Price</x-sortable-header>
                             {{-- Two different questions, so two columns. The first is a
                                  property of the price list; the second is a property of
                                  what actually happened. Calling both "GP" was what made a
                                  returned product look like it was still earning. --}}
-                            <th data-bs-toggle="tooltip"
+                            {{-- Not clickable, but laid out exactly like the headers that
+                                 are: right-aligned over their figures, held on one line,
+                                 and the hint icon spaced by the same flex gap that carries
+                                 a sort arrow. A header row that only lines up on six of its
+                                 nine columns reads as a mistake in the table. --}}
+                            <th class="text-end text-nowrap" data-bs-toggle="tooltip"
                                 title="List price minus the weighted-average cost of the stock on hand. A catalogue figure - it does not move when goods are sold or returned.">
-                                Margin/unit <i class="bi bi-info-circle text-muted small"></i>
+                                <span class="d-inline-flex align-items-center gap-1">
+                                    Margin/unit<i class="bi bi-info-circle text-muted small"></i>
+                                </span>
                             </th>
-                            <th data-bs-toggle="tooltip"
+                            <th class="text-end text-nowrap" data-bs-toggle="tooltip"
                                 title="Profit actually earned this month according to the ledger, net of anything returned.">
-                                GP (MTD) <i class="bi bi-info-circle text-muted small"></i>
+                                <span class="d-inline-flex align-items-center gap-1">
+                                    GP (MTD)<i class="bi bi-info-circle text-muted small"></i>
+                                </span>
                             </th>
                             <th>Actions</th>
                         </tr>
@@ -78,7 +87,7 @@
                                         <span class="text-muted">No Category</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td class="text-end">
                                     {{-- The price in force on the default sale list. A product with
                                          none is not priced at zero - it has no agreed price, and the
                                          order form derives one from cost until somebody sets it. --}}
@@ -96,14 +105,14 @@
                                         From {{ $product->locations_count ?? 0 }} location(s)
                                     </small>
                                 </td>
-                                <td>
+                                <td class="text-end">
                                     {{-- The weighted average the stock on hand is carried at, not
                                          the last delivery's price. --}}
                                     <small class="text-muted">
                                         {{ $product->current_cost !== null ? '$' . number_format((float) $product->current_cost, 2) : '-' }}
                                     </small>
                                 </td>
-                                <td>
+                                <td class="text-end">
                                     {{-- Margin is derived from the two figures beside it, so it can no
                                          longer disagree with them the way the stored column did. A
                                          negative one means the product is priced below what the stock
@@ -122,7 +131,7 @@
                                         <small class="text-muted">-</small>
                                     @endif
                                 </td>
-                                <td>
+                                <td class="text-end">
                                     {{-- Realised profit, straight off the ledger. A product with
                                          no posted sale this month reads "-" rather than $0.00:
                                          not having sold and having sold at cost are different
