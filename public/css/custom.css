@@ -1799,10 +1799,6 @@ a.workflow-stage:hover .workflow-stage__name {
   text-align: center;
   flex-shrink: 0;
 }
-/* Inside a group label the badge follows the words rather than the row edge. */
-.sidebar-nav .nav-link > span .nav-effect-badge {
-  margin-left: 0.5rem;
-}
 
 /* The notice carries its own colours rather than Bootstrap's .alert-info, whose
    cyan is louder than a "here is what just happened" notice wants to be. Same

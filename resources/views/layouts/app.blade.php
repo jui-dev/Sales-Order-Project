@@ -67,11 +67,21 @@
             }
         }
 
+        /* The sidebar width is a variable because three things move together when
+           the rail opens and closes: the panel itself, the body padding that keeps
+           the content clear of it, and the footer that inherits that padding. */
+        :root {
+            --sidebar-width: 250px;
+            --sidebar-rail-width: 68px;
+        }
+
         /* ===== Sidebar Navigation ===== */
         .sidebar-nav {
-            /* Bootstrap sizes .offcanvas-start from this custom property (default 400px) */
-            --bs-offcanvas-width: 250px;
-            width: 250px;
+            /* Bootstrap sizes .offcanvas-start from this custom property (default 400px).
+               Both read the variable so the drawer and the desktop panel cannot drift
+               apart; only the desktop query below ever changes what it holds. */
+            --bs-offcanvas-width: var(--sidebar-width);
+            width: var(--sidebar-width);
             background: var(--primary);
         }
         .sidebar-nav .nav-link {
@@ -96,6 +106,21 @@
             padding-left: 2rem;
             font-size: 0.9rem;
         }
+
+        /* .nav-effect-badge carries margin-left: auto, which parks it at the row
+           edge on a plain link. On a group toggle it belongs beside the words
+           instead, and the caret takes the auto margin so it still sits hard
+           against the edge on groups that carry no badge at all. */
+        .sidebar-nav .nav-link[data-bs-toggle="collapse"] .nav-effect-badge {
+            margin-left: 0.5rem;
+        }
+        .sidebar-nav .nav-caret {
+            margin-left: auto;
+        }
+        /* The rail hangs the badge off the icon, so the link is its containing block. */
+        .sidebar-nav .nav-link {
+            position: relative;
+        }
         .sidebar-brand {
             border-bottom: 1px solid rgba(255, 255, 255, 0.15);
             min-height: var(--navbar-height);
@@ -109,6 +134,10 @@
         }
         .sidebar-nav .offcanvas-body {
             flex: 1 0 auto;
+            /* Bootstrap turns this into a flex row at >=lg, which shrink-wraps the
+               nav to its content: harmless at full width, but in the rail it
+               collapses every link to the width of one icon. */
+            flex-direction: column;
         }
         .sidebar-user {
             flex-shrink: 0;
@@ -134,7 +163,10 @@
                 position: fixed;
                 top: 0;
                 left: 0;
-                width: 250px;
+                /* .offcanvas.offcanvas-start is two classes and beats .sidebar-nav on
+                   width, so the rail has to move Bootstrap's own knob as well. */
+                --bs-offcanvas-width: var(--sidebar-width);
+                width: var(--sidebar-width);
                 height: 100vh;
                 z-index: 1035; /* offcanvas-lg drops z-index at >=lg; set it explicitly */
                 transform: none !important;
@@ -158,13 +190,77 @@
             }
 
             body {
-                padding-left: 250px; /* sidebar is fixed / out of flow */
+                padding-left: var(--sidebar-width); /* sidebar is fixed / out of flow */
                 padding-top: 0;      /* overrides the old header offset in custom.css */
             }
             /* footer needs no margin-left: body padding-left already shifts it */
             .main-content {
                 margin-left: 0;
                 padding-top: 1.5rem; /* overrides the old 80px header clearance */
+            }
+
+            /* === Collapsed rail ===
+               The class sits on <html> rather than <body> because the script that
+               restores it runs in <head>, before <body> exists. Everything here is
+               inside the desktop query: under 992px the sidebar is an offcanvas
+               drawer, which has nowhere to shrink to and no toggle to shrink it. */
+            html.sidebar-collapsed {
+                --sidebar-width: var(--sidebar-rail-width);
+            }
+            html.sidebar-collapsed .sidebar-nav .nav-label,
+            html.sidebar-collapsed .sidebar-nav .nav-caret,
+            html.sidebar-collapsed .sidebar-brand .navbar-brand,
+            html.sidebar-collapsed .sidebar-user .text-truncate {
+                display: none;
+            }
+            /* A sub-menu has nowhere to go at 68px, so the rail does not open one at
+               all; the script widens the sidebar first and opens it after. */
+            html.sidebar-collapsed .sidebar-nav .collapse {
+                display: none !important;
+            }
+            html.sidebar-collapsed .sidebar-nav .nav-link {
+                justify-content: center;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+            /* Undo the me-2 that spaces the icon off a label there is no longer */
+            html.sidebar-collapsed .sidebar-nav .nav-icon {
+                margin-right: 0 !important;
+            }
+            /* The count still has to register with no room to print it, so the badge
+               becomes a dot on the icon. Its own title attribute keeps the number. */
+            html.sidebar-collapsed .sidebar-nav .nav-effect-badge {
+                position: absolute;
+                top: 4px;
+                right: 12px;
+                width: 9px;
+                height: 9px;
+                min-width: 0;
+                margin: 0;
+                padding: 0;
+                font-size: 0;
+                line-height: 0;
+            }
+            html.sidebar-collapsed .sidebar-brand,
+            html.sidebar-collapsed .sidebar-user > div {
+                justify-content: center;
+            }
+            html.sidebar-collapsed .sidebar-toggle i {
+                transform: rotate(180deg);
+            }
+            /* Named properties, not `all`: custom.css puts a blanket transition on
+               .nav-link, which is the same trap the colour rule above sidesteps. */
+            .sidebar-nav {
+                transition: width 0.2s ease;
+            }
+            body {
+                transition: padding-left 0.2s ease;
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .sidebar-nav,
+                body {
+                    transition: none;
+                }
             }
         }
         /* Prevent brand text wrapping on very small screens */
@@ -190,6 +286,17 @@
             margin-left: 0 !important;
         }
     </style>
+
+    <script>
+        // Restore the rail before the first paint. Deferring this to DOMContentLoaded
+        // flashes a full-width sidebar on every page load, and <body> does not exist
+        // yet, so the class goes on <html> — which is what the CSS above keys off.
+        try {
+            if (localStorage.getItem('sidebar-collapsed') === '1') {
+                document.documentElement.classList.add('sidebar-collapsed');
+            }
+        } catch (e) { /* storage blocked: the sidebar simply starts expanded */ }
+    </script>
 </head>
 <body>
     <!-- BEGIN: Sidebar Navigation Layout -->
@@ -211,6 +318,13 @@
             <a class="navbar-brand fw-semibold text-white mb-0" href="{{ route('dashboard') }}">
                 <i class="bi bi-graph-up me-2"></i>Sales Order System
             </a>
+            {{-- Desktop rail toggle. The close button beside it is d-lg-none and this
+                 one is d-none d-lg-inline-flex, so the header shows one or the other. --}}
+            <button type="button" class="btn btn-sm text-white border-0 p-1 d-none d-lg-inline-flex sidebar-toggle"
+                    id="sidebarToggle" aria-controls="sidebar" aria-expanded="true"
+                    title="Collapse sidebar" aria-label="Collapse sidebar">
+                <i class="bi bi-chevron-double-left"></i>
+            </button>
             <button type="button" class="btn-close btn-close-white d-lg-none" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body p-0">
@@ -236,12 +350,15 @@
                     $accountingOpen = request()->routeIs('accounting.*', 'journal-entries.*', 'audit-logs.*', 'reports.trial-balance', 'reports.income-statement', 'reports.balance-sheet', 'reports.cash-flow');
                     $adminOpen = request()->routeIs('users.*');
                 @endphp
+                {{-- Every link is icon + .nav-label + badge, in that order and at that
+                     depth. The rail hides .nav-label and turns the badge into a dot on
+                     the icon, and neither can reach inside the other to do it. --}}
                 <ul class="navbar-nav flex-column" id="sidebarAccordion">
                     <!-- Dashboard -->
                     @can('dashboard.view')
                     <li class="nav-item">
                         <a class="nav-link px-3{{ $navActive('dashboard') }}" href="{{ route('dashboard') }}">
-                            <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                            <i class="bi bi-speedometer2 nav-icon me-2"></i><span class="nav-label">Dashboard</span>
                         </a>
                     </li>
                     @endcan
@@ -249,15 +366,15 @@
                     <!-- Catalog -->
                     @can('products.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#catalogMenu" role="button" aria-expanded="{{ $catalogOpen ? 'true' : 'false' }}" aria-controls="catalogMenu">
-                            <span><i class="bi bi-journals me-2"></i>Catalog<x-nav-badge for="catalog" /></span>
-                            <i class="bi bi-chevron-down small"></i>
+                        <a class="nav-link px-3 d-flex align-items-center" data-bs-toggle="collapse" href="#catalogMenu" role="button" aria-expanded="{{ $catalogOpen ? 'true' : 'false' }}" aria-controls="catalogMenu">
+                            <i class="bi bi-journals nav-icon me-2"></i><span class="nav-label">Catalog</span><x-nav-badge for="catalog" />
+                            <i class="bi bi-chevron-down small nav-caret"></i>
                         </a>
                         <div class="collapse{{ $catalogOpen ? ' show' : '' }}" id="catalogMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('products.*') }}" href="{{ route('products.index') }}"><i class="bi bi-box me-2"></i>Products<x-nav-badge for="catalog.products" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('products.*') }}" href="{{ route('products.index') }}"><i class="bi bi-box nav-icon me-2"></i><span class="nav-label">Products</span><x-nav-badge for="catalog.products" /></a></li>
                                 @can('product-pricing.view')
-                                <li><a class="nav-link px-3{{ $navActive('product-pricing.*') }}" href="{{ route('product-pricing.index') }}"><i class="bi bi-tags me-2"></i>Product Pricing<x-nav-badge for="catalog.product-pricing" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('product-pricing.*') }}" href="{{ route('product-pricing.index') }}"><i class="bi bi-tags nav-icon me-2"></i><span class="nav-label">Product Pricing</span><x-nav-badge for="catalog.product-pricing" /></a></li>
                                 @endcan
                             </ul>
                         </div>
@@ -267,29 +384,29 @@
                     <!-- Master Data -->
                     @can('vendors.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3{{ $navActive('vendors.*') }}" href="{{ route('vendors.index') }}"><i class="bi bi-building me-2"></i>Vendors<x-nav-badge for="vendors" /></a>
+                        <a class="nav-link px-3{{ $navActive('vendors.*') }}" href="{{ route('vendors.index') }}"><i class="bi bi-building nav-icon me-2"></i><span class="nav-label">Vendors</span><x-nav-badge for="vendors" /></a>
                     </li>
                     @endcan
                     @can('customers.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3{{ $navActive('customers.*') }}" href="{{ route('customers.index') }}"><i class="bi bi-people me-2"></i>Customers<x-nav-badge for="customers" /></a>
+                        <a class="nav-link px-3{{ $navActive('customers.*') }}" href="{{ route('customers.index') }}"><i class="bi bi-people nav-icon me-2"></i><span class="nav-label">Customers</span><x-nav-badge for="customers" /></a>
                     </li>
                     @endcan
 
                     <!-- Procurement -->
                     @can('purchase-orders.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#procurementMenu" role="button" aria-expanded="{{ $procurementOpen ? 'true' : 'false' }}" aria-controls="procurementMenu">
-                            <span><i class="bi bi-cart-check me-2"></i>Procurement<x-nav-badge for="procurement" /></span>
-                            <i class="bi bi-chevron-down small"></i>
+                        <a class="nav-link px-3 d-flex align-items-center" data-bs-toggle="collapse" href="#procurementMenu" role="button" aria-expanded="{{ $procurementOpen ? 'true' : 'false' }}" aria-controls="procurementMenu">
+                            <i class="bi bi-cart-check nav-icon me-2"></i><span class="nav-label">Procurement</span><x-nav-badge for="procurement" />
+                            <i class="bi bi-chevron-down small nav-caret"></i>
                         </a>
                         <div class="collapse{{ $procurementOpen ? ' show' : '' }}" id="procurementMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('purchase-orders.*') }}" href="{{ route('purchase-orders.index') }}"><i class="bi bi-clipboard-check me-2"></i>Purchase Orders<x-nav-badge for="procurement.purchase-orders" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('supplies.*') }}" href="{{ route('supplies.index') }}"><i class="bi bi-truck me-2"></i>Supplies<x-nav-badge for="procurement.supplies" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('grns.*') }}" href="{{ route('grns.index') }}"><i class="bi bi-receipt me-2"></i>Good Receipt Notes (GRNs)<x-nav-badge for="procurement.grns" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('supplier-bills.*') }}" href="{{ route('supplier-bills.index') }}"><i class="bi bi-file-earmark-text me-2"></i>Supplier Bills<x-nav-badge for="procurement.supplier-bills" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('supplier-bill-payments.*') }}" href="{{ route('supplier-bill-payments.index') }}"><i class="bi bi-credit-card me-2"></i>Supplier Bills Payment<x-nav-badge for="procurement.supplier-bill-payments" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('purchase-orders.*') }}" href="{{ route('purchase-orders.index') }}"><i class="bi bi-clipboard-check nav-icon me-2"></i><span class="nav-label">Purchase Orders</span><x-nav-badge for="procurement.purchase-orders" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('supplies.*') }}" href="{{ route('supplies.index') }}"><i class="bi bi-truck nav-icon me-2"></i><span class="nav-label">Supplies</span><x-nav-badge for="procurement.supplies" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('grns.*') }}" href="{{ route('grns.index') }}"><i class="bi bi-receipt nav-icon me-2"></i><span class="nav-label">Good Receipt Notes (GRNs)</span><x-nav-badge for="procurement.grns" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('supplier-bills.*') }}" href="{{ route('supplier-bills.index') }}"><i class="bi bi-file-earmark-text nav-icon me-2"></i><span class="nav-label">Supplier Bills</span><x-nav-badge for="procurement.supplier-bills" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('supplier-bill-payments.*') }}" href="{{ route('supplier-bill-payments.index') }}"><i class="bi bi-credit-card nav-icon me-2"></i><span class="nav-label">Supplier Bills Payment</span><x-nav-badge for="procurement.supplier-bill-payments" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -298,16 +415,16 @@
                     <!-- Picking & Transfers -->
                     @can('picking.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#pickingMenu" role="button" aria-expanded="{{ $pickingOpen ? 'true' : 'false' }}" aria-controls="pickingMenu">
-                            <span><i class="bi bi-list-check me-2"></i>Picking & Transfers<x-nav-badge for="picking" /></span>
-                            <i class="bi bi-chevron-down small"></i>
+                        <a class="nav-link px-3 d-flex align-items-center" data-bs-toggle="collapse" href="#pickingMenu" role="button" aria-expanded="{{ $pickingOpen ? 'true' : 'false' }}" aria-controls="pickingMenu">
+                            <i class="bi bi-list-check nav-icon me-2"></i><span class="nav-label">Picking &amp; Transfers</span><x-nav-badge for="picking" />
+                            <i class="bi bi-chevron-down small nav-caret"></i>
                         </a>
                         <div class="collapse{{ $pickingOpen ? ' show' : '' }}" id="pickingMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('stock-transfers.*') }}" href="{{ route('stock-transfers.warehouse-to-retailer') }}"><i class="bi bi-building-arrow-right me-2"></i>Warehouse → Retailers<x-nav-badge for="picking.warehouse-to-retailers" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('warehouse-to-customer-picking.*') }}" href="{{ route('warehouse-to-customer-picking.index') }}"><i class="bi bi-house-arrow-right me-2"></i>Warehouse → Customers<x-nav-badge for="picking.warehouse-to-customers" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('retailer-to-customer-picking.*') }}" href="{{ route('retailer-to-customer-picking.index') }}"><i class="bi bi-people-arrow-right me-2"></i>Retailers → Customers<x-nav-badge for="picking.retailer-to-customers" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('picking-lists.*') }}" href="{{ route('picking-lists.index') }}"><i class="bi bi-list-ul me-2"></i>All Picking Lists<x-nav-badge for="picking.all" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('stock-transfers.*') }}" href="{{ route('stock-transfers.warehouse-to-retailer') }}"><i class="bi bi-building-arrow-right nav-icon me-2"></i><span class="nav-label">Warehouse → Retailers</span><x-nav-badge for="picking.warehouse-to-retailers" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('warehouse-to-customer-picking.*') }}" href="{{ route('warehouse-to-customer-picking.index') }}"><i class="bi bi-house-arrow-right nav-icon me-2"></i><span class="nav-label">Warehouse → Customers</span><x-nav-badge for="picking.warehouse-to-customers" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('retailer-to-customer-picking.*') }}" href="{{ route('retailer-to-customer-picking.index') }}"><i class="bi bi-people-arrow-right nav-icon me-2"></i><span class="nav-label">Retailers → Customers</span><x-nav-badge for="picking.retailer-to-customers" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('picking-lists.*') }}" href="{{ route('picking-lists.index') }}"><i class="bi bi-list-ul nav-icon me-2"></i><span class="nav-label">All Picking Lists</span><x-nav-badge for="picking.all" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -316,18 +433,18 @@
                     <!-- Returns -->
                     @can('returns.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#returnsMenu" role="button" aria-expanded="{{ $returnsOpen ? 'true' : 'false' }}" aria-controls="returnsMenu">
-                            <span><i class="bi bi-arrow-return-left me-2"></i>Returns<x-nav-badge for="returns" /></span>
-                            <i class="bi bi-chevron-down small"></i>
+                        <a class="nav-link px-3 d-flex align-items-center" data-bs-toggle="collapse" href="#returnsMenu" role="button" aria-expanded="{{ $returnsOpen ? 'true' : 'false' }}" aria-controls="returnsMenu">
+                            <i class="bi bi-arrow-return-left nav-icon me-2"></i><span class="nav-label">Returns</span><x-nav-badge for="returns" />
+                            <i class="bi bi-chevron-down small nav-caret"></i>
                         </a>
                         <div class="collapse{{ $returnsOpen ? ' show' : '' }}" id="returnsMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $returnActive(null) }}" href="{{ route('returns.index') }}"><i class="bi bi-list me-2"></i>All Returns<x-nav-badge for="returns.all" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('credit-notes.*') }}" href="{{ route('credit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Credit Notes<x-nav-badge for="returns.credit-notes" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('debit-notes.*') }}" href="{{ route('debit-notes.index') }}"><i class="bi bi-receipt me-2"></i>Debit Notes<x-nav-badge for="returns.debit-notes" /></a></li>
-                                <li><a class="nav-link px-3{{ $returnActive('customer_return') }}" href="{{ route('returns.index', ['type' => 'customer_return']) }}"><i class="bi bi-arrow-return-left text-danger me-2"></i>Customer Returns<x-nav-badge for="returns.customer_return" /></a></li>
-                                <li><a class="nav-link px-3{{ $returnActive('vendor_return') }}" href="{{ route('returns.index', ['type' => 'vendor_return']) }}"><i class="bi bi-arrow-return-right text-info me-2"></i>Vendor Returns<x-nav-badge for="returns.vendor_return" /></a></li>
-                                <li><a class="nav-link px-3{{ $returnActive('retailer_return') }}" href="{{ route('returns.index', ['type' => 'retailer_return']) }}"><i class="bi bi-arrow-return-left text-warning me-2"></i>Retailer Returns<x-nav-badge for="returns.retailer_return" /></a></li>
+                                <li><a class="nav-link px-3{{ $returnActive(null) }}" href="{{ route('returns.index') }}"><i class="bi bi-list nav-icon me-2"></i><span class="nav-label">All Returns</span><x-nav-badge for="returns.all" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('credit-notes.*') }}" href="{{ route('credit-notes.index') }}"><i class="bi bi-receipt nav-icon me-2"></i><span class="nav-label">Credit Notes</span><x-nav-badge for="returns.credit-notes" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('debit-notes.*') }}" href="{{ route('debit-notes.index') }}"><i class="bi bi-receipt nav-icon me-2"></i><span class="nav-label">Debit Notes</span><x-nav-badge for="returns.debit-notes" /></a></li>
+                                <li><a class="nav-link px-3{{ $returnActive('customer_return') }}" href="{{ route('returns.index', ['type' => 'customer_return']) }}"><i class="bi bi-arrow-return-left text-danger nav-icon me-2"></i><span class="nav-label">Customer Returns</span><x-nav-badge for="returns.customer_return" /></a></li>
+                                <li><a class="nav-link px-3{{ $returnActive('vendor_return') }}" href="{{ route('returns.index', ['type' => 'vendor_return']) }}"><i class="bi bi-arrow-return-right text-info nav-icon me-2"></i><span class="nav-label">Vendor Returns</span><x-nav-badge for="returns.vendor_return" /></a></li>
+                                <li><a class="nav-link px-3{{ $returnActive('retailer_return') }}" href="{{ route('returns.index', ['type' => 'retailer_return']) }}"><i class="bi bi-arrow-return-left text-warning nav-icon me-2"></i><span class="nav-label">Retailer Returns</span><x-nav-badge for="returns.retailer_return" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -336,15 +453,15 @@
                     <!-- Stock Management -->
                     @can('stock-management.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#stockMenu" role="button" aria-expanded="{{ $stockOpen ? 'true' : 'false' }}" aria-controls="stockMenu">
-                            <span><i class="bi bi-boxes me-2"></i>Stock Management<x-nav-badge for="stock" /></span>
-                            <i class="bi bi-chevron-down small"></i>
+                        <a class="nav-link px-3 d-flex align-items-center" data-bs-toggle="collapse" href="#stockMenu" role="button" aria-expanded="{{ $stockOpen ? 'true' : 'false' }}" aria-controls="stockMenu">
+                            <i class="bi bi-boxes nav-icon me-2"></i><span class="nav-label">Stock Management</span><x-nav-badge for="stock" />
+                            <i class="bi bi-chevron-down small nav-caret"></i>
                         </a>
                         <div class="collapse{{ $stockOpen ? ' show' : '' }}" id="stockMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('stock-management.*') }}" href="{{ route('stock-management.index') }}"><i class="bi bi-boxes me-2"></i>Stock Management<x-nav-badge for="stock.stock-management" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('stock-locations.*') }}" href="{{ route('stock-locations.index') }}"><i class="bi bi-geo-alt me-2"></i>Stock Locations<x-nav-badge for="stock.stock-locations" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('picking.transaction-flow') }}" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 me-2"></i>Transaction Flow<x-nav-badge for="stock.transaction-flow" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('stock-management.*') }}" href="{{ route('stock-management.index') }}"><i class="bi bi-boxes nav-icon me-2"></i><span class="nav-label">Stock Management</span><x-nav-badge for="stock.stock-management" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('stock-locations.*') }}" href="{{ route('stock-locations.index') }}"><i class="bi bi-geo-alt nav-icon me-2"></i><span class="nav-label">Stock Locations</span><x-nav-badge for="stock.stock-locations" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('picking.transaction-flow') }}" href="{{ route('picking.transaction-flow') }}"><i class="bi bi-diagram-3 nav-icon me-2"></i><span class="nav-label">Transaction Flow</span><x-nav-badge for="stock.transaction-flow" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -353,15 +470,15 @@
                     <!-- Sales Order -->
                     @can('orders.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#salesOrderMenu" role="button" aria-expanded="{{ $salesOrderOpen ? 'true' : 'false' }}" aria-controls="salesOrderMenu">
-                            <span><i class="bi bi-cart me-2"></i>Sales Order<x-nav-badge for="sales" /></span>
-                            <i class="bi bi-chevron-down small"></i>
+                        <a class="nav-link px-3 d-flex align-items-center" data-bs-toggle="collapse" href="#salesOrderMenu" role="button" aria-expanded="{{ $salesOrderOpen ? 'true' : 'false' }}" aria-controls="salesOrderMenu">
+                            <i class="bi bi-cart nav-icon me-2"></i><span class="nav-label">Sales Order</span><x-nav-badge for="sales" />
+                            <i class="bi bi-chevron-down small nav-caret"></i>
                         </a>
                         <div class="collapse{{ $salesOrderOpen ? ' show' : '' }}" id="salesOrderMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('orders.*') }}" href="{{ route('orders.index') }}"><i class="bi bi-cart me-2"></i>Orders<x-nav-badge for="sales.orders" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('invoices.*') }}" href="{{ route('invoices.index') }}"><i class="bi bi-receipt me-2"></i>Invoices<x-nav-badge for="sales.invoices" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('payments.*') }}" href="{{ route('payments.index') }}"><i class="bi bi-credit-card me-2"></i>Invoice Payments<x-nav-badge for="sales.payments" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('orders.*') }}" href="{{ route('orders.index') }}"><i class="bi bi-cart nav-icon me-2"></i><span class="nav-label">Orders</span><x-nav-badge for="sales.orders" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('invoices.*') }}" href="{{ route('invoices.index') }}"><i class="bi bi-receipt nav-icon me-2"></i><span class="nav-label">Invoices</span><x-nav-badge for="sales.invoices" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('payments.*') }}" href="{{ route('payments.index') }}"><i class="bi bi-credit-card nav-icon me-2"></i><span class="nav-label">Invoice Payments</span><x-nav-badge for="sales.payments" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -370,21 +487,21 @@
                     <!-- Accounting -->
                     @can('accounting.view')
                     <li class="nav-item mt-3">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#accountingMenu" role="button" aria-expanded="{{ $accountingOpen ? 'true' : 'false' }}" aria-controls="accountingMenu">
-                            <span><i class="bi bi-journal-bookmark me-2"></i>Accounting<x-nav-badge for="accounting" /></span>
-                            <i class="bi bi-chevron-down small"></i>
+                        <a class="nav-link px-3 d-flex align-items-center" data-bs-toggle="collapse" href="#accountingMenu" role="button" aria-expanded="{{ $accountingOpen ? 'true' : 'false' }}" aria-controls="accountingMenu">
+                            <i class="bi bi-journal-bookmark nav-icon me-2"></i><span class="nav-label">Accounting</span><x-nav-badge for="accounting" />
+                            <i class="bi bi-chevron-down small nav-caret"></i>
                         </a>
                         <div class="collapse{{ $accountingOpen ? ' show' : '' }}" id="accountingMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('accounting.chart-of-accounts', 'accounting.chart-of-accounts.*') }}" href="{{ route('accounting.chart-of-accounts') }}"><i class="bi bi-journal me-2"></i>Chart of Accounts<x-nav-badge for="accounting.chart-of-accounts" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('reports.trial-balance') }}" href="{{ route('reports.trial-balance') }}"><i class="bi bi-calculator me-2"></i>Trial Balance</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('reports.income-statement') }}" href="{{ route('reports.income-statement') }}"><i class="bi bi-clipboard-data me-2"></i>Income Statement</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('reports.balance-sheet') }}" href="{{ route('reports.balance-sheet') }}"><i class="bi bi-columns-gap me-2"></i>Balance Sheet</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('reports.cash-flow') }}" href="{{ route('reports.cash-flow') }}"><i class="bi bi-cash-stack me-2"></i>Cash Flow Statement</a></li>
-                                <li><a class="nav-link px-3{{ $navActive('accounting.health') }}" href="{{ route('accounting.health') }}"><i class="bi bi-clipboard2-pulse me-2"></i>Accounting Health</a></li>
+                                <li><a class="nav-link px-3{{ $navActive('accounting.chart-of-accounts', 'accounting.chart-of-accounts.*') }}" href="{{ route('accounting.chart-of-accounts') }}"><i class="bi bi-journal nav-icon me-2"></i><span class="nav-label">Chart of Accounts</span><x-nav-badge for="accounting.chart-of-accounts" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('reports.trial-balance') }}" href="{{ route('reports.trial-balance') }}"><i class="bi bi-calculator nav-icon me-2"></i><span class="nav-label">Trial Balance</span></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('reports.income-statement') }}" href="{{ route('reports.income-statement') }}"><i class="bi bi-clipboard-data nav-icon me-2"></i><span class="nav-label">Income Statement</span></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('reports.balance-sheet') }}" href="{{ route('reports.balance-sheet') }}"><i class="bi bi-columns-gap nav-icon me-2"></i><span class="nav-label">Balance Sheet</span></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('reports.cash-flow') }}" href="{{ route('reports.cash-flow') }}"><i class="bi bi-cash-stack nav-icon me-2"></i><span class="nav-label">Cash Flow Statement</span></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('accounting.health') }}" href="{{ route('accounting.health') }}"><i class="bi bi-clipboard2-pulse nav-icon me-2"></i><span class="nav-label">Accounting Health</span></a></li>
                                 <li><hr></li>
-                                <li><a class="nav-link px-3{{ $navActive('journal-entries.*') }}" href="{{ route('journal-entries.index') }}"><i class="bi bi-journal-text me-2"></i>Journal Entries<x-nav-badge for="accounting.journal-entries" /></a></li>
-                                <li><a class="nav-link px-3{{ $navActive('audit-logs.*') }}" href="{{ route('audit-logs.index') }}"><i class="bi bi-shield-check me-2"></i>Audit Trail<x-nav-badge for="accounting.audit-logs" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('journal-entries.*') }}" href="{{ route('journal-entries.index') }}"><i class="bi bi-journal-text nav-icon me-2"></i><span class="nav-label">Journal Entries</span><x-nav-badge for="accounting.journal-entries" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('audit-logs.*') }}" href="{{ route('audit-logs.index') }}"><i class="bi bi-shield-check nav-icon me-2"></i><span class="nav-label">Audit Trail</span><x-nav-badge for="accounting.audit-logs" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -393,27 +510,27 @@
                     <!-- Reports -->
                     @can('reports.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3{{ $navActive('reports.daily-profit') }}" href="{{ route('reports.daily-profit') }}"><i class="bi bi-file-earmark-bar-graph me-2"></i>Daily Profit</a>
+                        <a class="nav-link px-3{{ $navActive('reports.daily-profit') }}" href="{{ route('reports.daily-profit') }}"><i class="bi bi-file-earmark-bar-graph nav-icon me-2"></i><span class="nav-label">Daily Profit</span></a>
                     </li>
                     @endcan
 
                     <!-- What each action triggers -->
                     @can('reference.view')
                     <li class="nav-item">
-                        <a class="nav-link px-3{{ $navActive('reference.action-effects') }}" href="{{ route('reference.action-effects') }}"><i class="bi bi-lightning-charge me-2"></i>Action Effects</a>
+                        <a class="nav-link px-3{{ $navActive('reference.action-effects') }}" href="{{ route('reference.action-effects') }}"><i class="bi bi-lightning-charge nav-icon me-2"></i><span class="nav-label">Action Effects</span></a>
                     </li>
                     @endcan
 
                     <!-- Administration -->
                     @can('users.view')
                     <li class="nav-item mt-3">
-                        <a class="nav-link px-3 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#adminMenu" role="button" aria-expanded="{{ $adminOpen ? 'true' : 'false' }}" aria-controls="adminMenu">
-                            <span><i class="bi bi-gear me-2"></i>Administration<x-nav-badge for="admin" /></span>
-                            <i class="bi bi-chevron-down small"></i>
+                        <a class="nav-link px-3 d-flex align-items-center" data-bs-toggle="collapse" href="#adminMenu" role="button" aria-expanded="{{ $adminOpen ? 'true' : 'false' }}" aria-controls="adminMenu">
+                            <i class="bi bi-gear nav-icon me-2"></i><span class="nav-label">Administration</span><x-nav-badge for="admin" />
+                            <i class="bi bi-chevron-down small nav-caret"></i>
                         </a>
                         <div class="collapse{{ $adminOpen ? ' show' : '' }}" id="adminMenu" data-bs-parent="#sidebarAccordion">
                             <ul class="navbar-nav ps-3">
-                                <li><a class="nav-link px-3{{ $navActive('users.*') }}" href="{{ route('users.index') }}"><i class="bi bi-person-badge me-2"></i>Users<x-nav-badge for="admin.users" /></a></li>
+                                <li><a class="nav-link px-3{{ $navActive('users.*') }}" href="{{ route('users.index') }}"><i class="bi bi-person-badge nav-icon me-2"></i><span class="nav-label">Users</span><x-nav-badge for="admin.users" /></a></li>
                             </ul>
                         </div>
                     </li>
@@ -688,6 +805,74 @@
             try {
                 // Sidebar active state and menu expansion are rendered server-side in the
                 // blade above, matched on route names rather than guessed from the URL.
+                // Its width is the one piece of sidebar state that is not: a reader
+                // picks it, so it is remembered per browser rather than per request.
+                (function () {
+                    const root    = document.documentElement;
+                    const toggle  = document.getElementById('sidebarToggle');
+                    const sidebar = document.getElementById('sidebar');
+                    if (!toggle || !sidebar) return;
+
+                    // Under 992px the sidebar is an offcanvas drawer at full width, so a
+                    // rail remembered from a wider screen must not strip its labels.
+                    const desktop = window.matchMedia('(min-width: 992px)');
+                    const isRail = function () {
+                        return root.classList.contains('sidebar-collapsed') && desktop.matches;
+                    };
+
+                    function sync() {
+                        const rail = isRail();
+                        toggle.setAttribute('aria-expanded', rail ? 'false' : 'true');
+                        toggle.setAttribute('title', rail ? 'Expand sidebar' : 'Collapse sidebar');
+                        toggle.setAttribute('aria-label', toggle.getAttribute('title'));
+
+                        // The rail hides the words, so the name reaches the reader as a
+                        // native tooltip: no library, and nothing the sidebar's own
+                        // overflow can clip the way it would clip a flyout.
+                        sidebar.querySelectorAll('.nav-link').forEach(function (link) {
+                            const label = link.querySelector('.nav-label');
+                            if (!label) return;
+                            if (rail) link.setAttribute('title', label.textContent.trim());
+                            else link.removeAttribute('title');
+                        });
+                    }
+
+                    function setCollapsed(state) {
+                        root.classList.toggle('sidebar-collapsed', state);
+                        try {
+                            localStorage.setItem('sidebar-collapsed', state ? '1' : '0');
+                        } catch (e) { /* storage blocked: the choice lasts this page only */ }
+                        sync();
+                    }
+
+                    toggle.addEventListener('click', function () {
+                        setCollapsed(!root.classList.contains('sidebar-collapsed'));
+                    });
+
+                    // A group clicked in the rail widens the sidebar and then opens, rather
+                    // than toggling a panel that is display:none. Bootstrap registers its
+                    // own collapse data-api on document in the CAPTURE phase, so a listener
+                    // on the link - capturing or not - always runs second and cannot call it
+                    // off. window is the one point upstream of document, which is what lets
+                    // this take the click before Bootstrap toggles a panel nobody can see.
+                    window.addEventListener('click', function (event) {
+                        if (!isRail() || !(event.target instanceof Element)) return;
+                        const link = event.target.closest('.nav-link[data-bs-toggle="collapse"]');
+                        if (!link || !sidebar.contains(link)) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setCollapsed(false);
+                        const panel = document.querySelector(link.getAttribute('href'));
+                        // toggle: false because the constructor acts on its config the first
+                        // time it runs: left at the default it toggles, which would close the
+                        // very group the reader asked for whenever the route rendered it open.
+                        if (panel) bootstrap.Collapse.getOrCreateInstance(panel, { toggle: false }).show();
+                    }, true);
+
+                    desktop.addEventListener('change', sync);
+                    sync();
+                })();
+
 
                 // The "This Also Triggered" notice is a header action rather
                 // than a banner: park its button on the same line as whatever
