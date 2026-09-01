@@ -66,6 +66,18 @@
 
         return ['asc' => 'A to Z', 'desc' => 'Z to A'];
     };
+
+    // Resolved once for every sortable column, because both the modal's first
+    // render and the script that relabels the direction select when the column
+    // changes need the same answer. How a direction reads is a property of the
+    // column - "Low to High" on a price, "Newest first" on a date - so the two
+    // must not drift apart.
+    $optionDirectionLabels = [];
+    $optionNaturalDirection = [];
+    foreach ($sortOptions as $optionField => $optionLabel) {
+        $optionDirectionLabels[$optionField] = $directionLabels($optionField);
+        $optionNaturalDirection[$optionField] = $sortDirections[$optionField] ?? 'asc';
+    }
 @endphp
 
 <div class="unified-search-container card mb-4">
@@ -107,51 +119,20 @@
                 @endif
 
                 @if($showSort)
-                    <div class="btn-group" role="group">
-                        <button type="button" class="btn {{ request()->hasAny(['sort', 'direction']) ? 'btn-primary' : 'btn-outline-secondary' }} dropdown-toggle"
-                                data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-sort-{{ $activeSortDirection === 'asc' ? 'up' : 'down' }} me-1"></i>
-                            @if($hasActiveSort)
-                                Sorted: {{ $activeSortLabel }}
-                            @else
-                                Sort
-                            @endif
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            @foreach($sortOptions as $value => $label)
-                                @php
-                                    $labels = $directionLabels($value);
-                                    // Offer the column's natural direction first. Nobody
-                                    // opens a price column to ask what the cheapest thing
-                                    // is as often as they ask what the dearest is.
-                                    $first = $sortDirections[$value] ?? 'asc';
-                                    $order = $first === 'desc' ? ['desc', 'asc'] : ['asc', 'desc'];
-                                @endphp
-
-                                @if(!$loop->first)
-                                    <li><hr class="dropdown-divider"></li>
-                                @endif
-
-                                <li><h6 class="dropdown-header">{{ $label }}</h6></li>
-
-                                @foreach($order as $direction)
-                                    @php
-                                        $isCurrent = $activeSort === $value && $activeSortDirection === $direction;
-                                    @endphp
-                                    <li>
-                                        <a class="dropdown-item sort-option d-flex align-items-center justify-content-between gap-3 {{ $isCurrent ? 'active' : '' }}"
-                                           href="#" data-sort="{{ $value }}" data-direction="{{ $direction }}"
-                                           @if($isCurrent) aria-current="true" @endif>
-                                            <span>{{ $labels[$direction] }}</span>
-                                            @if($isCurrent)
-                                                <i class="bi bi-check2"></i>
-                                            @endif
-                                        </a>
-                                    </li>
-                                @endforeach
-                            @endforeach
-                        </ul>
-                    </div>
+                    {{-- Opens a modal rather than a menu, to match the Filter
+                         button beside it. The menu it replaced was rendered
+                         inside this card, which clips its children, so it came
+                         up sliced off at the card's edge; a modal is not a child
+                         of anything the card can cut. --}}
+                    <button type="button" class="btn {{ request()->hasAny(['sort', 'direction']) ? 'btn-primary' : 'btn-outline-secondary' }}"
+                            data-bs-toggle="modal" data-bs-target="#sortModal">
+                        <i class="bi bi-sort-{{ $activeSortDirection === 'asc' ? 'up' : 'down' }} me-1"></i>
+                        @if($hasActiveSort)
+                            Sorted: {{ $activeSortLabel }}
+                        @else
+                            Sort
+                        @endif
+                    </button>
                 @endif
 
                 @if(request()->hasAny(array_merge($activeKeys, ['sort', 'direction'])))
@@ -328,26 +309,78 @@
     </div>
 @endif
 
-<!-- Hidden Sort Form -->
 @if($showSort)
-    <form method="GET" id="sort-form" style="display: none;">
-        {{-- Carry the current search and filters across, so choosing a sort does
-             not quietly widen the list back out. `page` is deliberately dropped:
-             re-sorting while on page 4 has no business landing on page 4 of the
-             new order. An array-valued parameter is flattened into one input per
-             value rather than echoed - echoing an array is a fatal error, so a
-             single multi-valued filter used to take the whole page down. --}}
-        @foreach(request()->except(['sort', 'direction', 'page']) as $key => $value)
-            @foreach(\Illuminate\Support\Arr::wrap($value) as $subKey => $item)
-                @continue(is_array($item))
-                <input type="hidden"
-                       name="{{ is_array($value) ? $key . '[' . $subKey . ']' : $key }}"
-                       value="{{ $item }}">
-            @endforeach
-        @endforeach
-        <input type="hidden" name="sort" value="{{ request('sort', $defaultSort) }}">
-        <input type="hidden" name="direction" value="{{ request('direction', $defaultDirection) }}">
-    </form>
+    <!-- Sort Modal -->
+    <div class="modal fade" id="sortModal" tabindex="-1" aria-labelledby="sortModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sortModalLabel">
+                        <i class="bi bi-sort-down me-2"></i>Sort Options
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                {{-- Submitted natively rather than through UnifiedSearchSystem:
+                     a GET form with no action replaces the query string with
+                     exactly the inputs below, which is the whole job. --}}
+                <form method="GET" id="sort-modal-form">
+                    <div class="modal-body">
+                        {{-- Carry the current search and filters across, so choosing a sort
+                             does not quietly widen the list back out. `page` is deliberately
+                             dropped: re-sorting while on page 4 has no business landing on
+                             page 4 of the new order. An array-valued parameter is flattened
+                             into one input per value rather than echoed - echoing an array is
+                             a fatal error, so a single multi-valued filter used to take the
+                             whole page down. --}}
+                        @foreach(request()->except(['sort', 'direction', 'page']) as $key => $value)
+                            @foreach(\Illuminate\Support\Arr::wrap($value) as $subKey => $item)
+                                @continue(is_array($item))
+                                <input type="hidden"
+                                       name="{{ is_array($value) ? $key . '[' . $subKey . ']' : $key }}"
+                                       value="{{ $item }}">
+                            @endforeach
+                        @endforeach
+
+                        <div class="mb-3">
+                            <label for="sort-field-select" class="form-label fw-semibold">Sort by</label>
+                            <select name="sort" id="sort-field-select" class="form-select">
+                                @foreach($sortOptions as $value => $label)
+                                    <option value="{{ $value }}" {{ $activeSort === $value ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="mb-0">
+                            <label for="sort-direction-select" class="form-label fw-semibold">Order</label>
+                            {{-- Options are relabelled by the script below whenever the
+                                 column changes, so the wording always belongs to the column
+                                 being sorted. Rendered here for the current column so the
+                                 modal is right before any script runs. --}}
+                            <select name="direction" id="sort-direction-select" class="form-select">
+                                @php($currentLabels = $optionDirectionLabels[$activeSort] ?? ['asc' => 'Ascending', 'desc' => 'Descending'])
+                                <option value="asc" {{ $activeSortDirection === 'asc' ? 'selected' : '' }}>{{ $currentLabels['asc'] }}</option>
+                                <option value="desc" {{ $activeSortDirection === 'desc' ? 'selected' : '' }}>{{ $currentLabels['desc'] }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer d-flex justify-content-between">
+                        <a href="{{ request()->url() }}?{{ http_build_query(request()->except(['sort', 'direction', 'page'])) }}"
+                           class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Reset Sort
+                        </a>
+                        <div>
+                            <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">
+                                <i class="bi bi-x me-1"></i>Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-sort-down me-1"></i>Apply Sort
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endif
 
 @push('scripts')
@@ -362,22 +395,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Sort options
-    const sortOptions = document.querySelectorAll('.sort-option');
-    sortOptions.forEach(option => {
-        option.addEventListener('click', function(e) {
-            e.preventDefault();
-            const sort = this.dataset.sort;
-            const direction = this.dataset.direction;
-            
-            const sortForm = document.getElementById('sort-form');
-            if (sortForm) {
-                sortForm.querySelector('input[name="sort"]').value = sort;
-                sortForm.querySelector('input[name="direction"]').value = direction;
-                sortForm.submit();
-            }
+    // Sort modal: "ascending" reads differently on a price, a date and a name,
+    // so the Order options are rewritten to suit whichever column is picked,
+    // and pre-set to the direction that column is usually asked about.
+    const sortField = document.getElementById('sort-field-select');
+    const sortDirection = document.getElementById('sort-direction-select');
+
+    if (sortField && sortDirection) {
+        const labels = @json($optionDirectionLabels);
+        const natural = @json($optionNaturalDirection);
+
+        sortField.addEventListener('change', function() {
+            const forField = labels[this.value];
+            if (!forField) return;
+
+            sortDirection.querySelector('option[value="asc"]').textContent = forField.asc;
+            sortDirection.querySelector('option[value="desc"]').textContent = forField.desc;
+            sortDirection.value = natural[this.value] || 'asc';
         });
-    });
+    }
 });
 </script>
 
