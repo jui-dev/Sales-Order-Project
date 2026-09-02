@@ -58,14 +58,14 @@
                 text-decoration: none;
             }
 
-            .sortable-header__link:hover { color: var(--bs-primary, #0d6efd); }
+            .sortable-header__link:hover { color: var(--primary, #2c6e49); }
 
             /* The idle arrow is a hint that the column can be clicked, not a
                claim about how it is sorted, so it stays faint until hovered. */
             .sortable-header__arrow--idle { opacity: .3; }
             .sortable-header__link:hover .sortable-header__arrow--idle { opacity: .7; }
 
-            .sortable-header.is-sorted .sortable-header__link { color: var(--bs-primary, #0d6efd); }
+            .sortable-header.is-sorted .sortable-header__link { color: var(--primary, #2c6e49); }
         </style>
     @endpush
 @endonce

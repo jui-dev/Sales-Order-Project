@@ -5,6 +5,7 @@
   --primary: #2c6e49;
   --primary-light: #4c956c;
   --primary-dark: #1a472a;
+  --primary-rgb: 44, 110, 73;
   --secondary: #2a9d8f;
   --accent: #e9c46a;
   --light-bg: #faf9f8;
@@ -20,6 +21,15 @@
   --border-color: #e9ecef;
   --subtle-border: rgba(0, 0, 0, 0.05);
   --navbar-height: 56px;
+
+  /* One focus ring for the whole app. Bootstrap's own is 0.25rem at .5 alpha,
+     which is heavier than the 0.2rem glow this theme already uses on inputs. */
+  --focus-ring: 0 0 0 0.2rem rgba(var(--primary-rgb), 0.25);
+
+  /* Bootstrap declares this on :root too; custom.css loads after Bootstrap, so
+     the later declaration of an equal selector wins and the generic
+     :focus-visible ring turns green with it. */
+  --bs-focus-ring-color: rgba(var(--primary-rgb), 0.25);
 }
 
 /* Base styles */
@@ -149,33 +159,30 @@ body {
   color: var(--medium-text);
 }
 
-/* Pagination styling */
+/* Pagination styling. Themed through Bootstrap's --bs-pagination-* properties so
+   the focus state comes along; its ring was the one part still painting blue. */
 .pagination {
   margin-bottom: 0;
+
+  --bs-pagination-color: var(--primary);
+  --bs-pagination-border-color: var(--border-color);
+  --bs-pagination-hover-color: var(--light-text);
+  --bs-pagination-hover-bg: var(--primary);
+  --bs-pagination-hover-border-color: var(--primary);
+  --bs-pagination-focus-color: var(--light-text);
+  --bs-pagination-focus-bg: var(--primary);
+  --bs-pagination-focus-box-shadow: var(--focus-ring);
+  --bs-pagination-active-color: var(--light-text);
+  --bs-pagination-active-bg: var(--primary);
+  --bs-pagination-active-border-color: var(--primary);
+  --bs-pagination-disabled-color: var(--medium-text);
+  --bs-pagination-disabled-bg: transparent;
+  --bs-pagination-disabled-border-color: var(--border-color);
 }
 
 .pagination .page-link {
-  color: var(--primary);
-  border-color: var(--border-color);
   padding: 0.375rem 0.75rem;
   transition: all 0.2s ease;
-}
-
-.pagination .page-link:hover {
-  background-color: var(--primary);
-  border-color: var(--primary);
-  color: white;
-}
-
-.pagination .page-item.active .page-link {
-  background-color: var(--primary);
-  border-color: var(--primary);
-}
-
-.pagination .page-item.disabled .page-link {
-  color: var(--medium-text);
-  background-color: transparent;
-  border-color: var(--border-color);
 }
 
 /* Table footer bar (result count + pager).
@@ -255,62 +262,114 @@ body {
   padding: 1.25rem;
 }
 
-/* Button styling */
+/* Button styling.
+
+   Bootstrap 5.3 paints every button state from --bs-btn-* custom properties, so
+   the variants below are themed by redefining those rather than by overriding
+   background-color on each state. Overriding the properties reaches states we
+   never wrote a selector for: the pressed rule
+   (`:not(.btn-check) + .btn:active, .btn:first-child:active, .btn.active, .btn.show`)
+   outranks a plain `.btn-primary`, which is why a click used to flash Bootstrap
+   blue straight over the green. Same reasoning as the --bs-table-striped-bg
+   override further down. */
 .btn {
   border-radius: 4px;
   font-weight: 500;
   padding: 0.5rem 1rem;
   transition: all 0.2s ease;
+
+  /* Bootstrap's ring is 0.25rem at .5 alpha; match the softer glow the rest of
+     the theme uses. Each variant feeds it a hue via --bs-btn-focus-shadow-rgb. */
+  --bs-btn-focus-box-shadow: 0 0 0 0.2rem rgba(var(--bs-btn-focus-shadow-rgb), 0.3);
 }
 
 .btn-primary {
-  background-color: var(--primary);
-  border-color: var(--primary);
+  --bs-btn-bg: var(--primary);
+  --bs-btn-border-color: var(--primary);
+  --bs-btn-hover-bg: var(--primary-dark);
+  --bs-btn-hover-border-color: var(--primary-dark);
+  --bs-btn-active-bg: var(--primary-dark);
+  --bs-btn-active-border-color: var(--primary-dark);
+  --bs-btn-disabled-bg: var(--primary);
+  --bs-btn-disabled-border-color: var(--primary);
+  --bs-btn-focus-shadow-rgb: var(--primary-rgb);
 }
 
-.btn-primary:hover, .btn-primary:focus {
-  background-color: var(--primary-dark);
-  border-color: var(--primary-dark);
-  box-shadow: 0 2px 8px rgba(44, 110, 73, 0.3);
+/* Lift on hover only. Bootstrap puts the focus ring in box-shadow too, so
+   including :focus here would replace the ring with a drop shadow and leave
+   keyboard users without a focus indicator. */
+.btn-primary:hover {
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.3);
 }
 
 .btn-secondary {
-  background-color: var(--secondary);
-  border-color: var(--secondary);
+  --bs-btn-bg: var(--secondary);
+  --bs-btn-border-color: var(--secondary);
+  --bs-btn-hover-bg: #238a7e;
+  --bs-btn-hover-border-color: #238a7e;
+  --bs-btn-active-bg: #238a7e;
+  --bs-btn-active-border-color: #238a7e;
+  --bs-btn-disabled-bg: var(--secondary);
+  --bs-btn-disabled-border-color: var(--secondary);
+  --bs-btn-focus-shadow-rgb: 42, 157, 143;
 }
 
-.btn-secondary:hover, .btn-secondary:focus {
-  background-color: #238a7e;
-  border-color: #238a7e;
+.btn-secondary:hover {
   box-shadow: 0 2px 8px rgba(42, 157, 143, 0.3);
 }
 
+/* .btn-accent is ours, not Bootstrap's, so it inherits the bare .btn defaults
+   (transparent background, body text). It needs the colour properties spelled
+   out as well as the backgrounds. */
 .btn-accent {
-  background-color: var(--accent);
-  border-color: var(--accent);
-  color: var(--dark-text);
+  --bs-btn-color: var(--dark-text);
+  --bs-btn-bg: var(--accent);
+  --bs-btn-border-color: var(--accent);
+  --bs-btn-hover-color: var(--dark-text);
+  --bs-btn-hover-bg: #ddb85b;
+  --bs-btn-hover-border-color: #ddb85b;
+  --bs-btn-active-color: var(--dark-text);
+  --bs-btn-active-bg: #ddb85b;
+  --bs-btn-active-border-color: #ddb85b;
+  --bs-btn-disabled-color: var(--dark-text);
+  --bs-btn-disabled-bg: var(--accent);
+  --bs-btn-disabled-border-color: var(--accent);
+  --bs-btn-focus-shadow-rgb: 233, 196, 106;
 }
 
-.btn-accent:hover, .btn-accent:focus {
-  background-color: #ddb85b;
-  border-color: #ddb85b;
-  color: var(--dark-text);
+.btn-accent:hover {
   box-shadow: 0 2px 8px rgba(233, 196, 106, 0.3);
 }
 
 .btn-outline-primary {
-  color: var(--primary);
-  border-color: var(--primary);
+  --bs-btn-color: var(--primary);
+  --bs-btn-border-color: var(--primary);
+  --bs-btn-hover-color: var(--light-text);
+  --bs-btn-hover-bg: var(--primary);
+  --bs-btn-hover-border-color: var(--primary);
+  --bs-btn-active-color: var(--light-text);
+  --bs-btn-active-bg: var(--primary);
+  --bs-btn-active-border-color: var(--primary);
+  --bs-btn-disabled-color: var(--primary);
+  --bs-btn-disabled-border-color: var(--primary);
+  --bs-btn-focus-shadow-rgb: var(--primary-rgb);
 }
 
-.btn-outline-primary:hover {
-  background-color: var(--primary);
-  border-color: var(--primary);
+.btn-link {
+  --bs-btn-color: var(--primary);
+  --bs-btn-hover-color: var(--primary-dark);
+  --bs-btn-active-color: var(--primary-dark);
+  --bs-btn-focus-shadow-rgb: var(--primary-rgb);
 }
 
 .btn-sm {
   font-size: 0.82rem;
   padding: 0.25rem 0.7rem;
+}
+
+/* Bootstrap's close glyph focuses with its own blue ring, held in one property. */
+.btn-close {
+  --bs-btn-close-focus-shadow: var(--focus-ring);
 }
 
 /* Table styling */
@@ -419,6 +478,55 @@ body table.dataTable.table-hover > tbody > tr:hover > * {
   box-shadow: 0 0 0 0.2rem rgba(44, 110, 73, 0.15);
 }
 
+/* Selects and checkboxes take literal hex from Bootstrap (#86b7fe borders,
+   rgba(13,110,253,.25) rings, #0d6efd fills) rather than custom properties, so
+   unlike the components above these have to be met with real selectors. */
+.form-select:focus {
+  border-color: var(--primary-light);
+  box-shadow: var(--focus-ring);
+}
+
+.form-check-input:focus {
+  border-color: var(--primary-light);
+  box-shadow: var(--focus-ring);
+}
+
+.form-check-input:checked,
+.form-check-input[type=checkbox]:indeterminate {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* The switch's focused knob is a coloured circle baked into a data URI, so it
+   has to be re-encoded whole. %234c956c is --primary-light; a var() cannot be
+   interpolated inside the URL. */
+.form-switch .form-check-input:focus {
+  --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%234c956c'/%3e%3c/svg%3e");
+}
+
+/* Remaining components whose interactive state Bootstrap ships in blue. Each is
+   a single property; the selectors that consume them are Bootstrap's own. */
+.dropdown-menu {
+  --bs-dropdown-link-active-bg: var(--primary);
+  --bs-dropdown-link-active-color: var(--light-text);
+}
+
+.nav-pills {
+  --bs-nav-pills-link-active-bg: var(--primary);
+}
+
+.list-group {
+  --bs-list-group-active-bg: var(--primary);
+  --bs-list-group-active-border-color: var(--primary);
+}
+
+.accordion {
+  --bs-accordion-btn-focus-border-color: var(--primary-light);
+  --bs-accordion-btn-focus-box-shadow: var(--focus-ring);
+  --bs-accordion-active-color: var(--primary-dark);
+  --bs-accordion-active-bg: rgba(var(--primary-rgb), 0.08);
+}
+
 /* Alert styling */
 .alert {
   border: none;
@@ -499,19 +607,6 @@ body table.dataTable.table-hover > tbody > tr:hover > * {
 
 .bg-subtle {
   background-color: rgba(44, 110, 73, 0.05);
-}
-
-/* Pagination */
-.pagination .page-item .page-link {
-  color: var(--primary);
-  background-color: transparent;
-  border-color: var(--border-color);
-}
-
-.pagination .page-item.active .page-link {
-  background-color: var(--primary);
-  border-color: var(--primary);
-  color: var(--light-text);
 }
 
 /* Custom badges */
@@ -962,13 +1057,6 @@ footer.site-footer {
     font-size: 0.8125rem;
     color: var(--medium-text);
     margin-top: 0.375rem;
-}
-
-/* custom.css styles .form-control focus but never .form-select — cover both */
-.product-form .form-control:focus,
-.product-form .form-select:focus {
-    border-color: var(--primary-light);
-    box-shadow: 0 0 0 0.2rem rgba(44, 110, 73, 0.15);
 }
 
 /* Border only: the previous double glow ring was part of the visual noise */
