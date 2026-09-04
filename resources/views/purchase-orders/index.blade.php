@@ -89,10 +89,6 @@
                                             <a href="{{ route('purchase-orders.index') }}" class="btn btn-outline-primary mt-2">
                                                 <i class="bi bi-arrow-clockwise me-1"></i>Clear Filters
                                             </a>
-                                        @else
-                                            <a href="{{ route('purchase-orders.create') }}" class="btn btn-outline-primary mt-2">
-                                                <i class="bi bi-plus-lg me-1"></i>Create the first one
-                                            </a>
                                         @endif
                                     </div>
                                 </td>
