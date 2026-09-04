@@ -401,7 +401,7 @@
                     @endif
                 </div>
             @else
-                <div class="alert alert-warning border">
+                <div class="alert alert-warning">
                     <h6 class="text-warning">
                         <i class="bi bi-exclamation-triangle me-1"></i>Setup Required
                     </h6>

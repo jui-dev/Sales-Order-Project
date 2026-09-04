@@ -91,9 +91,9 @@
                     {{-- A price set under the full per-vendor editor need not match
                          the markup. Saying so beats showing the derived figure as
                          though it were what orders currently pay. --}}
-                    <div class="alert alert-warning d-flex align-items-start mt-3 mb-0" role="alert">
-                        <i class="bi bi-exclamation-triangle me-2 mt-1"></i>
-                        <div class="small">
+                    <div class="alert alert-warning d-flex align-items-start small mt-3 mb-0" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <div>
                             Orders currently charge <strong>${{ number_format($snapshot['selling'], 2) }}</strong>,
                             which is not what this markup gives. Saving will set it to the figure above.
                         </div>

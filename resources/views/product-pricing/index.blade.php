@@ -18,9 +18,9 @@
 <x-breadcrumb :items="[['label' => 'Product Pricing']]" />
 
 @if($unpricedCount > 0)
-<div class="alert alert-warning d-flex align-items-start" role="alert">
-    <i class="bi bi-exclamation-triangle me-2 mt-1"></i>
-    <div class="small">
+<div class="alert alert-warning d-flex align-items-start small" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <div>
         <strong>{{ $unpricedCount }} product(s) have no selling price.</strong>
         Until one is set, an order for them is priced from cost plus markup - a stopgap, not an agreed price.
     </div>

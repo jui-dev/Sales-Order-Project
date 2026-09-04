@@ -545,6 +545,32 @@ body table.dataTable.table-hover > tbody > tr:hover > * {
   color: var(--danger);
 }
 
+/* Bootstrap's stock warning yellow is the one alert variant this theme never
+   restyled, so it arrived on the page as raw #fff3cd. Driven through the
+   --bs-alert-* variables rather than a flat background/color pair, so
+   .alert-link follows the new ink instead of staying at Bootstrap's original
+   dark yellow. */
+.alert-warning {
+  --bs-alert-color: #6b4e0f;
+  --bs-alert-bg: #fdf8e4;
+  --bs-alert-border-color: #f0e4b4;
+  --bs-alert-link-color: #5a410c;
+
+  /* .alert above sets `border: none`, which beats --bs-alert-border-color;
+     restate it so the cream panel keeps an edge against the page tint. */
+  border: 1px solid var(--bs-alert-border-color);
+}
+
+/* Two setup notices carry a .text-warning heading inside the alert. Bootstrap's
+   #ffc107 was already weak on the old yellow and disappears on cream. */
+.alert-warning .text-warning {
+  color: var(--bs-alert-color) !important;
+}
+
+.alert-warning .bi {
+  color: #8a6712;
+}
+
 /* Dashboard stats */
 .stat-card {
   padding: 0.5rem;

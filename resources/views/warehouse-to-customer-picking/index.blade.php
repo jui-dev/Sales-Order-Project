@@ -200,7 +200,7 @@
                             <p class="mb-0">Create an order with warehouse fulfillment to see picking records here.</p>
                         </div>
                     @else
-                        <div class="alert alert-warning border">
+                        <div class="alert alert-warning">
                             <h6 class="text-warning">
                                 <i class="bi bi-exclamation-triangle me-1"></i>Setup Required
                             </h6>
