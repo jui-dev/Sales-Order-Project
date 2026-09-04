@@ -14,11 +14,6 @@
 @endsection
 
 @section('content')
-<x-breadcrumb :items="[
-    ['label' => 'Product Pricing', 'url' => route('product-pricing.index')],
-    ['label' => $product->name],
-]" />
-
 <div class="row g-4">
     <div class="col-lg-7">
         <div class="card h-100">

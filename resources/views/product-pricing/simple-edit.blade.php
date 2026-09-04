@@ -6,18 +6,16 @@
         <h1 class="mb-1">{{ $product->name }}</h1>
         <p class="text-muted mb-0">Pricing &middot; {{ $product->sku }}</p>
     </div>
-    <a href="{{ route('product-pricing.history', $product->id) }}" class="btn btn-outline-secondary">
-        <i class="bi bi-clock-history me-1"></i>History
-    </a>
+    <div>
+        <a href="{{ route('product-pricing.history', $product->id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-clock-history me-1"></i>History
+        </a>
+        <a href="{{ route('product-pricing.index') }}" class="btn btn-secondary">Back to Price Lists</a>
+    </div>
 </div>
 @endsection
 
 @section('content')
-<x-breadcrumb :items="[
-    ['label' => 'Product Pricing', 'url' => route('product-pricing.index')],
-    ['label' => $product->name],
-]" />
-
 <div class="row">
     <div class="col-lg-7">
         <div class="card mb-4">

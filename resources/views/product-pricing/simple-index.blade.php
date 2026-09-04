@@ -15,7 +15,6 @@
 @endsection
 
 @section('content')
-<x-breadcrumb :items="[['label' => 'Product Pricing']]" />
 
 @if($unpricedCount > 0)
 <div class="alert alert-warning d-flex align-items-start small" role="alert">

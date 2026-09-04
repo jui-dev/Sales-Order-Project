@@ -134,31 +134,6 @@ body {
   background-color: rgba(232, 245, 232, 0.1);
 }
 
-/* Breadcrumb styling */
-.breadcrumb {
-  background: transparent;
-  padding: 0.5rem 0;
-  margin-bottom: 0;
-}
-
-.breadcrumb-item + .breadcrumb-item::before {
-  content: ">";
-  color: var(--medium-text);
-}
-
-.breadcrumb-item a {
-  color: var(--primary);
-  transition: color 0.2s ease;
-}
-
-.breadcrumb-item a:hover {
-  color: var(--primary-dark);
-}
-
-.breadcrumb-item.active {
-  color: var(--medium-text);
-}
-
 /* Pagination styling. Themed through Bootstrap's --bs-pagination-* properties so
    the focus state comes along; its ring was the one part still painting blue. */
 .pagination {
