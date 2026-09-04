@@ -220,62 +220,48 @@
         </div>
     @else
         <!-- Enhanced Empty State -->
-        <div class="row">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-body text-center py-5">
-                        <i class="bi bi-shop" style="font-size: 4rem; color: #6c757d;"></i>
-                        <h4 class="mt-3 text-muted">No Retailer to Customer Pickings Yet</h4>
-                        <p class="text-muted mb-4">
-                            Picking records will appear here when customers place orders with retailer fulfillment.<br>
-                            When an order is completed, the system automatically creates picking records.
-                        </p>
-                        
-                        @if($retailers->count() > 0 && $customers->count() > 0)
-                            <div class="alert alert-light border">
-                                <h6 class="text-success">
-                                    <i class="bi bi-check-circle me-1"></i>System Ready
-                                </h6>
-                                <p class="mb-2">You have <strong>{{ $retailers->count() }}</strong> retailer(s) and <strong>{{ $customers->count() }}</strong> customer(s) configured.</p>
-                                <p class="mb-0">Create an order with retailer fulfillment to see picking records here.</p>
-                            </div>
+        <div class="card mb-4">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-shop" style="font-size: 4rem; color: #6c757d;"></i>
+                <h4 class="mt-3 text-muted">No Retailer to Customer Pickings Yet</h4>
+                <p class="text-muted mb-4">
+                    Picking records will appear here when customers place orders with retailer fulfillment.<br>
+                    When an order is completed, the system automatically creates picking records.
+                </p>
+
+                @if($retailers->count() > 0 && $customers->count() > 0)
+                    <div class="alert alert-light border">
+                        <h6 class="text-success">
+                            <i class="bi bi-check-circle me-1"></i>System Ready
+                        </h6>
+                        <p class="mb-2">You have <strong>{{ $retailers->count() }}</strong> retailer(s) and <strong>{{ $customers->count() }}</strong> customer(s) configured.</p>
+                        <p class="mb-0">Create an order with retailer fulfillment to see picking records here.</p>
+                    </div>
+                @else
+                    <div class="alert alert-warning">
+                        <h6 class="text-warning">
+                            <i class="bi bi-exclamation-triangle me-1"></i>Setup Required
+                        </h6>
+                        @if($retailers->count() == 0)
+                            <p class="mb-2">No retailers configured. <a href="{{ route('stock-locations.create') }}">Create your first retailer</a></p>
+                        @endif
+                        @if($customers->count() == 0)
+                            <p class="mb-0">No customers configured. <a href="{{ route('customers.create') }}">Create your first customer</a></p>
                         @endif
                     </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <!-- Retailers List -->
-                @if($retailers->count() > 0)
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            <h6 class="mb-0">
-                                <i class="bi bi-shop me-1"></i>Available Retailers
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            @foreach($retailers->take(3) as $retailer)
-                                <div class="d-flex align-items-center mb-2">
-                                    <i class="bi bi-shop me-2 text-primary"></i>
-                                    <div class="flex-grow-1">
-                                        <div class="d-flex align-items-center justify-content-between">
-                                            <strong>{{ $retailer->name }}</strong>
-                                            <span class="badge bg-primary-subtle text-primary-emphasis ms-2">
-                                                <i class="bi bi-box me-1"></i>Active
-                                            </span>
-                                        </div>
-                                        @if($retailer->address)
-                                            <br><small class="text-muted">{{ Str::limit($retailer->address, 30) }}</small>
-                                        @endif
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
+                @endif
+
+                @if($retailers->count() == 0 || $customers->count() == 0)
+                    <div class="d-flex justify-content-center gap-2 mt-4">
+                        <a href="{{ route('stock-locations.create') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-house-plus me-1"></i> Add Location
+                        </a>
                     </div>
                 @endif
             </div>
         </div>
     @endif
+</div>
 </div>
 
 @push('styles')
@@ -308,5 +294,4 @@
 }
 </style>
 @endpush
-</div>
 @endsection

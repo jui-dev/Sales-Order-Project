@@ -180,126 +180,49 @@
     </div>
 @else
     <!-- Enhanced Empty State -->
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-body text-center py-5">
-                    <i class="bi bi-house-arrow-right" style="font-size: 4rem; color: #6c757d;"></i>
-                    <h4 class="mt-3 text-muted">No Warehouse to Customer Pickings Yet</h4>
-                    <p class="text-muted mb-4">
-                        Picking records will appear here when customers place orders with warehouse fulfillment.<br>
-                        When an order is completed, the system automatically creates picking records.
-                    </p>
-                    
-                    @if($warehouses->count() > 0 && $customers->count() > 0)
-                        <div class="alert alert-light border">
-                            <h6 class="text-success">
-                                <i class="bi bi-check-circle me-1"></i>System Ready
-                            </h6>
-                            <p class="mb-2">You have <strong>{{ $warehouses->count() }}</strong> warehouse(s) and <strong>{{ $customers->count() }}</strong> customer(s) configured.</p>
-                            <p class="mb-0">Create an order with warehouse fulfillment to see picking records here.</p>
-                        </div>
-                    @else
-                        <div class="alert alert-warning">
-                            <h6 class="text-warning">
-                                <i class="bi bi-exclamation-triangle me-1"></i>Setup Required
-                            </h6>
-                            @if($warehouses->count() == 0)
-                                <p class="mb-2">No warehouses configured. <a href="{{ route('stock-locations.create') }}">Create your first warehouse</a></p>
-                            @endif
-                            @if($customers->count() == 0)
-                                <p class="mb-0">No customers configured. <a href="{{ route('customers.create') }}">Create your first customer</a></p>
-                            @endif
-                        </div>
-                    @endif
-                    
-                    <div class="d-flex justify-content-center gap-2 mt-4">
-                        <a href="{{ route('orders.create') }}" class="btn btn-primary">
-                            <i class="bi bi-plus-circle me-1"></i> Create New Order
-                        </a>
-                        @if($warehouses->count() == 0)
-                            <a href="{{ route('stock-locations.create') }}" class="btn btn-outline-secondary">
-                                <i class="bi bi-house-plus me-1"></i> Add Warehouse
-                            </a>
-                        @endif
-                        @if($customers->count() == 0)
-                            <a href="{{ route('customers.create') }}" class="btn btn-outline-secondary">
-                                <i class="bi bi-person-plus me-1"></i> Add Customer
-                            </a>
-                        @endif
-                    </div>
+    <div class="card mb-4">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-house-arrow-right" style="font-size: 4rem; color: #6c757d;"></i>
+            <h4 class="mt-3 text-muted">No Warehouse to Customer Pickings Yet</h4>
+            <p class="text-muted mb-4">
+                Picking records will appear here when customers place orders with warehouse fulfillment.<br>
+                When an order is completed, the system automatically creates picking records.
+            </p>
+
+            @if($warehouses->count() > 0 && $customers->count() > 0)
+                <div class="alert alert-light border">
+                    <h6 class="text-success">
+                        <i class="bi bi-check-circle me-1"></i>System Ready
+                    </h6>
+                    <p class="mb-2">You have <strong>{{ $warehouses->count() }}</strong> warehouse(s) and <strong>{{ $customers->count() }}</strong> customer(s) configured.</p>
+                    <p class="mb-0">Create an order with warehouse fulfillment to see picking records here.</p>
                 </div>
-            </div>
-        </div>
-        
-        <div class="col-md-4">
-            <!-- Warehouses List -->
-            @if($warehouses->count() > 0)
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="bi bi-house-fill me-1"></i>Available Warehouses
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        @foreach($warehouses->take(3) as $warehouse)
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="bi bi-house-fill me-2 text-primary"></i>
-                                <div class="flex-grow-1">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <strong>{{ $warehouse->name }}</strong>
-                                        <span class="badge bg-primary-subtle text-primary-emphasis ms-2">
-                                            <i class="bi bi-box me-1"></i>Active
-                                        </span>
-                                    </div>
-                                    @if($warehouse->is_default)
-                                        <span class="badge bg-primary ms-1">Default</span>
-                                    @endif
-                                    @if($warehouse->address)
-                                        <br><small class="text-muted">{{ Str::limit($warehouse->address, 30) }}</small>
-                                    @endif
-                                </div>
-                            </div>
-                        @endforeach
-                        @if($warehouses->count() > 3)
-                            <div class="text-center mt-3">
-                                <a href="{{ route('stock-locations.index') }}" class="btn btn-sm btn-outline-primary">
-                                    View All {{ $warehouses->count() }} Warehouses
-                                </a>
-                            </div>
-                        @endif
-                    </div>
+            @else
+                <div class="alert alert-warning">
+                    <h6 class="text-warning">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Setup Required
+                    </h6>
+                    @if($warehouses->count() == 0)
+                        <p class="mb-2">No warehouses configured. <a href="{{ route('stock-locations.create') }}">Create your first warehouse</a></p>
+                    @endif
+                    @if($customers->count() == 0)
+                        <p class="mb-0">No customers configured. <a href="{{ route('customers.create') }}">Create your first customer</a></p>
+                    @endif
                 </div>
             @endif
-            
-            <!-- Customers List -->
-            @if($customers->count() > 0)
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="bi bi-people me-1"></i>Recent Customers
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        @foreach($customers->take(5) as $customer)
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="bi bi-person me-2 text-primary"></i>
-                                <div class="flex-grow-1">
-                                    <strong>{{ $customer->name }}</strong>
-                                    @if($customer->phone)
-                                        <br><small class="text-muted">{{ $customer->phone }}</small>
-                                    @endif
-                                </div>
-                            </div>
-                        @endforeach
-                        @if($customers->count() > 5)
-                            <div class="text-center mt-3">
-                                <a href="{{ route('customers.index') }}" class="btn btn-sm btn-outline-primary">
-                                    View All {{ $customers->count() }} Customers
-                                </a>
-                            </div>
-                        @endif
-                    </div>
+
+            @if($warehouses->count() == 0 || $customers->count() == 0)
+                <div class="d-flex justify-content-center gap-2 mt-4">
+                    @if($warehouses->count() == 0)
+                        <a href="{{ route('stock-locations.create') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-house-plus me-1"></i> Add Warehouse
+                        </a>
+                    @endif
+                    @if($customers->count() == 0)
+                        <a href="{{ route('customers.create') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-person-plus me-1"></i> Add Customer
+                        </a>
+                    @endif
                 </div>
             @endif
         </div>
